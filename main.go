@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math/rand"
 	"net"
 	"sync"
 	"syscall"
@@ -38,7 +39,6 @@ func main() {
 }
 
 // getOutboundIP determines the preferred local IP of this machine
-// by dialing a dummy connection (does not actually send data).
 func getOutboundIP() net.IP {
 	conn, err := net.Dial("udp", "8.8.8.8:80")
 	if err != nil {
@@ -51,17 +51,80 @@ func getOutboundIP() net.IP {
 
 // --- Client Logic ---
 
-type sess struct {
-	ip       net.IP
-	lastSeen time.Time
+type natSession struct {
+	clientIP   net.IP
+	clientPort int
+	lastSeen   time.Time
+	forwardKey string // Cached key to avoid allocation in cleanup
+}
+
+type NatTable struct {
+	// key: "ClientIP:ClientPort" -> value: VirtualPort (uint16)
+	forward sync.Map
+	// key: VirtualPort (uint16) -> value: *natSession
+	reverse sync.Map
+}
+
+func (n *NatTable) GetOrCreateVirtualPort(clientIP net.IP, clientPort int) uint16 {
+	key := fmt.Sprintf("%s:%d", clientIP.String(), clientPort)
+
+	// 1. Check existing
+	if val, ok := n.forward.Load(key); ok {
+		vPort := val.(uint16)
+		if s, ok := n.reverse.Load(vPort); ok {
+			s.(*natSession).lastSeen = time.Now()
+		}
+		return vPort
+	}
+
+	// 2. Allocation Logic - try original port first
+	proposed := uint16(clientPort)
+	for {
+		session := &natSession{
+			clientIP:   clientIP,
+			clientPort: clientPort,
+			lastSeen:   time.Now(),
+			forwardKey: key,
+		}
+		// Try to store atomically
+		if _, loaded := n.reverse.LoadOrStore(proposed, session); !loaded {
+			n.forward.Store(key, proposed)
+			return proposed
+		}
+		// Collision: pick random
+		proposed = uint16(rand.Intn(65535-1024) + 1024)
+	}
+}
+
+func (n *NatTable) GetSession(virtualPort uint16) *natSession {
+	if val, ok := n.reverse.Load(virtualPort); ok {
+		sess := val.(*natSession)
+		sess.lastSeen = time.Now()
+		return sess
+	}
+	return nil
+}
+
+func (n *NatTable) Cleanup() {
+	for {
+		time.Sleep(30 * time.Second)
+		now := time.Now()
+		n.reverse.Range(func(key, value interface{}) bool {
+			vPort := key.(uint16)
+			sess := value.(*natSession)
+			if now.Sub(sess.lastSeen) > 60*time.Second {
+				n.reverse.Delete(vPort)
+				n.forward.Delete(sess.forwardKey)
+			}
+			return true
+		})
+	}
 }
 
 func startClient(localAddr, serverIPStr string, dstPort uint16, proto uint8) {
-	// 1. Setup Raw Socket (For sending/receiving Tunnel Traffic)
 	rawFd := createRawSocket(proto)
 	defer syscall.Close(rawFd)
 
-	// 2. Setup Local UDP Listener (For Application Traffic)
 	udpAddr, _ := net.ResolveUDPAddr("udp", localAddr)
 	appConn, err := net.ListenUDP("udp", udpAddr)
 	if err != nil {
@@ -69,7 +132,6 @@ func startClient(localAddr, serverIPStr string, dstPort uint16, proto uint8) {
 	}
 	defer appConn.Close()
 
-	// 3. Determine Source IP
 	var srcIP net.IP
 	if *customSrc != "" {
 		srcIP = net.ParseIP(*customSrc) // User defined (SET)
@@ -83,66 +145,86 @@ func startClient(localAddr, serverIPStr string, dstPort uint16, proto uint8) {
 	}
 
 	serverIP := net.ParseIP(serverIPStr)
+	nat := &NatTable{}
+	go nat.Cleanup()
 
-	// Session Map: "DstPort" -> "ClientIP:DstPort"
-	sessions := sync.Map{}
+	// Reusable Objects for Downlink
+	// Packet Parsing
+	var (
+		ipLayer  layers.IPv4
+		udpLayer layers.UDP
+	)
+	parser := gopacket.NewDecodingLayerParser(layers.LayerTypeIPv4, &ipLayer, &udpLayer)
+	decodedLayers := make([]gopacket.LayerType, 0, 4)
 
-	// Goroutine: Downlink (Tunnel -> App)
-	// Reads Raw Packets from Server, strips headers, writes to App
+	// Downlink (Tunnel -> App)
+	// Reads Raw Packets from Server, strips headers, translates VirtualPort -> ClientPort, writes to App
 	go func() {
 		buf := make([]byte, 1500)
 		for {
 			n, _, err := syscall.Recvfrom(rawFd, buf, 0)
 			if err != nil {
-				log.Printf("error syscall.Recvfrom: %w", err)
+				log.Printf("error syscall.Recvfrom: %v", err)
 				continue
 			}
 
-			// Parse Outer IP (Proto 200)
-			packet := gopacket.NewPacket(buf[:n], layers.LayerTypeIPv4, gopacket.Default)
-			ipLayer := packet.Layer(layers.LayerTypeIPv4)
-			if ipLayer == nil {
-				log.Printf("Downlink (Tunnel -> App): ipLayer == nil")
-				continue
-			}
-			ip, _ := ipLayer.(*layers.IPv4)
-
-			// Validate it came from our Server
-			if !ip.SrcIP.Equal(serverIP) {
-				log.Printf("ip.SrcIP != serverIP)")
-				continue
+			// Zero-alloc parse
+			err = parser.DecodeLayers(buf[:n], &decodedLayers)
+			if err != nil {
+				// gopacket might error if payload is not fully parsed or strict check fails,
+				// but we usually care if we got at least IPv4 and UDP
+				// Check if we got the layers we need
 			}
 
-			// Parse Inner UDP
-			udpPacket := gopacket.NewPacket(ip.Payload, layers.LayerTypeUDP, gopacket.Default)
-			udpLayer := udpPacket.Layer(layers.LayerTypeUDP)
-			if udpLayer == nil {
-				log.Printf("Downlink (Tunnel -> App): udpLayer == nil")
-				continue
+			// Validate layers
+			hasIP := false
+			hasUDP := false
+			for _, typ := range decodedLayers {
+				if typ == layers.LayerTypeIPv4 {
+					hasIP = true
+				} else if typ == layers.LayerTypeUDP {
+					hasUDP = true
+				}
 			}
-			udp, _ := udpLayer.(*layers.UDP)
 
-			// Forward payload back to the specific App Instance (Localhost:SrcPort)
-			// We use the Inner UDP DstPort because that matches the App's original SrcPort
-			//log.Printf("udp.DstPort: %v", udp.DstPort)
-			s, ok := sessions.Load(int(udp.DstPort))
-			session, ok2 := s.(*sess)
-			if !ok || !ok2 {
+			if !hasIP || !hasUDP {
 				continue
 			}
-			if time.Since(session.lastSeen) > 1*time.Minute {
-				sessions.Delete(udp.DstPort)
+
+			if !ipLayer.SrcIP.Equal(serverIP) {
 				continue
 			}
-			clientAppAddr := &net.UDPAddr{IP: session.ip, Port: int(udp.DstPort)}
-			//log.Printf("session.ip2: %v", session.ip)
-			appConn.WriteToUDP(udp.Payload, clientAppAddr)
+
+			// Reverse NAT: VirtualPort (udp.DstPort) -> Client Session
+			// Note: udpLayer.DstPort is layers.UDPPort (uint16)
+			sess := nat.GetSession(uint16(udpLayer.DstPort))
+			if sess == nil {
+				continue
+			}
+
+			clientAppAddr := &net.UDPAddr{IP: sess.clientIP, Port: sess.clientPort}
+			appConn.WriteToUDP(udpLayer.Payload, clientAppAddr)
 		}
 	}()
 
 	// Main Loop: Uplink (App -> Tunnel)
-	// Reads UDP from App, Wraps in Proto 200, Sends Raw to Server
+	// Reads UDP from App, Translate ClientPort -> VirtualPort, Wraps in Proto 200, Sends Raw
 	buf := make([]byte, 1500)
+	serializeBuf := gopacket.NewSerializeBuffer()
+	opts := gopacket.SerializeOptions{FixLengths: true, ComputeChecksums: true}
+
+	ipHeader := &layers.IPv4{
+		Version:  4,
+		IHL:      5,
+		TTL:      64,
+		Protocol: layers.IPProtocol(proto),
+		SrcIP:    srcIP,
+		DstIP:    serverIP,
+	}
+	udpHeader := &layers.UDP{
+		DstPort: layers.UDPPort(dstPort),
+	}
+
 	for {
 		n, cAddr, err := appConn.ReadFromUDP(buf)
 		if err != nil {
@@ -150,62 +232,84 @@ func startClient(localAddr, serverIPStr string, dstPort uint16, proto uint8) {
 			continue
 		}
 
-		// Save ClientIP in the sessions
-		sessions.Store(cAddr.Port, &sess{ip: cAddr.IP, lastSeen: time.Now()})
+		// NAT: Client -> VirtualPort
+		// We use cAddr.Port as the unique identifier for the local client app
+		vPort := nat.GetOrCreateVirtualPort(cAddr.IP, cAddr.Port)
 
-		// Construct Packet: [IPv4] [UDP] [Payload]
-		// Inner UDP SrcPort is the App's actual port (so Server knows how to reply)
-		payload := buf[:n]
-		sendRawPacket(rawFd, serverIP, srcIP, uint16(cAddr.Port), dstPort, proto, payload)
+		// Construct Packet
+		udpHeader.SrcPort = layers.UDPPort(vPort)
+		// IP header src/dst are constant for tunnel link
+		ipHeader.SrcIP = srcIP // Might need refreshing if dynamic, but usually constant
+		ipHeader.DstIP = serverIP
+
+		udpHeader.SetNetworkLayerForChecksum(ipHeader)
+
+		gopacket.SerializeLayers(serializeBuf, opts, ipHeader, udpHeader, gopacket.Payload(buf[:n]))
+
+		// Send
+		dstAddr := &syscall.SockaddrInet4{}
+		copy(dstAddr.Addr[:], serverIP.To4())
+		// Send the packet buffer
+		err = syscall.Sendto(rawFd, serializeBuf.Bytes(), 0, dstAddr)
+		if err != nil {
+			log.Printf("Sendto error: %v", err)
+		}
 	}
 }
 
 // --- Server Logic ---
 
 func startServer(proto uint8) {
-	// 1. Setup Raw Socket
 	rawFd := createRawSocket(proto)
 	defer syscall.Close(rawFd)
 
-	// Session Map: "ClientIP:ClientPort" -> UDP Connection to Target
 	sessions := sync.Map{}
 
+	// Reusable Parsing Objects
+	var (
+		ipLayer  layers.IPv4
+		udpLayer layers.UDP
+	)
+	parser := gopacket.NewDecodingLayerParser(layers.LayerTypeIPv4, &ipLayer, &udpLayer)
+	decodedLayers := make([]gopacket.LayerType, 0, 4)
+
+	// Buffer for reading raw packets
 	buf := make([]byte, 1500)
+
 	for {
-		// Read Raw Packet from Client
 		n, _, err := syscall.Recvfrom(rawFd, buf, 0)
 		if err != nil {
 			continue
 		}
 
-		// Parse Outer IP
-		packet := gopacket.NewPacket(buf[:n], layers.LayerTypeIPv4, gopacket.Default)
-		ipLayer := packet.Layer(layers.LayerTypeIPv4)
-		if ipLayer == nil {
+		// Zero-alloc parse
+		err = parser.DecodeLayers(buf[:n], &decodedLayers)
+
+		hasIP := false
+		hasUDP := false
+		for _, typ := range decodedLayers {
+			if typ == layers.LayerTypeIPv4 {
+				hasIP = true
+			} else if typ == layers.LayerTypeUDP {
+				hasUDP = true
+			}
+		}
+
+		if !hasIP || !hasUDP {
 			continue
 		}
-		ip, _ := ipLayer.(*layers.IPv4)
 
-		// Parse Inner UDP
-		udpPacket := gopacket.NewPacket(ip.Payload, layers.LayerTypeUDP, gopacket.Default)
-		udpLayer := udpPacket.Layer(layers.LayerTypeUDP)
-		if udpLayer == nil {
-			continue
-		}
-		udp, _ := udpLayer.(*layers.UDP)
+		// Identify Session Key (ClientRealIP + VirtualSrcPort)
+		clientKey := fmt.Sprintf("%s:%d", ipLayer.SrcIP.String(), udpLayer.SrcPort)
 
-		// Identify Session Key (ClientRealIP + InnerSrcPort)
-		clientKey := fmt.Sprintf("%s:%d", ip.SrcIP.String(), udp.SrcPort)
-
-		// Check if we already have a connection for this client flow
 		var conn *net.UDPConn
 		val, ok := sessions.Load(clientKey)
 
 		if ok {
 			conn = val.(*net.UDPConn)
 		} else {
-			// NEW SESSION: Create a new UDP socket to talk to the Target
-			targetAddr := fmt.Sprintf("127.0.0.1:%d", udp.DstPort) // Forward to local target
+			// NEW SESSION
+			targetAddr := fmt.Sprintf("127.0.0.1:%d", udpLayer.DstPort)
 			rAddr, err := net.ResolveUDPAddr("udp", targetAddr)
 			if err != nil {
 				log.Printf("Resolve error: %v", err)
@@ -221,29 +325,61 @@ func startServer(proto uint8) {
 			sessions.Store(clientKey, conn)
 			log.Printf("New Session: %s -> Target", clientKey)
 
-			// Goroutine: Handle Replies (Target -> Server -> Tunnel -> Client)
+			// Helper to handle replies
 			go func(c *net.UDPConn, clientIP net.IP, clientPort uint16, serverIP net.IP) {
 				defer c.Close()
 				defer sessions.Delete(clientKey)
 				rBuf := make([]byte, 1500)
 
-				// Set a timeout to clean up idle sessions
+				// Serialize reuse variables
+				sBuf := gopacket.NewSerializeBuffer()
+				sOpts := gopacket.SerializeOptions{FixLengths: true, ComputeChecksums: true}
+
+				// Reply Headers
+				rIpHeader := &layers.IPv4{
+					Version:  4,
+					IHL:      5,
+					TTL:      64,
+					Protocol: layers.IPProtocol(proto),
+					SrcIP:    serverIP,
+					DstIP:    clientIP,
+				}
+				rUdpHeader := &layers.UDP{
+					DstPort: layers.UDPPort(clientPort),
+				}
+
 				for {
 					c.SetReadDeadline(time.Now().Add(30 * time.Second))
 					rn, _, rerr := c.ReadFromUDP(rBuf)
 					if rerr != nil {
-						return // Close on error/timeout
+						return
 					}
 
-					// Encapsulate Reply: [IPv4 (Dst=ClientIP)] [UDP (Dst=ClientPort)] [Payload]
-					// Note: We swap ports for the reply (Src=Target, Dst=Client)
-					sendRawPacket(rawFd, clientIP, serverIP, uint16(udp.DstPort), clientPort, proto, rBuf[:rn])
+					// Send Reply: [IPv4 (Dst=Client)] [UDP (Dst=ClientPort)] [Payload]
+					// We need to use the original DstPort (from request) as SrcPort (for reply)
+					// But we don't track original DstPort in scope easily unless we pass it or reuse conn's remote?
+					// Actually, the tunnel logic usually mirrors ports.
+					// In the request: Src=VirtualPort, Dst=TargetPort
+					// In the reply: Src=TargetPort, Dst=VirtualPort
+					// Wait, the client expects reply DstPort=VirtualPort.
+					// The simple logic uses the TargetPort as Src?
+					// Let's capture the TargetPort from the session creation context.
+					// Or just use the RemoteAddr of the dial?
+					// rAddr was resolved above.
+
+					rUdpHeader.SrcPort = layers.UDPPort(rAddr.Port)
+					rUdpHeader.SetNetworkLayerForChecksum(rIpHeader)
+
+					gopacket.SerializeLayers(sBuf, sOpts, rIpHeader, rUdpHeader, gopacket.Payload(rBuf[:rn]))
+
+					dstAddr := &syscall.SockaddrInet4{}
+					copy(dstAddr.Addr[:], clientIP.To4())
+					syscall.Sendto(rawFd, sBuf.Bytes(), 0, dstAddr)
 				}
-			}(conn, ip.SrcIP, uint16(udp.SrcPort), ip.DstIP)
+			}(conn, ipLayer.SrcIP, uint16(udpLayer.SrcPort), ipLayer.DstIP)
 		}
 
-		// Forward the actual payload to the target
-		conn.Write(udp.Payload)
+		conn.Write(udpLayer.Payload)
 	}
 }
 
@@ -259,28 +395,4 @@ func createRawSocket(proto uint8) int {
 		log.Fatalf("SetsockoptInt failed: %v", err)
 	}
 	return fd
-}
-
-func sendRawPacket(fd int, dstIP, srcIP net.IP, srcPort, dstPort uint16, proto uint8, payload []byte) {
-	ip := &layers.IPv4{
-		Version:  4,
-		IHL:      5,
-		TTL:      64,
-		Protocol: layers.IPProtocol(proto),
-		SrcIP:    srcIP, // In a real tunnel, this should be the interface IP
-		DstIP:    dstIP,
-	}
-	udp := &layers.UDP{
-		SrcPort: layers.UDPPort(srcPort),
-		DstPort: layers.UDPPort(dstPort),
-	}
-	udp.SetNetworkLayerForChecksum(ip)
-
-	opts := gopacket.SerializeOptions{FixLengths: true, ComputeChecksums: true}
-	buf := gopacket.NewSerializeBuffer()
-	gopacket.SerializeLayers(buf, opts, ip, udp, gopacket.Payload(payload))
-
-	dstAddr := &syscall.SockaddrInet4{}
-	copy(dstAddr.Addr[:], dstIP.To4())
-	syscall.Sendto(fd, buf.Bytes(), 0, dstAddr)
 }
