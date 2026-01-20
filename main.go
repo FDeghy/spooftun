@@ -149,13 +149,12 @@ func startClient(localAddr, serverIPStr string, dstPort uint16, proto uint8) {
 	go nat.Cleanup()
 
 	// Reusable Objects for Downlink
-	// Packet Parsing
-	var (
-		ipLayer  layers.IPv4
-		udpLayer layers.UDP
-	)
-	parser := gopacket.NewDecodingLayerParser(layers.LayerTypeIPv4, &ipLayer, &udpLayer)
-	decodedLayers := make([]gopacket.LayerType, 0, 4)
+	// Separate parsers because custom IP protocol won't chain to UDP
+	var ipLayer layers.IPv4
+	var udpLayer layers.UDP
+	ipParser := gopacket.NewDecodingLayerParser(layers.LayerTypeIPv4, &ipLayer)
+	udpParser := gopacket.NewDecodingLayerParser(layers.LayerTypeUDP, &udpLayer)
+	decodedLayers := make([]gopacket.LayerType, 0, 2)
 
 	// Downlink (Tunnel -> App)
 	// Reads Raw Packets from Server, strips headers, translates VirtualPort -> ClientPort, writes to App
@@ -168,35 +167,24 @@ func startClient(localAddr, serverIPStr string, dstPort uint16, proto uint8) {
 				continue
 			}
 
-			// Zero-alloc parse
-			err = parser.DecodeLayers(buf[:n], &decodedLayers)
-			if err != nil {
-				// gopacket might error if payload is not fully parsed or strict check fails,
-				// but we usually care if we got at least IPv4 and UDP
-				// Check if we got the layers we need
-			}
-
-			// Validate layers
-			hasIP := false
-			hasUDP := false
-			for _, typ := range decodedLayers {
-				if typ == layers.LayerTypeIPv4 {
-					hasIP = true
-				} else if typ == layers.LayerTypeUDP {
-					hasUDP = true
-				}
-			}
-
-			if !hasIP || !hasUDP {
+			// Parse IPv4 header (ignore error - it complains about custom protocol but still decodes IPv4)
+			ipParser.DecodeLayers(buf[:n], &decodedLayers)
+			if len(decodedLayers) == 0 || decodedLayers[0] != layers.LayerTypeIPv4 {
 				continue
 			}
 
 			if !ipLayer.SrcIP.Equal(serverIP) {
+				// accept ip spoof?
+				// continue
+			}
+
+			// Parse UDP from IPv4 payload (ignore error - complains about Payload layer)
+			udpParser.DecodeLayers(ipLayer.Payload, &decodedLayers)
+			if len(decodedLayers) == 0 || decodedLayers[0] != layers.LayerTypeUDP {
 				continue
 			}
 
 			// Reverse NAT: VirtualPort (udp.DstPort) -> Client Session
-			// Note: udpLayer.DstPort is layers.UDPPort (uint16)
 			sess := nat.GetSession(uint16(udpLayer.DstPort))
 			if sess == nil {
 				continue
@@ -265,15 +253,25 @@ func startServer(proto uint8) {
 
 	sessions := sync.Map{}
 
-	// Reusable Parsing Objects
-	var (
-		ipLayer  layers.IPv4
-		udpLayer layers.UDP
-	)
-	parser := gopacket.NewDecodingLayerParser(layers.LayerTypeIPv4, &ipLayer, &udpLayer)
-	decodedLayers := make([]gopacket.LayerType, 0, 4)
+	// Separate parsers because custom IP protocol won't chain to UDP
+	var ipLayer layers.IPv4
+	var udpLayer layers.UDP
+	ipParser := gopacket.NewDecodingLayerParser(layers.LayerTypeIPv4, &ipLayer)
+	udpParser := gopacket.NewDecodingLayerParser(layers.LayerTypeUDP, &udpLayer)
+	decodedLayers := make([]gopacket.LayerType, 0, 2)
 
-	// Buffer for reading raw packets
+	var srcIP net.IP
+	if *customSrc != "" {
+		srcIP = net.ParseIP(*customSrc) // User defined (SET)
+		if srcIP == nil {
+			log.Fatal("Invalid source IP format")
+		}
+		log.Printf("Using Custom Source IP: %s", srcIP)
+	} else {
+		srcIP = getOutboundIP() // Auto-detected (GET)
+		log.Printf("Using Interface IP: %s", srcIP)
+	}
+
 	buf := make([]byte, 1500)
 
 	for {
@@ -282,20 +280,15 @@ func startServer(proto uint8) {
 			continue
 		}
 
-		// Zero-alloc parse
-		err = parser.DecodeLayers(buf[:n], &decodedLayers)
-
-		hasIP := false
-		hasUDP := false
-		for _, typ := range decodedLayers {
-			if typ == layers.LayerTypeIPv4 {
-				hasIP = true
-			} else if typ == layers.LayerTypeUDP {
-				hasUDP = true
-			}
+		// Parse IPv4 header (ignore error - it complains about custom protocol but still decodes IPv4)
+		ipParser.DecodeLayers(buf[:n], &decodedLayers)
+		if len(decodedLayers) == 0 || decodedLayers[0] != layers.LayerTypeIPv4 {
+			continue
 		}
 
-		if !hasIP || !hasUDP {
+		// Parse UDP from IPv4 payload (ignore error - complains about Payload layer)
+		udpParser.DecodeLayers(ipLayer.Payload, &decodedLayers)
+		if len(decodedLayers) == 0 || decodedLayers[0] != layers.LayerTypeUDP {
 			continue
 		}
 
@@ -376,7 +369,7 @@ func startServer(proto uint8) {
 					copy(dstAddr.Addr[:], clientIP.To4())
 					syscall.Sendto(rawFd, sBuf.Bytes(), 0, dstAddr)
 				}
-			}(conn, ipLayer.SrcIP, uint16(udpLayer.SrcPort), ipLayer.DstIP)
+			}(conn, ipLayer.SrcIP, uint16(udpLayer.SrcPort), srcIP)
 		}
 
 		conn.Write(udpLayer.Payload)
