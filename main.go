@@ -324,14 +324,16 @@ func startServer(proto uint8) {
 		data := msg.Buffers[0][:msg.N]
 
 		// Parse IPv4 header (ignore error - it complains about custom protocol but still decodes IPv4)
-		ipParser.DecodeLayers(data, &decodedLayers)
+		err = ipParser.DecodeLayers(data, &decodedLayers)
 		if len(decodedLayers) == 0 || decodedLayers[0] != layers.LayerTypeIPv4 {
+			log.Printf("Failed to decode IPv4 layer, err %v", err)
 			continue
 		}
 
 		// Parse UDP from IPv4 payload (ignore error - complains about Payload layer)
-		udpParser.DecodeLayers(ipLayer.Payload, &decodedLayers)
+		err = udpParser.DecodeLayers(ipLayer.Payload, &decodedLayers)
 		if len(decodedLayers) == 0 || decodedLayers[0] != layers.LayerTypeUDP {
+			log.Printf("Failed to decode UDP layer, err %v", err)
 			continue
 		}
 
@@ -357,6 +359,17 @@ func startServer(proto uint8) {
 				log.Printf("Dial error: %v", err)
 				continue
 			}
+
+			var errDFIPv4 error
+			appRaw, _ := conn.SyscallConn()
+			appRaw.Control(func(fd uintptr) {
+				errDFIPv4 = unix.SetsockoptInt(int(fd), unix.IPPROTO_IP, unix.IP_MTU_DISCOVER, unix.IP_PMTUDISC_PROBE)
+			})
+			if errDFIPv4 != nil {
+				log.Printf("failed to set IP_MTU_DISCOVER: %v", errDFIPv4)
+			}
+			conn.SetReadBuffer((1 << 20) * 7)
+			conn.SetWriteBuffer((1 << 20) * 7)
 
 			sessions.Store(clientKey, conn)
 			log.Printf("New Session: %s -> Target", clientKey)
