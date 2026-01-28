@@ -8,12 +8,15 @@ import (
 	"log"
 	"math/rand"
 	"net"
+	"os"
 	"sync"
 	"syscall"
 	"time"
 
 	"github.com/gopacket/gopacket"
 	"github.com/gopacket/gopacket/layers"
+	"golang.org/x/net/ipv4"
+	"golang.org/x/sys/unix"
 )
 
 // Configuration
@@ -123,14 +126,26 @@ func (n *NatTable) Cleanup() {
 
 func startClient(localAddr, serverIPStr string, dstPort uint16, proto uint8) {
 	rawFd := createRawSocket(proto)
-	defer syscall.Close(rawFd)
+	ipv4RawConn := getRawConn(rawFd)
+	defer ipv4RawConn.Close()
 
-	udpAddr, _ := net.ResolveUDPAddr("udp", localAddr)
-	appConn, err := net.ListenUDP("udp", udpAddr)
+	udpAddr, _ := net.ResolveUDPAddr("udp4", localAddr)
+	appConn, err := net.ListenUDP("udp4", udpAddr)
 	if err != nil {
 		log.Fatalf("Failed to listen on UDP: %v", err)
 	}
 	defer appConn.Close()
+
+	var errDFIPv4 error
+	appRaw, _ := appConn.SyscallConn()
+	appRaw.Control(func(fd uintptr) {
+		errDFIPv4 = unix.SetsockoptInt(int(fd), unix.IPPROTO_IP, unix.IP_MTU_DISCOVER, unix.IP_PMTUDISC_PROBE)
+	})
+	if errDFIPv4 != nil {
+		log.Printf("failed to set IP_MTU_DISCOVER: %v", errDFIPv4)
+	}
+	appConn.SetReadBuffer((1 << 20) * 7)
+	appConn.SetWriteBuffer((1 << 20) * 7)
 
 	var srcIP net.IP
 	if *customSrc != "" {
@@ -159,16 +174,25 @@ func startClient(localAddr, serverIPStr string, dstPort uint16, proto uint8) {
 	// Downlink (Tunnel -> App)
 	// Reads Raw Packets from Server, strips headers, translates VirtualPort -> ClientPort, writes to App
 	go func() {
-		buf := make([]byte, 1500)
+		msgs := prepareMsgs()
+
+		n := 0
+		readPos := 0
 		for {
-			n, _, err := syscall.Recvfrom(rawFd, buf, 0)
-			if err != nil {
-				log.Printf("error syscall.Recvfrom: %v", err)
-				continue
+			if readPos >= n {
+				n, err = ipv4RawConn.ReadBatch(msgs, 0)
+				if n == 0 || err != nil {
+					log.Printf("Read UDP error: %v", err)
+					continue
+				}
+				readPos = 0
 			}
+			msg := msgs[readPos]
+			readPos++
+			data := msg.Buffers[0][:msg.N]
 
 			// Parse IPv4 header (ignore error - it complains about custom protocol but still decodes IPv4)
-			ipParser.DecodeLayers(buf[:n], &decodedLayers)
+			ipParser.DecodeLayers(data, &decodedLayers)
 			if len(decodedLayers) == 0 || decodedLayers[0] != layers.LayerTypeIPv4 {
 				continue
 			}
@@ -197,7 +221,9 @@ func startClient(localAddr, serverIPStr string, dstPort uint16, proto uint8) {
 
 	// Main Loop: Uplink (App -> Tunnel)
 	// Reads UDP from App, Translate ClientPort -> VirtualPort, Wraps in Proto 200, Sends Raw
-	buf := make([]byte, 1500)
+	ipv4AppConn := ipv4.NewPacketConn(appConn)
+	msgs := prepareMsgs()
+
 	serializeBuf := gopacket.NewSerializeBuffer()
 	opts := gopacket.SerializeOptions{FixLengths: true, ComputeChecksums: true}
 
@@ -213,12 +239,21 @@ func startClient(localAddr, serverIPStr string, dstPort uint16, proto uint8) {
 		DstPort: layers.UDPPort(dstPort),
 	}
 
+	n := 0
+	readPos := 0
 	for {
-		n, cAddr, err := appConn.ReadFromUDP(buf)
-		if err != nil {
-			log.Printf("Read UDP error: %v", err)
-			continue
+		if readPos >= n {
+			n, err = ipv4AppConn.ReadBatch(msgs, 0)
+			if n == 0 || err != nil {
+				log.Printf("Read UDP error: %v", err)
+				continue
+			}
+			readPos = 0
 		}
+		msg := msgs[readPos]
+		readPos++
+		data := msg.Buffers[0][:msg.N]
+		cAddr := msg.Addr.(*net.UDPAddr)
 
 		// NAT: Client -> VirtualPort
 		// We use cAddr.Port as the unique identifier for the local client app
@@ -232,13 +267,10 @@ func startClient(localAddr, serverIPStr string, dstPort uint16, proto uint8) {
 
 		udpHeader.SetNetworkLayerForChecksum(ipHeader)
 
-		gopacket.SerializeLayers(serializeBuf, opts, ipHeader, udpHeader, gopacket.Payload(buf[:n]))
+		gopacket.SerializeLayers(serializeBuf, opts, ipHeader, udpHeader, gopacket.Payload(data))
 
-		// Send
-		dstAddr := &syscall.SockaddrInet4{}
-		copy(dstAddr.Addr[:], serverIP.To4())
 		// Send the packet buffer
-		err = syscall.Sendto(rawFd, serializeBuf.Bytes(), 0, dstAddr)
+		_, err = ipv4RawConn.WriteToIP(serializeBuf.Bytes(), &net.IPAddr{IP: serverIP})
 		if err != nil {
 			log.Printf("Sendto error: %v", err)
 		}
@@ -249,7 +281,8 @@ func startClient(localAddr, serverIPStr string, dstPort uint16, proto uint8) {
 
 func startServer(proto uint8) {
 	rawFd := createRawSocket(proto)
-	defer syscall.Close(rawFd)
+	ipv4RawConn := getRawConn(rawFd)
+	defer ipv4RawConn.Close()
 
 	sessions := sync.Map{}
 
@@ -272,16 +305,26 @@ func startServer(proto uint8) {
 		log.Printf("Using Interface IP: %s", srcIP)
 	}
 
-	buf := make([]byte, 1500)
+	msgs := prepareMsgs()
 
+	var err error
+	n := 0
+	readPos := 0
 	for {
-		n, _, err := syscall.Recvfrom(rawFd, buf, 0)
-		if err != nil {
-			continue
+		if readPos >= n {
+			n, err = ipv4RawConn.ReadBatch(msgs, 0)
+			if n == 0 || err != nil {
+				log.Printf("Read UDP error: %v", err)
+				continue
+			}
+			readPos = 0
 		}
+		msg := msgs[readPos]
+		readPos++
+		data := msg.Buffers[0][:msg.N]
 
 		// Parse IPv4 header (ignore error - it complains about custom protocol but still decodes IPv4)
-		ipParser.DecodeLayers(buf[:n], &decodedLayers)
+		ipParser.DecodeLayers(data, &decodedLayers)
 		if len(decodedLayers) == 0 || decodedLayers[0] != layers.LayerTypeIPv4 {
 			continue
 		}
@@ -320,9 +363,10 @@ func startServer(proto uint8) {
 
 			// Helper to handle replies
 			go func(c *net.UDPConn, clientIP net.IP, clientPort uint16, serverIP net.IP) {
+				ipv4AppConn := ipv4.NewPacketConn(c)
+				msgs := prepareMsgs()
 				defer c.Close()
 				defer sessions.Delete(clientKey)
-				rBuf := make([]byte, 1500)
 
 				// Serialize reuse variables
 				sBuf := gopacket.NewSerializeBuffer()
@@ -341,12 +385,22 @@ func startServer(proto uint8) {
 					DstPort: layers.UDPPort(clientPort),
 				}
 
+				var err error
+				n := 0
+				readPos := 0
 				for {
-					c.SetReadDeadline(time.Now().Add(30 * time.Second))
-					rn, _, rerr := c.ReadFromUDP(rBuf)
-					if rerr != nil {
-						return
+					ipv4AppConn.SetReadDeadline(time.Now().Add(30 * time.Second))
+					if readPos >= n {
+						n, err = ipv4AppConn.ReadBatch(msgs, 0)
+						if n == 0 || err != nil {
+							log.Printf("Read UDP error: %v", err)
+							return
+						}
+						readPos = 0
 					}
+					msg := msgs[readPos]
+					readPos++
+					data := msg.Buffers[0][:msg.N]
 
 					// Send Reply: [IPv4 (Dst=Client)] [UDP (Dst=ClientPort)] [Payload]
 					// We need to use the original DstPort (from request) as SrcPort (for reply)
@@ -363,11 +417,9 @@ func startServer(proto uint8) {
 					rUdpHeader.SrcPort = layers.UDPPort(rAddr.Port)
 					rUdpHeader.SetNetworkLayerForChecksum(rIpHeader)
 
-					gopacket.SerializeLayers(sBuf, sOpts, rIpHeader, rUdpHeader, gopacket.Payload(rBuf[:rn]))
+					gopacket.SerializeLayers(sBuf, sOpts, rIpHeader, rUdpHeader, gopacket.Payload(data))
 
-					dstAddr := &syscall.SockaddrInet4{}
-					copy(dstAddr.Addr[:], clientIP.To4())
-					syscall.Sendto(rawFd, sBuf.Bytes(), 0, dstAddr)
+					ipv4RawConn.WriteToIP(sBuf.Bytes(), &net.IPAddr{IP: clientIP})
 				}
 			}(conn, ipLayer.SrcIP, uint16(udpLayer.SrcPort), srcIP)
 		}
@@ -387,5 +439,31 @@ func createRawSocket(proto uint8) int {
 	if err != nil {
 		log.Fatalf("SetsockoptInt failed: %v", err)
 	}
+	err = syscall.SetNonblock(fd, true)
+	if err != nil {
+		log.Fatalf("SetNonblock failed: %v", err)
+	}
 	return fd
+}
+
+func getRawConn(fd int) *ipv4.RawConn {
+	f := os.NewFile(uintptr(fd), "")
+	conn, err := net.FilePacketConn(f)
+	if err != nil {
+		log.Fatalf("FilePacketConn failed: %v", err)
+	}
+	rawConn, err := ipv4.NewRawConn(conn)
+	if err != nil {
+		log.Fatalf("NewRawConn failed: %v", err)
+	}
+	return rawConn
+}
+
+func prepareMsgs() []ipv4.Message {
+	msgs := make([]ipv4.Message, 8)
+	for i := range msgs {
+		msgs[i].Buffers = make([][]byte, 1)
+		msgs[i].Buffers[0] = make([]byte, 1500)
+	}
+	return msgs
 }
