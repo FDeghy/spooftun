@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -18,6 +19,27 @@ import (
 	"golang.org/x/net/ipv4"
 	"golang.org/x/sys/unix"
 )
+
+// High-throughput tuning constants
+const (
+	batchSize      = 64                     // Messages per batch read/write (recvmmsg/sendmmsg)
+	socketBufSize  = 1 << 24                // 16MB socket buffer
+	packetBufSize  = 1500                   // MTU size for raw socket reads
+	udpPayloadSize = packetBufSize - 20 - 8 // 1472 bytes: fits in raw socket after IP+UDP headers
+)
+
+// Coarse timestamp to avoid time.Now() per packet
+var coarseTime int64
+
+func init() {
+	atomic.StoreInt64(&coarseTime, time.Now().UnixNano())
+	go func() {
+		for {
+			time.Sleep(100 * time.Millisecond)
+			atomic.StoreInt64(&coarseTime, time.Now().UnixNano())
+		}
+	}()
+}
 
 // Configuration
 var (
@@ -54,39 +76,55 @@ func getOutboundIP() net.IP {
 
 // --- Client Logic ---
 
+// natKey is a fixed-size key to avoid string allocations (4 bytes IP + 2 bytes port)
+type natKey [6]byte
+
+func makeNatKey(ip net.IP, port uint16) natKey {
+	var k natKey
+	ip4 := ip.To4()
+	if ip4 != nil {
+		copy(k[:4], ip4)
+	}
+	k[4] = byte(port >> 8)
+	k[5] = byte(port)
+	return k
+}
+
 type natSession struct {
 	clientIP   net.IP
-	clientPort int
-	lastSeen   time.Time
-	forwardKey string // Cached key to avoid allocation in cleanup
+	clientPort uint16
+	lastSeen   int64 // Unix nano timestamp - atomic access friendly
+	forwardKey natKey
 }
 
 type NatTable struct {
-	// key: "ClientIP:ClientPort" -> value: VirtualPort (uint16)
+	// key: natKey -> value: VirtualPort (uint16)
 	forward sync.Map
 	// key: VirtualPort (uint16) -> value: *natSession
 	reverse sync.Map
 }
 
-func (n *NatTable) GetOrCreateVirtualPort(clientIP net.IP, clientPort int) uint16 {
-	key := fmt.Sprintf("%s:%d", clientIP.String(), clientPort)
+func (n *NatTable) GetOrCreateVirtualPort(clientIP net.IP, clientPort uint16) uint16 {
+	key := makeNatKey(clientIP, clientPort)
 
-	// 1. Check existing
+	// 1. Check existing - fast path
 	if val, ok := n.forward.Load(key); ok {
 		vPort := val.(uint16)
 		if s, ok := n.reverse.Load(vPort); ok {
-			s.(*natSession).lastSeen = time.Now()
+			// Use atomic store for lastSeen to avoid race detector complaints
+			sess := s.(*natSession)
+			sess.lastSeen = atomic.LoadInt64(&coarseTime)
 		}
 		return vPort
 	}
 
-	// 2. Allocation Logic - try original port first
+	// 2. Allocation Logic - try original port first (slow path, acceptable)
 	proposed := uint16(clientPort)
 	for {
 		session := &natSession{
 			clientIP:   clientIP,
 			clientPort: clientPort,
-			lastSeen:   time.Now(),
+			lastSeen:   atomic.LoadInt64(&coarseTime),
 			forwardKey: key,
 		}
 		// Try to store atomically
@@ -102,7 +140,7 @@ func (n *NatTable) GetOrCreateVirtualPort(clientIP net.IP, clientPort int) uint1
 func (n *NatTable) GetSession(virtualPort uint16) *natSession {
 	if val, ok := n.reverse.Load(virtualPort); ok {
 		sess := val.(*natSession)
-		sess.lastSeen = time.Now()
+		sess.lastSeen = atomic.LoadInt64(&coarseTime)
 		return sess
 	}
 	return nil
@@ -111,11 +149,11 @@ func (n *NatTable) GetSession(virtualPort uint16) *natSession {
 func (n *NatTable) Cleanup() {
 	for {
 		time.Sleep(30 * time.Second)
-		now := time.Now()
+		threshold := time.Now().Add(-60 * time.Second).UnixNano()
 		n.reverse.Range(func(key, value interface{}) bool {
 			vPort := key.(uint16)
 			sess := value.(*natSession)
-			if now.Sub(sess.lastSeen) > 60*time.Second {
+			if sess.lastSeen < threshold {
 				n.reverse.Delete(vPort)
 				n.forward.Delete(sess.forwardKey)
 			}
@@ -144,8 +182,8 @@ func startClient(localAddr, serverIPStr string, dstPort uint16, proto uint8) {
 	if errDFIPv4 != nil {
 		log.Printf("failed to set IP_MTU_DISCOVER: %v", errDFIPv4)
 	}
-	appConn.SetReadBuffer((1 << 20) * 7)
-	appConn.SetWriteBuffer((1 << 20) * 7)
+	appConn.SetReadBuffer(socketBufSize)
+	appConn.SetWriteBuffer(socketBufSize)
 
 	var srcIP net.IP
 	if *customSrc != "" {
@@ -182,7 +220,7 @@ func startClient(localAddr, serverIPStr string, dstPort uint16, proto uint8) {
 			if readPos >= n {
 				n, err = ipv4RawConn.ReadBatch(msgs, 0)
 				if n == 0 || err != nil {
-					log.Printf("Read UDP error: %v", err)
+					log.Printf("Read raw error: %v", err)
 					continue
 				}
 				readPos = 0
@@ -214,7 +252,7 @@ func startClient(localAddr, serverIPStr string, dstPort uint16, proto uint8) {
 				continue
 			}
 
-			clientAppAddr := &net.UDPAddr{IP: sess.clientIP, Port: sess.clientPort}
+			clientAppAddr := &net.UDPAddr{IP: sess.clientIP, Port: int(sess.clientPort)}
 			appConn.WriteToUDP(udpLayer.Payload, clientAppAddr)
 		}
 	}()
@@ -222,7 +260,7 @@ func startClient(localAddr, serverIPStr string, dstPort uint16, proto uint8) {
 	// Main Loop: Uplink (App -> Tunnel)
 	// Reads UDP from App, Translate ClientPort -> VirtualPort, Wraps in Proto 200, Sends Raw
 	ipv4AppConn := ipv4.NewPacketConn(appConn)
-	msgs := prepareMsgs()
+	msgs := prepareMsgsUDP()
 
 	serializeBuf := gopacket.NewSerializeBuffer()
 	opts := gopacket.SerializeOptions{FixLengths: true, ComputeChecksums: true}
@@ -234,10 +272,12 @@ func startClient(localAddr, serverIPStr string, dstPort uint16, proto uint8) {
 		Protocol: layers.IPProtocol(proto),
 		SrcIP:    srcIP,
 		DstIP:    serverIP,
+		Flags:    layers.IPv4DontFragment,
 	}
 	udpHeader := &layers.UDP{
 		DstPort: layers.UDPPort(dstPort),
 	}
+	serverIPAddr := &net.IPAddr{IP: serverIP}
 
 	n := 0
 	readPos := 0
@@ -257,20 +297,16 @@ func startClient(localAddr, serverIPStr string, dstPort uint16, proto uint8) {
 
 		// NAT: Client -> VirtualPort
 		// We use cAddr.Port as the unique identifier for the local client app
-		vPort := nat.GetOrCreateVirtualPort(cAddr.IP, cAddr.Port)
+		vPort := nat.GetOrCreateVirtualPort(cAddr.IP, uint16(cAddr.Port))
 
 		// Construct Packet
 		udpHeader.SrcPort = layers.UDPPort(vPort)
-		// IP header src/dst are constant for tunnel link
-		ipHeader.SrcIP = srcIP // Might need refreshing if dynamic, but usually constant
-		ipHeader.DstIP = serverIP
-
 		udpHeader.SetNetworkLayerForChecksum(ipHeader)
 
 		gopacket.SerializeLayers(serializeBuf, opts, ipHeader, udpHeader, gopacket.Payload(data))
 
 		// Send the packet buffer
-		_, err = ipv4RawConn.WriteToIP(serializeBuf.Bytes(), &net.IPAddr{IP: serverIP})
+		_, err = ipv4RawConn.WriteToIP(serializeBuf.Bytes(), serverIPAddr)
 		if err != nil {
 			log.Printf("Sendto error: %v", err)
 		}
@@ -305,6 +341,12 @@ func startServer(proto uint8) {
 		log.Printf("Using Interface IP: %s", srcIP)
 	}
 
+	autoDst := false
+	if *tunnelIP == "" {
+		autoDst = true
+		log.Printf("Auto-detecting Remote IP from incoming packets for each session")
+	}
+
 	msgs := prepareMsgs()
 
 	var err error
@@ -314,7 +356,7 @@ func startServer(proto uint8) {
 		if readPos >= n {
 			n, err = ipv4RawConn.ReadBatch(msgs, 0)
 			if n == 0 || err != nil {
-				log.Printf("Read UDP error: %v", err)
+				log.Printf("Read raw error: %v", err)
 				continue
 			}
 			readPos = 0
@@ -337,8 +379,8 @@ func startServer(proto uint8) {
 			continue
 		}
 
-		// Identify Session Key (ClientRealIP + VirtualSrcPort)
-		clientKey := fmt.Sprintf("%s:%d", ipLayer.SrcIP.String(), udpLayer.SrcPort)
+		// Identify Session Key (ClientRealIP + VirtualSrcPort) - use fixed-size key to avoid allocs
+		clientKey := makeNatKey(ipLayer.SrcIP, uint16(udpLayer.SrcPort))
 
 		var conn *net.UDPConn
 		val, ok := sessions.Load(clientKey)
@@ -368,16 +410,15 @@ func startServer(proto uint8) {
 			if errDFIPv4 != nil {
 				log.Printf("failed to set IP_MTU_DISCOVER: %v", errDFIPv4)
 			}
-			conn.SetReadBuffer((1 << 20) * 7)
-			conn.SetWriteBuffer((1 << 20) * 7)
+			conn.SetReadBuffer(socketBufSize)
+			conn.SetWriteBuffer(socketBufSize)
 
 			sessions.Store(clientKey, conn)
 			log.Printf("New Session: %s -> Target", clientKey)
 
-			// Helper to handle replies
-			go func(c *net.UDPConn, clientIP net.IP, clientPort uint16, serverIP net.IP) {
+			go func(c *net.UDPConn, clientIP net.IP, clientPort uint16, srcIP net.IP) {
 				ipv4AppConn := ipv4.NewPacketConn(c)
-				msgs := prepareMsgs()
+				msgs := prepareMsgsUDP()
 				defer c.Close()
 				defer sessions.Delete(clientKey)
 
@@ -385,18 +426,25 @@ func startServer(proto uint8) {
 				sBuf := gopacket.NewSerializeBuffer()
 				sOpts := gopacket.SerializeOptions{FixLengths: true, ComputeChecksums: true}
 
+				dstIp := net.ParseIP(*tunnelIP)
+				if autoDst {
+					dstIp = clientIP
+				}
 				// Reply Headers
 				rIpHeader := &layers.IPv4{
 					Version:  4,
 					IHL:      5,
 					TTL:      64,
 					Protocol: layers.IPProtocol(proto),
-					SrcIP:    serverIP,
-					DstIP:    clientIP,
+					SrcIP:    srcIP,
+					DstIP:    dstIp,
+					Flags:    layers.IPv4DontFragment,
 				}
 				rUdpHeader := &layers.UDP{
 					DstPort: layers.UDPPort(clientPort),
 				}
+				// Cache destination IPAddr outside loop to avoid per-packet allocation
+				dstIPAddr := &net.IPAddr{IP: dstIp}
 
 				var err error
 				n := 0
@@ -432,7 +480,8 @@ func startServer(proto uint8) {
 
 					gopacket.SerializeLayers(sBuf, sOpts, rIpHeader, rUdpHeader, gopacket.Payload(data))
 
-					ipv4RawConn.WriteToIP(sBuf.Bytes(), &net.IPAddr{IP: clientIP})
+					// Use cached clientIPAddr to avoid allocation per packet
+					ipv4RawConn.WriteToIP(sBuf.Bytes(), dstIPAddr)
 				}
 			}(conn, ipLayer.SrcIP, uint16(udpLayer.SrcPort), srcIP)
 		}
@@ -450,7 +499,12 @@ func createRawSocket(proto uint8) int {
 	}
 	err = syscall.SetsockoptInt(fd, syscall.IPPROTO_IP, syscall.IP_HDRINCL, 1)
 	if err != nil {
-		log.Fatalf("SetsockoptInt failed: %v", err)
+		log.Fatalf("SetsockoptInt IP_HDRINCL failed: %v", err)
+	}
+	// Set Don't Fragment flag
+	err = syscall.SetsockoptInt(fd, syscall.IPPROTO_IP, unix.IP_MTU_DISCOVER, unix.IP_PMTUDISC_PROBE)
+	if err != nil {
+		log.Printf("Warning: failed to set IP_PMTUDISC_PROBE: %v", err)
 	}
 	err = syscall.SetNonblock(fd, true)
 	if err != nil {
@@ -473,10 +527,20 @@ func getRawConn(fd int) *ipv4.RawConn {
 }
 
 func prepareMsgs() []ipv4.Message {
-	msgs := make([]ipv4.Message, 8)
+	msgs := make([]ipv4.Message, batchSize)
 	for i := range msgs {
 		msgs[i].Buffers = make([][]byte, 1)
-		msgs[i].Buffers[0] = make([]byte, 1500)
+		msgs[i].Buffers[0] = make([]byte, packetBufSize)
+	}
+	return msgs
+}
+
+// prepareMsgsUDP creates message buffers for UDP reads (payload only, fits in raw socket)
+func prepareMsgsUDP() []ipv4.Message {
+	msgs := make([]ipv4.Message, batchSize)
+	for i := range msgs {
+		msgs[i].Buffers = make([][]byte, 1)
+		msgs[i].Buffers[0] = make([]byte, udpPayloadSize)
 	}
 	return msgs
 }
