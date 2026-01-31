@@ -22,7 +22,7 @@ import (
 
 // High-throughput tuning constants
 const (
-	batchSize      = 64                     // Messages per batch read/write (recvmmsg/sendmmsg)
+	batchSize      = 32                     // Messages per batch read/write (recvmmsg/sendmmsg)
 	socketBufSize  = 1 << 24                // 16MB socket buffer
 	packetBufSize  = 1500                   // MTU size for raw socket reads
 	udpPayloadSize = packetBufSize - 20 - 8 // 1472 bytes: fits in raw socket after IP+UDP headers
@@ -46,7 +46,7 @@ var (
 	mode       = flag.String("mode", "client", "Mode: 'client' or 'server'")
 	customSrc  = flag.String("src-ip", "", "Force a specific Source IP (Spoofing). Leave empty to auto-detect.")
 	listenAddr = flag.String("listen", "127.0.0.1:1001", "Client: Local UDP port to bind. Server: Not used")
-	tunnelIP   = flag.String("remote-ip", "127.0.0.1", "IP of the remote tunnel endpoint")
+	tunnelIP   = flag.String("remote-ip", "", "IP of the remote tunnel endpoint")
 	targetPort = flag.Int("target-port", 8080, "Client: Port to forward traffic to on the Server side")
 	protoNum   = flag.Int("proto", 200, "Custom IP Protocol Number (0-255)")
 )
@@ -79,7 +79,13 @@ func getOutboundIP() net.IP {
 // natKey is a fixed-size key to avoid string allocations (4 bytes IP + 2 bytes port)
 type natKey [6]byte
 
-func makeNatKey(ip net.IP, port uint16) natKey {
+func (k natKey) String() string {
+	ip := net.IPv4(k[0], k[1], k[2], k[3])
+	port := (uint16(k[4]) << 8) | uint16(k[5])
+	return fmt.Sprintf("%s:%d", ip.String(), port)
+}
+
+func makeNatKey(ip net.IP, port int) natKey {
 	var k natKey
 	ip4 := ip.To4()
 	if ip4 != nil {
@@ -92,7 +98,7 @@ func makeNatKey(ip net.IP, port uint16) natKey {
 
 type natSession struct {
 	clientIP   net.IP
-	clientPort uint16
+	clientPort int
 	lastSeen   int64 // Unix nano timestamp - atomic access friendly
 	forwardKey natKey
 }
@@ -104,7 +110,7 @@ type NatTable struct {
 	reverse sync.Map
 }
 
-func (n *NatTable) GetOrCreateVirtualPort(clientIP net.IP, clientPort uint16) uint16 {
+func (n *NatTable) GetOrCreateVirtualPort(clientIP net.IP, clientPort int) uint16 {
 	key := makeNatKey(clientIP, clientPort)
 
 	// 1. Check existing - fast path
@@ -297,7 +303,7 @@ func startClient(localAddr, serverIPStr string, dstPort uint16, proto uint8) {
 
 		// NAT: Client -> VirtualPort
 		// We use cAddr.Port as the unique identifier for the local client app
-		vPort := nat.GetOrCreateVirtualPort(cAddr.IP, uint16(cAddr.Port))
+		vPort := nat.GetOrCreateVirtualPort(cAddr.IP, cAddr.Port)
 
 		// Construct Packet
 		udpHeader.SrcPort = layers.UDPPort(vPort)
@@ -380,7 +386,7 @@ func startServer(proto uint8) {
 		}
 
 		// Identify Session Key (ClientRealIP + VirtualSrcPort) - use fixed-size key to avoid allocs
-		clientKey := makeNatKey(ipLayer.SrcIP, uint16(udpLayer.SrcPort))
+		clientKey := makeNatKey(ipLayer.SrcIP, int(udpLayer.SrcPort))
 
 		var conn *net.UDPConn
 		val, ok := sessions.Load(clientKey)
@@ -414,9 +420,9 @@ func startServer(proto uint8) {
 			conn.SetWriteBuffer(socketBufSize)
 
 			sessions.Store(clientKey, conn)
-			log.Printf("New Session: %s -> Target", clientKey)
+			log.Printf("New Session: %s -> Target", clientKey.String())
 
-			go func(c *net.UDPConn, clientIP net.IP, clientPort uint16, srcIP net.IP) {
+			go func(c *net.UDPConn, clientIP net.IP, clientPort uint16, srcServerIP net.IP) {
 				ipv4AppConn := ipv4.NewPacketConn(c)
 				msgs := prepareMsgsUDP()
 				defer c.Close()
@@ -426,9 +432,9 @@ func startServer(proto uint8) {
 				sBuf := gopacket.NewSerializeBuffer()
 				sOpts := gopacket.SerializeOptions{FixLengths: true, ComputeChecksums: true}
 
-				dstIp := net.ParseIP(*tunnelIP)
+				dstClientIP := net.ParseIP(*tunnelIP)
 				if autoDst {
-					dstIp = clientIP
+					dstClientIP = clientIP
 				}
 				// Reply Headers
 				rIpHeader := &layers.IPv4{
@@ -436,15 +442,15 @@ func startServer(proto uint8) {
 					IHL:      5,
 					TTL:      64,
 					Protocol: layers.IPProtocol(proto),
-					SrcIP:    srcIP,
-					DstIP:    dstIp,
+					SrcIP:    srcServerIP,
+					DstIP:    dstClientIP,
 					Flags:    layers.IPv4DontFragment,
 				}
 				rUdpHeader := &layers.UDP{
 					DstPort: layers.UDPPort(clientPort),
 				}
 				// Cache destination IPAddr outside loop to avoid per-packet allocation
-				dstIPAddr := &net.IPAddr{IP: dstIp}
+				dstIPAddr := &net.IPAddr{IP: dstClientIP}
 
 				var err error
 				n := 0
