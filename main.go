@@ -8,7 +8,6 @@ import (
 	"log"
 	"math/rand"
 	"net"
-	"os"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -169,8 +168,10 @@ func (n *NatTable) Cleanup() {
 }
 
 func startClient(localAddr, serverIPStr string, dstPort uint16, proto uint8) {
-	rawFd := createRawSocket(proto)
-	ipv4RawConn := getRawConn(rawFd)
+	ipv4RawConn, err := setupRawConn(int(proto))
+	if err != nil {
+		log.Fatalf("Raw setup failed: %v", err)
+	}
 	defer ipv4RawConn.Close()
 
 	udpAddr, _ := net.ResolveUDPAddr("udp4", localAddr)
@@ -322,8 +323,10 @@ func startClient(localAddr, serverIPStr string, dstPort uint16, proto uint8) {
 // --- Server Logic ---
 
 func startServer(proto uint8) {
-	rawFd := createRawSocket(proto)
-	ipv4RawConn := getRawConn(rawFd)
+	ipv4RawConn, err := setupRawConn(int(proto))
+	if err != nil {
+		log.Fatalf("Raw setup failed: %v", err)
+	}
 	defer ipv4RawConn.Close()
 
 	sessions := sync.Map{}
@@ -355,7 +358,6 @@ func startServer(proto uint8) {
 
 	msgs := prepareMsgs()
 
-	var err error
 	n := 0
 	readPos := 0
 	for {
@@ -498,38 +500,41 @@ func startServer(proto uint8) {
 
 // --- Shared Helpers ---
 
-func createRawSocket(proto uint8) int {
-	fd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_RAW, int(proto))
+func setupRawConn(proto int) (*ipv4.RawConn, error) {
+	// Use Go's standard net package to open the raw socket (binds to 0.0.0.0)
+	conn, err := net.ListenPacket(fmt.Sprintf("ip4:%d", proto), "0.0.0.0")
 	if err != nil {
-		log.Fatalf("Socket creation failed (ROOT REQUIRED): %v", err)
+		return nil, fmt.Errorf("net.ListenPacket failed: %v", err)
 	}
-	err = syscall.SetsockoptInt(fd, syscall.IPPROTO_IP, syscall.IP_HDRINCL, 1)
-	if err != nil {
-		log.Fatalf("SetsockoptInt IP_HDRINCL failed: %v", err)
-	}
-	// Set Don't Fragment flag
-	err = syscall.SetsockoptInt(fd, syscall.IPPROTO_IP, unix.IP_MTU_DISCOVER, unix.IP_PMTUDISC_PROBE)
-	if err != nil {
-		log.Printf("Warning: failed to set IP_PMTUDISC_PROBE: %v", err)
-	}
-	err = syscall.SetNonblock(fd, true)
-	if err != nil {
-		log.Fatalf("SetNonblock failed: %v", err)
-	}
-	return fd
-}
 
-func getRawConn(fd int) *ipv4.RawConn {
-	f := os.NewFile(uintptr(fd), "")
-	conn, err := net.FilePacketConn(f)
-	if err != nil {
-		log.Fatalf("FilePacketConn failed: %v", err)
+	// Apply socket options (IP_HDRINCL) directly to the underlying FD
+	if sc, ok := conn.(syscall.Conn); ok {
+		raw, err := sc.SyscallConn()
+		if err != nil {
+			conn.Close()
+			return nil, fmt.Errorf("SyscallConn failed: %v", err)
+		}
+		var sockErr error
+		err = raw.Control(func(fd uintptr) {
+			// IP_HDRINCL is mandatory for spoofing
+			if err := syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IP, syscall.IP_HDRINCL, 1); err != nil {
+				sockErr = fmt.Errorf("failed to set IP_HDRINCL: %v", err)
+				return
+			}
+			// Optimization: PMTU Discovery (Best effort)
+			syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IP, unix.IP_MTU_DISCOVER, unix.IP_PMTUDISC_PROBE)
+		})
+		if err != nil {
+			conn.Close()
+			return nil, fmt.Errorf("control failed: %v", err)
+		}
+		if sockErr != nil {
+			conn.Close()
+			return nil, sockErr
+		}
 	}
-	rawConn, err := ipv4.NewRawConn(conn)
-	if err != nil {
-		log.Fatalf("NewRawConn failed: %v", err)
-	}
-	return rawConn
+
+	return ipv4.NewRawConn(conn)
 }
 
 func prepareMsgs() []ipv4.Message {
