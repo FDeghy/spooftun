@@ -3,28 +3,37 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"log"
 	"math/rand"
 	"net"
+	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	"github.com/gopacket/gopacket"
+	"github.com/gopacket/gopacket/afpacket"
 	"github.com/gopacket/gopacket/layers"
+	"golang.org/x/net/bpf"
 	"golang.org/x/net/ipv4"
-	"golang.org/x/sys/unix"
 )
 
-// High-throughput tuning constants
+// High-throughput tuning constants for AF_PACKET
 const (
-	batchSize      = 32                     // Messages per batch read/write (recvmmsg/sendmmsg)
+	// AF_PACKET ring buffer configuration (TPACKET_V3)
+	afBlockSize    = 1 << 20               // 1MB blocks
+	afNumBlocks    = 64                    // 64 blocks = 64MB ring buffer
+	afFrameSize    = 2048                  // Frame size for each packet slot
+	afBlockTimeout = 10 * time.Millisecond // Block timeout for TPACKET_V3
+
+	batchSize      = 32                     // Messages per batch read/write (for UDP side)
 	socketBufSize  = 1 << 24                // 16MB socket buffer
-	packetBufSize  = 1500                   // MTU size for raw socket reads
-	udpPayloadSize = packetBufSize - 20 - 8 // 1472 bytes: fits in raw socket after IP+UDP headers
+	packetBufSize  = 1500                   // MTU size
+	udpPayloadSize = packetBufSize - 20 - 8 // 1472 bytes: fits after IP+UDP headers
 )
 
 // Coarse timestamp to avoid time.Now() per packet
@@ -48,17 +57,216 @@ var (
 	tunnelIP   = flag.String("remote-ip", "", "IP of the remote tunnel endpoint")
 	targetPort = flag.Int("target-port", 8080, "Client: Port to forward traffic to on the Server side")
 	protoNum   = flag.Int("proto", 200, "Custom IP Protocol Number (0-255)")
+	ifaceName  = flag.String("iface", "", "Network interface to use for AF_PACKET (auto-detect if empty)")
 )
+
+// --- Ethernet/ARP Helpers ---
+
+// getInterfaceInfo returns the MAC address and IP of the specified interface
+func getInterfaceInfo(name string) (mac net.HardwareAddr, ip net.IP, err error) {
+	iface, err := net.InterfaceByName(name)
+	if err != nil {
+		return nil, nil, fmt.Errorf("interface %s not found: %v", name, err)
+	}
+	mac = iface.HardwareAddr
+	if mac == nil {
+		return nil, nil, fmt.Errorf("interface %s has no MAC address", name)
+	}
+
+	addrs, err := iface.Addrs()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get addresses for %s: %v", name, err)
+	}
+
+	for _, addr := range addrs {
+		if ipNet, ok := addr.(*net.IPNet); ok {
+			if ipv4 := ipNet.IP.To4(); ipv4 != nil {
+				ip = ipv4
+				break
+			}
+		}
+	}
+
+	if ip == nil {
+		return nil, nil, fmt.Errorf("interface %s has no IPv4 address", name)
+	}
+
+	return mac, ip, nil
+}
+
+// findDefaultInterface finds the interface used for routing to the given destination
+func findDefaultInterface(dstIP net.IP) (string, error) {
+	if dstIP == nil {
+		dstIP = net.ParseIP("8.8.8.8")
+	}
+
+	conn, err := net.DialTimeout("udp4", dstIP.String()+":80", time.Second)
+	if err != nil {
+		return "", fmt.Errorf("failed to determine route: %v", err)
+	}
+	defer conn.Close()
+
+	localAddr := conn.LocalAddr().(*net.UDPAddr)
+
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return "", err
+	}
+
+	for _, iface := range ifaces {
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, addr := range addrs {
+			if ipNet, ok := addr.(*net.IPNet); ok {
+				if ipNet.IP.Equal(localAddr.IP) {
+					return iface.Name, nil
+				}
+			}
+		}
+	}
+
+	return "", fmt.Errorf("could not find interface for %s", localAddr.IP)
+}
+
+// lookupARPCache reads /proc/net/arp to find MAC for an IP
+func lookupARPCache(ip net.IP) net.HardwareAddr {
+	file, err := os.Open("/proc/net/arp")
+	if err != nil {
+		return nil
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	scanner.Scan() // Skip header line
+
+	ipStr := ip.String()
+	for scanner.Scan() {
+		fields := strings.Fields(scanner.Text())
+		if len(fields) >= 4 && fields[0] == ipStr {
+			mac, err := net.ParseMAC(fields[3])
+			if err == nil && fields[2] != "0x0" { // 0x0 means incomplete
+				return mac
+			}
+		}
+	}
+	return nil
+}
+
+// getNeighborMAC gets the MAC address for a destination IP (via ARP cache or probe)
+func getNeighborMAC(iface string, dstIP net.IP) (net.HardwareAddr, error) {
+	// First check ARP cache
+	if mac := lookupARPCache(dstIP); mac != nil {
+		return mac, nil
+	}
+
+	// Trigger ARP by sending a probe packet
+	conn, err := net.DialTimeout("udp4", dstIP.String()+":1", 500*time.Millisecond)
+	if err == nil {
+		conn.Close()
+	}
+
+	// Wait for ARP to populate
+	time.Sleep(200 * time.Millisecond)
+
+	if mac := lookupARPCache(dstIP); mac != nil {
+		return mac, nil
+	}
+
+	// Try default gateway
+	return getDefaultGatewayMAC(iface)
+}
+
+// getDefaultGatewayMAC finds the default gateway and gets its MAC
+func getDefaultGatewayMAC(iface string) (net.HardwareAddr, error) {
+	// Read /proc/net/route to find default gateway
+	file, err := os.Open("/proc/net/route")
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	scanner.Scan() // Skip header
+
+	for scanner.Scan() {
+		fields := strings.Fields(scanner.Text())
+		if len(fields) < 3 {
+			continue
+		}
+
+		// Look for default route (Destination = 00000000)
+		if fields[1] == "00000000" {
+			// Gateway is in hex, little-endian (Linux)
+			var gw uint32
+			fmt.Sscanf(fields[2], "%x", &gw)
+
+			gwIP := net.IPv4(byte(gw), byte(gw>>8), byte(gw>>16), byte(gw>>24))
+
+			// Now get MAC for gateway
+			if mac := lookupARPCache(gwIP); mac != nil {
+				return mac, nil
+			}
+
+			// Trigger ARP for gateway
+			conn, err := net.DialTimeout("udp4", gwIP.String()+":1", 500*time.Millisecond)
+			if err == nil {
+				conn.Close()
+			}
+			time.Sleep(200 * time.Millisecond)
+
+			if mac := lookupARPCache(gwIP); mac != nil {
+				return mac, nil
+			}
+		}
+	}
+
+	return nil, fmt.Errorf("could not find gateway MAC")
+}
+
+// ARPCache caches IP -> MAC mappings discovered via incoming packets
+type ARPCache struct {
+	cache sync.Map // net.IP string -> net.HardwareAddr
+}
+
+func (a *ARPCache) Get(ip net.IP) net.HardwareAddr {
+	if v, ok := a.cache.Load(ip.String()); ok {
+		return v.(net.HardwareAddr)
+	}
+	return nil
+}
+
+func (a *ARPCache) Set(ip net.IP, mac net.HardwareAddr) {
+	a.cache.Store(ip.String(), mac)
+}
 
 func main() {
 	flag.Parse()
 
+	serverIP := net.ParseIP(*tunnelIP)
+
+	// Auto-detect interface if not specified
+	iface := *ifaceName
+	if iface == "" {
+		var err error
+		iface, err = findDefaultInterface(serverIP)
+		if err != nil {
+			log.Fatalf("Failed to auto-detect interface: %v", err)
+		}
+		log.Printf("Auto-detected interface: %s", iface)
+	}
+
 	if *mode == "client" {
-		log.Printf("[Client] Forwarding %s -> Tunnel(%s) -> :%d (Proto %d)", *listenAddr, *tunnelIP, *targetPort, *protoNum)
-		startClient(*listenAddr, *tunnelIP, uint16(*targetPort), uint8(*protoNum))
+		if serverIP == nil {
+			log.Fatal("Remote IP is required for client mode. Use -remote-ip <IP>")
+		}
+		log.Printf("[Client-AF_PACKET] Forwarding %s -> Tunnel(%s) -> :%d (Proto %d) via %s",
+			*listenAddr, *tunnelIP, *targetPort, *protoNum, iface)
+		startClientAFPacket(*listenAddr, serverIP, uint16(*targetPort), uint8(*protoNum), iface)
 	} else {
-		log.Printf("[Server] Listening on Proto %d", *protoNum)
-		startServer(uint8(*protoNum))
+		log.Printf("[Server-AF_PACKET] Listening on Proto %d via %s", *protoNum, iface)
+		startServerAFPacket(uint8(*protoNum), iface)
 	}
 }
 
@@ -73,7 +281,7 @@ func getOutboundIP() net.IP {
 	return localAddr.IP
 }
 
-// --- Client Logic ---
+// --- NAT Types ---
 
 // natKey is a fixed-size key to avoid string allocations (4 bytes IP + 2 bytes port)
 type natKey [6]byte
@@ -116,7 +324,6 @@ func (n *NatTable) GetOrCreateVirtualPort(clientIP net.IP, clientPort int) uint1
 	if val, ok := n.forward.Load(key); ok {
 		vPort := val.(uint16)
 		if s, ok := n.reverse.Load(vPort); ok {
-			// Use atomic store for lastSeen to avoid race detector complaints
 			sess := s.(*natSession)
 			sess.lastSeen = atomic.LoadInt64(&coarseTime)
 		}
@@ -167,13 +374,57 @@ func (n *NatTable) Cleanup() {
 	}
 }
 
-func startClient(localAddr, serverIPStr string, dstPort uint16, proto uint8) {
-	ipv4RawConn, err := setupRawConn(int(proto))
-	if err != nil {
-		log.Fatalf("Raw setup failed: %v", err)
-	}
-	defer ipv4RawConn.Close()
+// --- AF_PACKET Client ---
 
+func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, proto uint8, iface string) {
+	// Get interface info
+	srcMAC, ifaceIP, err := getInterfaceInfo(iface)
+	if err != nil {
+		log.Fatalf("Failed to get interface info: %v", err)
+	}
+
+	// Determine source IP
+	var srcIP net.IP
+	if *customSrc != "" {
+		srcIP = net.ParseIP(*customSrc)
+		if srcIP == nil {
+			log.Fatal("Invalid source IP format")
+		}
+		log.Printf("Using Custom Source IP: %s (spoofing)", srcIP)
+	} else {
+		srcIP = ifaceIP
+		log.Printf("Using Interface IP: %s", srcIP)
+	}
+
+	// Get destination MAC (gateway or direct neighbor)
+	dstMAC, err := getNeighborMAC(iface, serverIP)
+	if err != nil {
+		log.Fatalf("Failed to get destination MAC: %v", err)
+	}
+	log.Printf("Destination MAC: %s", dstMAC)
+
+	// Create AF_PACKET socket with TPACKET_V3 for high-performance mmap'd ring buffer
+	tpacket, err := afpacket.NewTPacket(
+		afpacket.OptInterface(iface),
+		afpacket.OptTPacketVersion(afpacket.TPacketVersion3),
+		afpacket.OptBlockSize(afBlockSize),
+		afpacket.OptNumBlocks(afNumBlocks),
+		afpacket.OptFrameSize(afFrameSize),
+		afpacket.OptBlockTimeout(afBlockTimeout),
+		afpacket.OptPollTimeout(-1), // Block indefinitely
+	)
+	if err != nil {
+		log.Fatalf("Failed to create AF_PACKET socket: %v", err)
+	}
+	defer tpacket.Close()
+
+	// Set BPF filter for our custom protocol (reduces kernel -> userspace copies)
+	filter := createIPProtoFilter(proto)
+	if err := tpacket.SetBPF(filter); err != nil {
+		log.Printf("Warning: Failed to set BPF filter: %v", err)
+	}
+
+	// Local UDP socket for application traffic
 	udpAddr, _ := net.ResolveUDPAddr("udp4", localAddr)
 	appConn, err := net.ListenUDP("udp4", udpAddr)
 	if err != nil {
@@ -181,73 +432,55 @@ func startClient(localAddr, serverIPStr string, dstPort uint16, proto uint8) {
 	}
 	defer appConn.Close()
 
-	var errDFIPv4 error
-	appRaw, _ := appConn.SyscallConn()
-	appRaw.Control(func(fd uintptr) {
-		errDFIPv4 = unix.SetsockoptInt(int(fd), unix.IPPROTO_IP, unix.IP_MTU_DISCOVER, unix.IP_PMTUDISC_PROBE)
-	})
-	if errDFIPv4 != nil {
-		log.Printf("failed to set IP_MTU_DISCOVER: %v", errDFIPv4)
-	}
 	appConn.SetReadBuffer(socketBufSize)
 	appConn.SetWriteBuffer(socketBufSize)
 
-	var srcIP net.IP
-	if *customSrc != "" {
-		srcIP = net.ParseIP(*customSrc) // User defined (SET)
-		if srcIP == nil {
-			log.Fatal("Invalid source IP format")
-		}
-		log.Printf("Using Custom Source IP: %s", srcIP)
-	} else {
-		srcIP = getOutboundIP() // Auto-detected (GET)
-		log.Printf("Using Interface IP: %s", srcIP)
-	}
-
-	serverIP := net.ParseIP(serverIPStr)
 	nat := &NatTable{}
 	go nat.Cleanup()
 
-	// Reusable Objects for Downlink
-	// Separate parsers because custom IP protocol won't chain to UDP
+	// Reusable layer parsers for Downlink
+	var ethLayer layers.Ethernet
 	var ipLayer layers.IPv4
 	var udpLayer layers.UDP
-	ipParser := gopacket.NewDecodingLayerParser(layers.LayerTypeIPv4, &ipLayer)
+
+	// Parser for full Ethernet frames
+	ethParser := gopacket.NewDecodingLayerParser(layers.LayerTypeEthernet, &ethLayer, &ipLayer, &udpLayer)
+	ethParser.IgnoreUnsupported = true
+	decodedLayers := make([]gopacket.LayerType, 0, 4)
+
+	// Custom protocol layer parser (since gopacket won't auto-chain to UDP for unknown protocols)
 	udpParser := gopacket.NewDecodingLayerParser(layers.LayerTypeUDP, &udpLayer)
-	decodedLayers := make([]gopacket.LayerType, 0, 2)
+	udpParser.IgnoreUnsupported = true
 
-	// Downlink (Tunnel -> App)
-	// Reads Raw Packets from Server, strips headers, translates VirtualPort -> ClientPort, writes to App
+	// Downlink (AF_PACKET -> App)
+	// Reads raw Ethernet frames, strips headers, translates VirtualPort -> ClientPort
 	go func() {
-		msgs := prepareMsgs()
-
-		n := 0
-		readPos := 0
 		for {
-			if readPos >= n {
-				n, err = ipv4RawConn.ReadBatch(msgs, 0)
-				if n == 0 || err != nil {
-					log.Printf("Read raw error: %v", err)
-					continue
-				}
-				readPos = 0
-			}
-			msg := msgs[readPos]
-			readPos++
-			data := msg.Buffers[0][:msg.N]
-
-			// Parse IPv4 header (ignore error - it complains about custom protocol but still decodes IPv4)
-			ipParser.DecodeLayers(data, &decodedLayers)
-			if len(decodedLayers) == 0 || decodedLayers[0] != layers.LayerTypeIPv4 {
+			// Zero-copy read from AF_PACKET mmap'd ring buffer
+			data, _, err := tpacket.ZeroCopyReadPacketData()
+			if err != nil {
+				log.Printf("AF_PACKET read error: %v", err)
 				continue
 			}
 
+			// Parse Ethernet + IPv4 header
+			err = ethParser.DecodeLayers(data, &decodedLayers)
+			if len(decodedLayers) < 2 {
+				continue
+			}
+
+			// Verify it's our custom protocol
+			if ipLayer.Protocol != layers.IPProtocol(proto) {
+				continue
+			}
+
+			// Verify source (optional - can accept spoofed replies)
 			if !ipLayer.SrcIP.Equal(serverIP) {
-				// accept ip spoof?
+				// Uncomment to enforce server IP checking:
 				// continue
 			}
 
-			// Parse UDP from IPv4 payload (ignore error - complains about Payload layer)
+			// Parse UDP from IPv4 payload (custom proto won't auto-chain)
 			udpParser.DecodeLayers(ipLayer.Payload, &decodedLayers)
 			if len(decodedLayers) == 0 || decodedLayers[0] != layers.LayerTypeUDP {
 				continue
@@ -264,14 +497,21 @@ func startClient(localAddr, serverIPStr string, dstPort uint16, proto uint8) {
 		}
 	}()
 
-	// Main Loop: Uplink (App -> Tunnel)
-	// Reads UDP from App, Translate ClientPort -> VirtualPort, Wraps in Proto 200, Sends Raw
+	// Uplink (App -> AF_PACKET)
+	// Reads UDP from App, translates ClientPort -> VirtualPort, wraps in Ethernet + IP + Proto, sends raw
 	ipv4AppConn := ipv4.NewPacketConn(appConn)
 	msgs := prepareMsgsUDP()
 
+	// Reusable serialize buffer
 	serializeBuf := gopacket.NewSerializeBuffer()
 	opts := gopacket.SerializeOptions{FixLengths: true, ComputeChecksums: true}
 
+	// Pre-build headers (will modify SrcPort for each packet)
+	ethHeader := &layers.Ethernet{
+		SrcMAC:       srcMAC,
+		DstMAC:       dstMAC,
+		EthernetType: layers.EthernetTypeIPv4,
+	}
 	ipHeader := &layers.IPv4{
 		Version:  4,
 		IHL:      5,
@@ -284,7 +524,6 @@ func startClient(localAddr, serverIPStr string, dstPort uint16, proto uint8) {
 	udpHeader := &layers.UDP{
 		DstPort: layers.UDPPort(dstPort),
 	}
-	serverIPAddr := &net.IPAddr{IP: serverIP}
 
 	n := 0
 	readPos := 0
@@ -303,52 +542,68 @@ func startClient(localAddr, serverIPStr string, dstPort uint16, proto uint8) {
 		cAddr := msg.Addr.(*net.UDPAddr)
 
 		// NAT: Client -> VirtualPort
-		// We use cAddr.Port as the unique identifier for the local client app
 		vPort := nat.GetOrCreateVirtualPort(cAddr.IP, cAddr.Port)
 
-		// Construct Packet
+		// Build packet with Ethernet header
 		udpHeader.SrcPort = layers.UDPPort(vPort)
 		udpHeader.SetNetworkLayerForChecksum(ipHeader)
 
-		gopacket.SerializeLayers(serializeBuf, opts, ipHeader, udpHeader, gopacket.Payload(data))
+		if err := gopacket.SerializeLayers(serializeBuf, opts, ethHeader, ipHeader, udpHeader, gopacket.Payload(data)); err != nil {
+			log.Printf("Serialize error: %v", err)
+			continue
+		}
 
-		// Send the packet buffer
-		_, err = ipv4RawConn.WriteToIP(serializeBuf.Bytes(), serverIPAddr)
-		if err != nil {
-			log.Printf("Sendto error: %v", err)
+		// Send via AF_PACKET (bypasses kernel IP stack)
+		if err := tpacket.WritePacketData(serializeBuf.Bytes()); err != nil {
+			log.Printf("AF_PACKET write error: %v", err)
 		}
 	}
 }
 
-// --- Server Logic ---
+// --- AF_PACKET Server ---
 
-func startServer(proto uint8) {
-	ipv4RawConn, err := setupRawConn(int(proto))
+func startServerAFPacket(proto uint8, iface string) {
+	// Get interface info
+	srcMAC, ifaceIP, err := getInterfaceInfo(iface)
 	if err != nil {
-		log.Fatalf("Raw setup failed: %v", err)
+		log.Fatalf("Failed to get interface info: %v", err)
 	}
-	defer ipv4RawConn.Close()
-
-	sessions := sync.Map{}
-
-	// Separate parsers because custom IP protocol won't chain to UDP
-	var ipLayer layers.IPv4
-	var udpLayer layers.UDP
-	ipParser := gopacket.NewDecodingLayerParser(layers.LayerTypeIPv4, &ipLayer)
-	udpParser := gopacket.NewDecodingLayerParser(layers.LayerTypeUDP, &udpLayer)
-	decodedLayers := make([]gopacket.LayerType, 0, 2)
 
 	var srcIP net.IP
 	if *customSrc != "" {
-		srcIP = net.ParseIP(*customSrc) // User defined (SET)
+		srcIP = net.ParseIP(*customSrc)
 		if srcIP == nil {
 			log.Fatal("Invalid source IP format")
 		}
-		log.Printf("Using Custom Source IP: %s", srcIP)
+		log.Printf("Using Custom Source IP: %s (spoofing)", srcIP)
 	} else {
-		srcIP = getOutboundIP() // Auto-detected (GET)
+		srcIP = ifaceIP
 		log.Printf("Using Interface IP: %s", srcIP)
 	}
+
+	// Create AF_PACKET socket with TPACKET_V3
+	tpacket, err := afpacket.NewTPacket(
+		afpacket.OptInterface(iface),
+		afpacket.OptTPacketVersion(afpacket.TPacketVersion3),
+		afpacket.OptBlockSize(afBlockSize),
+		afpacket.OptNumBlocks(afNumBlocks),
+		afpacket.OptFrameSize(afFrameSize),
+		afpacket.OptBlockTimeout(afBlockTimeout),
+		afpacket.OptPollTimeout(-1),
+	)
+	if err != nil {
+		log.Fatalf("Failed to create AF_PACKET socket: %v", err)
+	}
+	defer tpacket.Close()
+
+	// Set BPF filter for our custom protocol
+	filter := createIPProtoFilter(proto)
+	if err := tpacket.SetBPF(filter); err != nil {
+		log.Printf("Warning: Failed to set BPF filter: %v", err)
+	}
+
+	sessions := sync.Map{}
+	arpCache := &ARPCache{}
 
 	autoDst := false
 	if *tunnelIP == "" {
@@ -356,38 +611,45 @@ func startServer(proto uint8) {
 		log.Printf("Auto-detecting Remote IP from incoming packets for each session")
 	}
 
-	msgs := prepareMsgs()
+	// Parsers
+	var ethLayer layers.Ethernet
+	var ipLayer layers.IPv4
+	var udpLayer layers.UDP
+	ethParser := gopacket.NewDecodingLayerParser(layers.LayerTypeEthernet, &ethLayer, &ipLayer, &udpLayer)
+	ethParser.IgnoreUnsupported = true
+	udpParser := gopacket.NewDecodingLayerParser(layers.LayerTypeUDP, &udpLayer)
+	udpParser.IgnoreUnsupported = true
+	decodedLayers := make([]gopacket.LayerType, 0, 4)
 
-	n := 0
-	readPos := 0
 	for {
-		if readPos >= n {
-			n, err = ipv4RawConn.ReadBatch(msgs, 0)
-			if n == 0 || err != nil {
-				log.Printf("Read raw error: %v", err)
-				continue
-			}
-			readPos = 0
-		}
-		msg := msgs[readPos]
-		readPos++
-		data := msg.Buffers[0][:msg.N]
-
-		// Parse IPv4 header (ignore error - it complains about custom protocol but still decodes IPv4)
-		err = ipParser.DecodeLayers(data, &decodedLayers)
-		if len(decodedLayers) == 0 || decodedLayers[0] != layers.LayerTypeIPv4 {
-			log.Printf("Failed to decode IPv4 layer, err %v", err)
+		// Zero-copy read from ring buffer
+		data, _, err := tpacket.ZeroCopyReadPacketData()
+		if err != nil {
+			log.Printf("AF_PACKET read error: %v", err)
 			continue
 		}
 
-		// Parse UDP from IPv4 payload (ignore error - complains about Payload layer)
+		// Parse Ethernet + IPv4
+		err = ethParser.DecodeLayers(data, &decodedLayers)
+		if len(decodedLayers) < 2 {
+			continue
+		}
+
+		// Verify it's our protocol
+		if ipLayer.Protocol != layers.IPProtocol(proto) {
+			continue
+		}
+
+		// Cache the source MAC for this IP (for replies)
+		arpCache.Set(ipLayer.SrcIP, ethLayer.SrcMAC)
+
+		// Parse UDP from IPv4 payload
 		err = udpParser.DecodeLayers(ipLayer.Payload, &decodedLayers)
 		if len(decodedLayers) == 0 || decodedLayers[0] != layers.LayerTypeUDP {
-			log.Printf("Failed to decode UDP layer, err %v", err)
 			continue
 		}
 
-		// Identify Session Key (ClientRealIP + VirtualSrcPort) - use fixed-size key to avoid allocs
+		// Session key: ClientRealIP + VirtualSrcPort
 		clientKey := makeNatKey(ipLayer.SrcIP, int(udpLayer.SrcPort))
 
 		var conn *net.UDPConn
@@ -410,27 +672,34 @@ func startServer(proto uint8) {
 				continue
 			}
 
-			var errDFIPv4 error
-			appRaw, _ := conn.SyscallConn()
-			appRaw.Control(func(fd uintptr) {
-				errDFIPv4 = unix.SetsockoptInt(int(fd), unix.IPPROTO_IP, unix.IP_MTU_DISCOVER, unix.IP_PMTUDISC_PROBE)
-			})
-			if errDFIPv4 != nil {
-				log.Printf("failed to set IP_MTU_DISCOVER: %v", errDFIPv4)
-			}
 			conn.SetReadBuffer(socketBufSize)
 			conn.SetWriteBuffer(socketBufSize)
 
 			sessions.Store(clientKey, conn)
-			log.Printf("New Session: %s -> Target", clientKey.String())
+			log.Printf("New Session: %s -> Target :%d", clientKey.String(), udpLayer.DstPort)
 
-			go func(c *net.UDPConn, clientIP net.IP, clientPort uint16, srcServerIP net.IP) {
+			// Reply handler goroutine
+			go func(c *net.UDPConn, clientIP net.IP, clientPort uint16, clientMAC net.HardwareAddr,
+				srcServerIP net.IP, targetRAddr *net.UDPAddr, sessionKey natKey) {
 				ipv4AppConn := ipv4.NewPacketConn(c)
 				msgs := prepareMsgsUDP()
 				defer c.Close()
-				defer sessions.Delete(clientKey)
+				defer sessions.Delete(sessionKey)
 
-				// Serialize reuse variables
+				// Create a separate TPacket for replies (thread safety)
+				replyTPacket, err := afpacket.NewTPacket(
+					afpacket.OptInterface(iface),
+					afpacket.OptTPacketVersion(afpacket.TPacketVersion3),
+					afpacket.OptBlockSize(1<<18), // 256KB blocks for TX
+					afpacket.OptNumBlocks(16),
+					afpacket.OptFrameSize(afFrameSize),
+				)
+				if err != nil {
+					log.Printf("Failed to create reply TPacket: %v", err)
+					return
+				}
+				defer replyTPacket.Close()
+
 				sBuf := gopacket.NewSerializeBuffer()
 				sOpts := gopacket.SerializeOptions{FixLengths: true, ComputeChecksums: true}
 
@@ -438,7 +707,13 @@ func startServer(proto uint8) {
 				if autoDst {
 					dstClientIP = clientIP
 				}
-				// Reply Headers
+
+				// Reply headers
+				rEthHeader := &layers.Ethernet{
+					SrcMAC:       srcMAC,
+					DstMAC:       clientMAC,
+					EthernetType: layers.EthernetTypeIPv4,
+				}
 				rIpHeader := &layers.IPv4{
 					Version:  4,
 					IHL:      5,
@@ -451,102 +726,65 @@ func startServer(proto uint8) {
 				rUdpHeader := &layers.UDP{
 					DstPort: layers.UDPPort(clientPort),
 				}
-				// Cache destination IPAddr outside loop to avoid per-packet allocation
-				dstIPAddr := &net.IPAddr{IP: dstClientIP}
 
-				var err error
+				var errRead error
 				n := 0
 				readPos := 0
 				for {
 					ipv4AppConn.SetReadDeadline(time.Now().Add(30 * time.Second))
 					if readPos >= n {
-						n, err = ipv4AppConn.ReadBatch(msgs, 0)
-						if n == 0 || err != nil {
-							log.Printf("Read UDP error: %v", err)
+						n, errRead = ipv4AppConn.ReadBatch(msgs, 0)
+						if n == 0 || errRead != nil {
+							log.Printf("Session %s ended: %v", sessionKey.String(), errRead)
 							return
 						}
 						readPos = 0
 					}
 					msg := msgs[readPos]
 					readPos++
-					data := msg.Buffers[0][:msg.N]
+					payload := msg.Buffers[0][:msg.N]
 
-					// Send Reply: [IPv4 (Dst=Client)] [UDP (Dst=ClientPort)] [Payload]
-					// We need to use the original DstPort (from request) as SrcPort (for reply)
-					// But we don't track original DstPort in scope easily unless we pass it or reuse conn's remote?
-					// Actually, the tunnel logic usually mirrors ports.
-					// In the request: Src=VirtualPort, Dst=TargetPort
-					// In the reply: Src=TargetPort, Dst=VirtualPort
-					// Wait, the client expects reply DstPort=VirtualPort.
-					// The simple logic uses the TargetPort as Src?
-					// Let's capture the TargetPort from the session creation context.
-					// Or just use the RemoteAddr of the dial?
-					// rAddr was resolved above.
-
-					rUdpHeader.SrcPort = layers.UDPPort(rAddr.Port)
+					rUdpHeader.SrcPort = layers.UDPPort(targetRAddr.Port)
 					rUdpHeader.SetNetworkLayerForChecksum(rIpHeader)
 
-					gopacket.SerializeLayers(sBuf, sOpts, rIpHeader, rUdpHeader, gopacket.Payload(data))
+					if err := gopacket.SerializeLayers(sBuf, sOpts, rEthHeader, rIpHeader, rUdpHeader, gopacket.Payload(payload)); err != nil {
+						log.Printf("Serialize error: %v", err)
+						continue
+					}
 
-					// Use cached clientIPAddr to avoid allocation per packet
-					ipv4RawConn.WriteToIP(sBuf.Bytes(), dstIPAddr)
+					replyTPacket.WritePacketData(sBuf.Bytes())
 				}
-			}(conn, ipLayer.SrcIP, uint16(udpLayer.SrcPort), srcIP)
+			}(conn, ipLayer.SrcIP, uint16(udpLayer.SrcPort), ethLayer.SrcMAC, srcIP, rAddr, clientKey)
 		}
 
 		conn.Write(udpLayer.Payload)
 	}
 }
 
+// --- BPF Filter ---
+
+// createIPProtoFilter creates a BPF filter for "ip proto <proto>"
+// Equivalent to: tcpdump -dd 'ip proto <N>'
+func createIPProtoFilter(proto uint8) []bpf.RawInstruction {
+	return []bpf.RawInstruction{
+		// ldh [12]: Load EtherType from Ethernet header
+		{Op: 0x28, Jt: 0, Jf: 0, K: 12},
+		// jeq #0x0800: Check if IPv4, else jump to reject
+		{Op: 0x15, Jt: 0, Jf: 3, K: 0x0800},
+		// ldb [23]: Load IP protocol field (Ethernet header 14 bytes + IP proto at offset 9 = 23)
+		{Op: 0x30, Jt: 0, Jf: 0, K: 23},
+		// jeq #proto: Check if our custom protocol
+		{Op: 0x15, Jt: 0, Jf: 1, K: uint32(proto)},
+		// ret #262144: Accept (max snaplen)
+		{Op: 0x06, Jt: 0, Jf: 0, K: 262144},
+		// ret #0: Reject
+		{Op: 0x06, Jt: 0, Jf: 0, K: 0},
+	}
+}
+
 // --- Shared Helpers ---
 
-func setupRawConn(proto int) (*ipv4.RawConn, error) {
-	// Use Go's standard net package to open the raw socket (binds to 0.0.0.0)
-	conn, err := net.ListenPacket(fmt.Sprintf("ip4:%d", proto), "0.0.0.0")
-	if err != nil {
-		return nil, fmt.Errorf("net.ListenPacket failed: %v", err)
-	}
-
-	// Apply socket options (IP_HDRINCL) directly to the underlying FD
-	if sc, ok := conn.(syscall.Conn); ok {
-		raw, err := sc.SyscallConn()
-		if err != nil {
-			conn.Close()
-			return nil, fmt.Errorf("SyscallConn failed: %v", err)
-		}
-		var sockErr error
-		err = raw.Control(func(fd uintptr) {
-			// IP_HDRINCL is mandatory for spoofing
-			if err := syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IP, syscall.IP_HDRINCL, 1); err != nil {
-				sockErr = fmt.Errorf("failed to set IP_HDRINCL: %v", err)
-				return
-			}
-			// Optimization: PMTU Discovery (Best effort)
-			syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IP, unix.IP_MTU_DISCOVER, unix.IP_PMTUDISC_PROBE)
-		})
-		if err != nil {
-			conn.Close()
-			return nil, fmt.Errorf("control failed: %v", err)
-		}
-		if sockErr != nil {
-			conn.Close()
-			return nil, sockErr
-		}
-	}
-
-	return ipv4.NewRawConn(conn)
-}
-
-func prepareMsgs() []ipv4.Message {
-	msgs := make([]ipv4.Message, batchSize)
-	for i := range msgs {
-		msgs[i].Buffers = make([][]byte, 1)
-		msgs[i].Buffers[0] = make([]byte, packetBufSize)
-	}
-	return msgs
-}
-
-// prepareMsgsUDP creates message buffers for UDP reads (payload only, fits in raw socket)
+// prepareMsgsUDP creates message buffers for UDP batch reads
 func prepareMsgsUDP() []ipv4.Message {
 	msgs := make([]ipv4.Message, batchSize)
 	for i := range msgs {
