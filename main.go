@@ -28,10 +28,10 @@ import (
 // High-throughput tuning constants for AF_PACKET
 const (
 	// AF_PACKET ring buffer configuration (TPACKET_V3)
-	afBlockSize    = 1 << 20         // 1MB blocks
-	afNumBlocks    = 64              // 64 blocks = 64MB ring buffer
-	afFrameSize    = 2048            // Frame size for each packet slot
-	afBlockTimeout = 1 * time.Second // Block retire timeout for TPACKET_V3 (longer = less spurious wakeups)
+	afBlockSize    = 1 << 20               // 1MB blocks
+	afNumBlocks    = 64                    // 64 blocks = 64MB ring buffer
+	afFrameSize    = 2048                  // Frame size for each packet slot
+	afBlockTimeout = 64 * time.Millisecond // Block retire timeout. Low value needed for low latency.
 
 	batchSize      = 64                     // Messages per batch read/write (for UDP side)
 	socketBufSize  = 1 << 24                // 16MB socket buffer
@@ -562,7 +562,6 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, prot
 		afpacket.OptNumBlocks(afNumBlocks),
 		afpacket.OptFrameSize(afFrameSize),
 		afpacket.OptBlockTimeout(afBlockTimeout),
-		afpacket.OptPollTimeout(afBlockTimeout), // Match block timeout so poll() blocks properly
 	)
 	if err != nil {
 		log.Fatalf("Failed to create AF_PACKET socket: %v", err)
@@ -671,12 +670,9 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, prot
 				continue
 			}
 
-			// BPF already filters: own MAC (outgoing), non-IPv4, wrong protocol
-
-			// Verify source (optional - can accept spoofed replies)
-			if !ipLayer.SrcIP.Equal(serverIP) {
-				// Uncomment to enforce server IP checking:
-				// continue
+			// Userspace protocol filter (defense-in-depth: BPF may fail to attach)
+			if ipLayer.Protocol != layers.IPProtocol(proto) {
+				continue
 			}
 
 			// Parse UDP from IPv4 payload (custom proto won't auto-chain)
@@ -839,7 +835,6 @@ func startServerAFPacket(proto uint8, iface string) {
 		afpacket.OptNumBlocks(afNumBlocks),
 		afpacket.OptFrameSize(afFrameSize),
 		afpacket.OptBlockTimeout(afBlockTimeout),
-		afpacket.OptPollTimeout(afBlockTimeout),
 	)
 	if err != nil {
 		log.Fatalf("Failed to create AF_PACKET socket: %v", err)
@@ -885,7 +880,10 @@ func startServerAFPacket(proto uint8, iface string) {
 			continue
 		}
 
-		// BPF already filters: own MAC (outgoing), non-IPv4, wrong protocol
+		// Userspace protocol filter (defense-in-depth: BPF may fail to attach)
+		if ipLayer.Protocol != layers.IPProtocol(proto) {
+			continue
+		}
 
 		// Cache the source MAC for this IP (for replies)
 		arpCache.Set(ipLayer.SrcIP, ethLayer.SrcMAC)
