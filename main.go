@@ -25,10 +25,10 @@ import (
 // High-throughput tuning constants for AF_PACKET
 const (
 	// AF_PACKET ring buffer configuration (TPACKET_V3)
-	afBlockSize    = 1 << 20               // 1MB blocks
-	afNumBlocks    = 64                    // 64 blocks = 64MB ring buffer
-	afFrameSize    = 2048                  // Frame size for each packet slot
-	afBlockTimeout = 10 * time.Millisecond // Block timeout for TPACKET_V3
+	afBlockSize    = 1 << 20         // 1MB blocks
+	afNumBlocks    = 64              // 64 blocks = 64MB ring buffer
+	afFrameSize    = 2048            // Frame size for each packet slot
+	afBlockTimeout = 1 * time.Second // Block retire timeout for TPACKET_V3 (longer = less spurious wakeups)
 
 	batchSize      = 32                     // Messages per batch read/write (for UDP side)
 	socketBufSize  = 1 << 24                // 16MB socket buffer
@@ -411,15 +411,16 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, prot
 		afpacket.OptNumBlocks(afNumBlocks),
 		afpacket.OptFrameSize(afFrameSize),
 		afpacket.OptBlockTimeout(afBlockTimeout),
-		afpacket.OptPollTimeout(-1), // Block indefinitely
+		afpacket.OptPollTimeout(afBlockTimeout), // Match block timeout so poll() blocks properly
 	)
 	if err != nil {
 		log.Fatalf("Failed to create AF_PACKET socket: %v", err)
 	}
 	defer tpacket.Close()
 
-	// Set BPF filter for our custom protocol (reduces kernel -> userspace copies)
-	filter := createIPProtoFilter(proto)
+	// BPF: reject our own outgoing packets + only accept our custom IP protocol
+	// This filters in-kernel, before packets ever reach the mmap ring buffer
+	filter := createBPFFilter(proto, srcMAC)
 	if err := tpacket.SetBPF(filter); err != nil {
 		log.Printf("Warning: Failed to set BPF filter: %v", err)
 	}
@@ -459,7 +460,7 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, prot
 			// Zero-copy read from AF_PACKET mmap'd ring buffer
 			data, _, err := tpacket.ZeroCopyReadPacketData()
 			if err != nil {
-				log.Printf("AF_PACKET read error: %v", err)
+				// Timeout is expected when no packets arrive — silently retry
 				continue
 			}
 
@@ -469,10 +470,7 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, prot
 				continue
 			}
 
-			// Verify it's our custom protocol
-			if ipLayer.Protocol != layers.IPProtocol(proto) {
-				continue
-			}
+			// BPF already filters: own MAC (outgoing), non-IPv4, wrong protocol
 
 			// Verify source (optional - can accept spoofed replies)
 			if !ipLayer.SrcIP.Equal(serverIP) {
@@ -589,15 +587,15 @@ func startServerAFPacket(proto uint8, iface string) {
 		afpacket.OptNumBlocks(afNumBlocks),
 		afpacket.OptFrameSize(afFrameSize),
 		afpacket.OptBlockTimeout(afBlockTimeout),
-		afpacket.OptPollTimeout(-1),
+		afpacket.OptPollTimeout(afBlockTimeout),
 	)
 	if err != nil {
 		log.Fatalf("Failed to create AF_PACKET socket: %v", err)
 	}
 	defer tpacket.Close()
 
-	// Set BPF filter for our custom protocol
-	filter := createIPProtoFilter(proto)
+	// BPF: reject our own outgoing packets + only accept our custom IP protocol
+	filter := createBPFFilter(proto, srcMAC)
 	if err := tpacket.SetBPF(filter); err != nil {
 		log.Printf("Warning: Failed to set BPF filter: %v", err)
 	}
@@ -625,7 +623,7 @@ func startServerAFPacket(proto uint8, iface string) {
 		// Zero-copy read from ring buffer
 		data, _, err := tpacket.ZeroCopyReadPacketData()
 		if err != nil {
-			log.Printf("AF_PACKET read error: %v", err)
+			// Timeout is expected when no packets arrive — silently retry
 			continue
 		}
 
@@ -635,10 +633,7 @@ func startServerAFPacket(proto uint8, iface string) {
 			continue
 		}
 
-		// Verify it's our protocol
-		if ipLayer.Protocol != layers.IPProtocol(proto) {
-			continue
-		}
+		// BPF already filters: own MAC (outgoing), non-IPv4, wrong protocol
 
 		// Cache the source MAC for this IP (for replies)
 		arpCache.Set(ipLayer.SrcIP, ethLayer.SrcMAC)
@@ -763,21 +758,45 @@ func startServerAFPacket(proto uint8, iface string) {
 
 // --- BPF Filter ---
 
-// createIPProtoFilter creates a BPF filter for "ip proto <proto>"
-// Equivalent to: tcpdump -dd 'ip proto <N>'
-func createIPProtoFilter(proto uint8) []bpf.RawInstruction {
+// createBPFFilter builds a kernel-level BPF program that:
+//  1. Rejects packets where src MAC == our own MAC (outgoing loopback)
+//  2. Accepts only IPv4 (EtherType 0x0800)
+//  3. Accepts only our custom IP protocol number
+//
+// All filtering happens in-kernel before packets reach the mmap ring buffer,
+// eliminating unnecessary copies and userspace processing.
+func createBPFFilter(proto uint8, srcMAC net.HardwareAddr) []bpf.RawInstruction {
+	// Split 6-byte MAC into a 4-byte and 2-byte comparison
+	macHi := uint32(srcMAC[0])<<24 | uint32(srcMAC[1])<<16 | uint32(srcMAC[2])<<8 | uint32(srcMAC[3])
+	macLo := uint32(srcMAC[4])<<8 | uint32(srcMAC[5])
+
 	return []bpf.RawInstruction{
-		// ldh [12]: Load EtherType from Ethernet header
+		// --- Check 1: Reject our own outgoing packets (src MAC filter) ---
+		//  0: ld [6]            Load src MAC bytes 0-3
+		{Op: 0x20, Jt: 0, Jf: 0, K: 6},
+		//  1: jeq macHi          Match? -> check rest (2). No match? -> protocol check (4)
+		{Op: 0x15, Jt: 0, Jf: 2, K: macHi},
+		//  2: ldh [10]           Load src MAC bytes 4-5
+		{Op: 0x28, Jt: 0, Jf: 0, K: 10},
+		//  3: jeq macLo          Full MAC match? -> reject (9). No? -> protocol check (4)
+		{Op: 0x15, Jt: 5, Jf: 0, K: macLo},
+
+		// --- Check 2: EtherType must be IPv4 ---
+		//  4: ldh [12]           Load EtherType
 		{Op: 0x28, Jt: 0, Jf: 0, K: 12},
-		// jeq #0x0800: Check if IPv4, else jump to reject
+		//  5: jeq 0x0800         IPv4? -> check proto (6). Else -> reject (9)
 		{Op: 0x15, Jt: 0, Jf: 3, K: 0x0800},
-		// ldb [23]: Load IP protocol field (Ethernet header 14 bytes + IP proto at offset 9 = 23)
+
+		// --- Check 3: IP protocol must match ---
+		//  6: ldb [23]           Load IP protocol (eth:14 + ip:9 = offset 23)
 		{Op: 0x30, Jt: 0, Jf: 0, K: 23},
-		// jeq #proto: Check if our custom protocol
+		//  7: jeq proto          Match? -> accept (8). Else -> reject (9)
 		{Op: 0x15, Jt: 0, Jf: 1, K: uint32(proto)},
-		// ret #262144: Accept (max snaplen)
+
+		// --- Verdicts ---
+		//  8: ret #262144        ACCEPT
 		{Op: 0x06, Jt: 0, Jf: 0, K: 262144},
-		// ret #0: Reject
+		//  9: ret #0             REJECT
 		{Op: 0x06, Jt: 0, Jf: 0, K: 0},
 	}
 }
