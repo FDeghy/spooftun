@@ -4,6 +4,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -14,12 +15,14 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unsafe"
 
 	"github.com/gopacket/gopacket"
 	"github.com/gopacket/gopacket/afpacket"
 	"github.com/gopacket/gopacket/layers"
 	"golang.org/x/net/bpf"
 	"golang.org/x/net/ipv4"
+	"golang.org/x/sys/unix"
 )
 
 // High-throughput tuning constants for AF_PACKET
@@ -30,10 +33,15 @@ const (
 	afFrameSize    = 2048            // Frame size for each packet slot
 	afBlockTimeout = 1 * time.Second // Block retire timeout for TPACKET_V3 (longer = less spurious wakeups)
 
-	batchSize      = 32                     // Messages per batch read/write (for UDP side)
+	batchSize      = 64                     // Messages per batch read/write (for UDP side)
 	socketBufSize  = 1 << 24                // 16MB socket buffer
 	packetBufSize  = 1500                   // MTU size
 	udpPayloadSize = packetBufSize - 20 - 8 // 1472 bytes: fits after IP+UDP headers
+
+	// GSO/GRO constants
+	sizeOfGSOData          = 2     // uint16 size for UDP_SEGMENT value
+	udpSegmentMaxDatagrams = 64    // kernel hard limit
+	maxUDPGSOPayload       = 65535 // max payload size for a single GSO sendmsg
 )
 
 // Coarse timestamp to avoid time.Now() per packet
@@ -59,6 +67,149 @@ var (
 	protoNum   = flag.Int("proto", 200, "Custom IP Protocol Number (0-255)")
 	ifaceName  = flag.String("iface", "", "Network interface to use for AF_PACKET (auto-detect if empty)")
 )
+
+// --- GSO/GRO Helpers ---
+
+// gsoControlSize is the cmsg space needed for UDP_SEGMENT
+var gsoControlSize = unix.CmsgSpace(sizeOfGSOData)
+
+// supportsUDPOffload probes the socket for GSO (UDP_SEGMENT) and GRO (UDP_GRO) support
+func supportsUDPOffload(conn *net.UDPConn) (txOffload, rxOffload bool) {
+	rc, err := conn.SyscallConn()
+	if err != nil {
+		return
+	}
+	err = rc.Control(func(fd uintptr) {
+		_, errSyscall := unix.GetsockoptInt(int(fd), unix.IPPROTO_UDP, unix.UDP_SEGMENT)
+		txOffload = errSyscall == nil
+		opt, errSyscall := unix.GetsockoptInt(int(fd), unix.IPPROTO_UDP, unix.UDP_GRO)
+		rxOffload = errSyscall == nil && opt == 1
+	})
+	if err != nil {
+		return false, false
+	}
+	return txOffload, rxOffload
+}
+
+// enableUDPGRO enables UDP_GRO on the socket
+func enableUDPGRO(conn *net.UDPConn) error {
+	rc, err := conn.SyscallConn()
+	if err != nil {
+		return err
+	}
+	var sysErr error
+	err = rc.Control(func(fd uintptr) {
+		sysErr = unix.SetsockoptInt(int(fd), unix.IPPROTO_UDP, unix.UDP_GRO, 1)
+	})
+	if err != nil {
+		return err
+	}
+	return sysErr
+}
+
+// getGSOSize parses control message for UDP_GRO and returns the GSO segment size
+func getGSOSize(control []byte) (int, error) {
+	var (
+		hdr  unix.Cmsghdr
+		data []byte
+		rem  = control
+		err  error
+	)
+	for len(rem) > unix.SizeofCmsghdr {
+		hdr, data, rem, err = unix.ParseOneSocketControlMessage(rem)
+		if err != nil {
+			return 0, fmt.Errorf("error parsing socket control message: %w", err)
+		}
+		if hdr.Level == unix.SOL_UDP && hdr.Type == unix.UDP_GRO && len(data) >= sizeOfGSOData {
+			var gso uint16
+			copy(unsafe.Slice((*byte)(unsafe.Pointer(&gso)), sizeOfGSOData), data[:sizeOfGSOData])
+			return int(gso), nil
+		}
+	}
+	return 0, nil
+}
+
+// setGSOSize sets a UDP_SEGMENT in control based on gsoSize
+func setGSOSize(control *[]byte, gsoSize uint16) {
+	existingLen := len(*control)
+	avail := cap(*control) - existingLen
+	space := unix.CmsgSpace(sizeOfGSOData)
+	if avail < space {
+		return
+	}
+	*control = (*control)[:cap(*control)]
+	gsoControl := (*control)[existingLen:]
+	hdr := (*unix.Cmsghdr)(unsafe.Pointer(&(gsoControl)[0]))
+	hdr.Level = unix.SOL_UDP
+	hdr.Type = unix.UDP_SEGMENT
+	hdr.SetLen(unix.CmsgLen(sizeOfGSOData))
+	copy((gsoControl)[unix.CmsgLen(0):], unsafe.Slice((*byte)(unsafe.Pointer(&gsoSize)), sizeOfGSOData))
+	*control = (*control)[:existingLen+space]
+}
+
+// errShouldDisableUDPGSO checks if GSO should be disabled due to EIO (missing tx checksum offload)
+func errShouldDisableUDPGSO(err error) bool {
+	var serr *os.SyscallError
+	if errors.As(err, &serr) {
+		return serr.Err == unix.EIO
+	}
+	return false
+}
+
+// splitCoalescedMessages splits GRO-coalesced messages into individual datagrams
+func splitCoalescedMessages(msgs []ipv4.Message, firstMsgAt int) (int, error) {
+	n := 0
+	for i := firstMsgAt; i < len(msgs); i++ {
+		msg := &msgs[i]
+		if msg.N == 0 {
+			return n, nil
+		}
+		var (
+			gsoSize    int
+			start      int
+			end        = msg.N
+			numToSplit = 1
+		)
+		var err error
+		gsoSize, err = getGSOSize(msg.OOB[:msg.NN])
+		if err != nil {
+			return n, err
+		}
+		if gsoSize > 0 {
+			numToSplit = (msg.N + gsoSize - 1) / gsoSize
+			end = gsoSize
+		}
+		for j := 0; j < numToSplit; j++ {
+			if n > i {
+				return n, errors.New("splitting coalesced packet resulted in overflow")
+			}
+			copied := copy(msgs[n].Buffers[0], msg.Buffers[0][start:end])
+			msgs[n].N = copied
+			msgs[n].Addr = msg.Addr
+			start = end
+			end += gsoSize
+			if end > msg.N {
+				end = msg.N
+			}
+			n++
+		}
+		if i != n-1 {
+			msg.N = 0
+		}
+	}
+	return n, nil
+}
+
+// resetOOB resets OOB slices to full capacity before ReadBatch so the kernel
+// can write GRO control messages into them. Without this, GRO silently fails
+// after the first batch because msg.NN truncates the OOB length.
+func resetOOB(msgs []ipv4.Message) {
+	for i := range msgs {
+		if msgs[i].OOB != nil {
+			msgs[i].OOB = msgs[i].OOB[:cap(msgs[i].OOB)]
+		}
+	}
+}
 
 // --- Ethernet/ARP Helpers ---
 
@@ -436,6 +587,20 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, prot
 	appConn.SetReadBuffer(socketBufSize)
 	appConn.SetWriteBuffer(socketBufSize)
 
+	// Probe for GSO/GRO support on the app-facing UDP socket
+	txOffload, rxOffload := supportsUDPOffload(appConn)
+	if rxOffload {
+		if err := enableUDPGRO(appConn); err != nil {
+			log.Printf("Warning: Failed to enable UDP_GRO: %v", err)
+			rxOffload = false
+		} else {
+			log.Printf("UDP GRO enabled on app socket")
+		}
+	}
+	if txOffload {
+		log.Printf("UDP GSO available on app socket")
+	}
+
 	nat := &NatTable{}
 	go nat.Cleanup()
 
@@ -455,12 +620,48 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, prot
 
 	// Downlink (AF_PACKET -> App)
 	// Reads raw Ethernet frames, strips headers, translates VirtualPort -> ClientPort
+	// Uses GSO to batch multiple payloads into one sendmsg call when possible
 	go func() {
+		// GSO write batching state for downlink
+		var gsoTxEnabled atomic.Bool
+		gsoTxEnabled.Store(txOffload)
+
+		// Accumulation buffer for GSO writes
+		gsoBuf := make([]byte, 0, maxUDPGSOPayload)
+		var gsoSegSize int
+		var gsoDgramCnt int
+
+		// Pre-allocated OOB buffer for GSO control messages (reused across flushes)
+		gsoOOB := make([]byte, 0, gsoControlSize)
+
+		// Reusable UDPAddr to avoid per-packet heap allocation
+		writeAddr := &net.UDPAddr{IP: make(net.IP, 4)}
+		// Track current GSO batch destination as natKey for fast comparison (no IP.Equal)
+		var gsoDstKey natKey
+
+		flushGSO := func() {
+			if gsoDgramCnt == 0 {
+				return
+			}
+			if gsoDgramCnt == 1 || !gsoTxEnabled.Load() {
+				// Single datagram or GSO disabled: just write normally
+				appConn.WriteToUDP(gsoBuf, writeAddr)
+			} else {
+				// Build OOB with UDP_SEGMENT (reuse pre-allocated buffer)
+				gsoOOB = gsoOOB[:0]
+				setGSOSize(&gsoOOB, uint16(gsoSegSize))
+				appConn.WriteMsgUDP(gsoBuf, gsoOOB, writeAddr)
+			}
+			gsoBuf = gsoBuf[:0]
+			gsoDgramCnt = 0
+			gsoSegSize = 0
+		}
+
 		for {
 			// Zero-copy read from AF_PACKET mmap'd ring buffer
 			data, _, err := tpacket.ZeroCopyReadPacketData()
 			if err != nil {
-				// Timeout is expected when no packets arrive — silently retry
+				flushGSO()
 				continue
 			}
 
@@ -490,15 +691,47 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, prot
 				continue
 			}
 
-			clientAppAddr := &net.UDPAddr{IP: sess.clientIP, Port: int(sess.clientPort)}
-			appConn.WriteToUDP(udpLayer.Payload, clientAppAddr)
+			payload := udpLayer.Payload
+
+			// Build natKey for destination (6-byte value compare, no alloc)
+			dstKey := makeNatKey(sess.clientIP, sess.clientPort)
+
+			// Try to coalesce into GSO batch
+			if gsoTxEnabled.Load() && len(payload) > 0 {
+				canCoalesce := gsoDgramCnt > 0 &&
+					gsoDstKey == dstKey &&
+					len(payload) == gsoSegSize &&
+					gsoDgramCnt < udpSegmentMaxDatagrams &&
+					len(gsoBuf)+len(payload) <= maxUDPGSOPayload
+
+				if canCoalesce {
+					gsoBuf = append(gsoBuf, payload...)
+					gsoDgramCnt++
+					continue
+				}
+				// Flush previous batch if any
+				flushGSO()
+				// Start new batch — update the reusable writeAddr
+				copy(writeAddr.IP, sess.clientIP.To4())
+				writeAddr.Port = sess.clientPort
+				gsoDstKey = dstKey
+				gsoBuf = append(gsoBuf, payload...)
+				gsoSegSize = len(payload)
+				gsoDgramCnt = 1
+			} else {
+				flushGSO()
+				copy(writeAddr.IP, sess.clientIP.To4())
+				writeAddr.Port = sess.clientPort
+				appConn.WriteToUDP(payload, writeAddr)
+			}
 		}
 	}()
 
 	// Uplink (App -> AF_PACKET)
 	// Reads UDP from App, translates ClientPort -> VirtualPort, wraps in Ethernet + IP + Proto, sends raw
+	// Uses GRO to receive coalesced datagrams from the kernel
 	ipv4AppConn := ipv4.NewPacketConn(appConn)
-	msgs := prepareMsgsUDP()
+	msgs := prepareMsgsUDP(rxOffload)
 
 	// Reusable serialize buffer
 	serializeBuf := gopacket.NewSerializeBuffer()
@@ -527,10 +760,29 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, prot
 	readPos := 0
 	for {
 		if readPos >= n {
-			n, err = ipv4AppConn.ReadBatch(msgs, 0)
-			if n == 0 || err != nil {
-				log.Printf("Read UDP error: %v", err)
-				continue
+			if rxOffload {
+				// With GRO: read into fewer slots, then split coalesced messages
+				readAt := len(msgs) - (batchSize / udpSegmentMaxDatagrams)
+				if readAt < 0 {
+					readAt = 0
+				}
+				resetOOB(msgs[readAt:])
+				n, err = ipv4AppConn.ReadBatch(msgs[readAt:], 0)
+				if n == 0 || err != nil {
+					log.Printf("Read UDP error: %v", err)
+					continue
+				}
+				n, err = splitCoalescedMessages(msgs, readAt)
+				if err != nil {
+					log.Printf("GRO split error: %v", err)
+					continue
+				}
+			} else {
+				n, err = ipv4AppConn.ReadBatch(msgs, 0)
+				if n == 0 || err != nil {
+					log.Printf("Read UDP error: %v", err)
+					continue
+				}
 			}
 			readPos = 0
 		}
@@ -670,14 +922,24 @@ func startServerAFPacket(proto uint8, iface string) {
 			conn.SetReadBuffer(socketBufSize)
 			conn.SetWriteBuffer(socketBufSize)
 
+			// Probe for GSO/GRO support on this session socket
+			sessTxOffload, sessRxOffload := supportsUDPOffload(conn)
+			if sessRxOffload {
+				if err := enableUDPGRO(conn); err != nil {
+					log.Printf("Warning: Failed to enable UDP_GRO on session socket: %v", err)
+					sessRxOffload = false
+				}
+			}
+
 			sessions.Store(clientKey, conn)
-			log.Printf("New Session: %s -> Target :%d", clientKey.String(), udpLayer.DstPort)
+			log.Printf("New Session: %s -> Target :%d (GSO=%v GRO=%v)", clientKey.String(), udpLayer.DstPort, sessTxOffload, sessRxOffload)
 
 			// Reply handler goroutine
 			go func(c *net.UDPConn, clientIP net.IP, clientPort uint16, clientMAC net.HardwareAddr,
-				srcServerIP net.IP, targetRAddr *net.UDPAddr, sessionKey natKey) {
+				srcServerIP net.IP, targetRAddr *net.UDPAddr, sessionKey natKey,
+				txOff, rxOff bool) {
 				ipv4AppConn := ipv4.NewPacketConn(c)
-				msgs := prepareMsgsUDP()
+				msgs := prepareMsgsUDP(rxOff)
 				defer c.Close()
 				defer sessions.Delete(sessionKey)
 
@@ -728,10 +990,29 @@ func startServerAFPacket(proto uint8, iface string) {
 				for {
 					ipv4AppConn.SetReadDeadline(time.Now().Add(30 * time.Second))
 					if readPos >= n {
-						n, errRead = ipv4AppConn.ReadBatch(msgs, 0)
-						if n == 0 || errRead != nil {
-							log.Printf("Session %s ended: %v", sessionKey.String(), errRead)
-							return
+						if rxOff {
+							// With GRO: read into fewer slots, then split
+							readAt := len(msgs) - (batchSize / udpSegmentMaxDatagrams)
+							if readAt < 0 {
+								readAt = 0
+							}
+							resetOOB(msgs[readAt:])
+							n, errRead = ipv4AppConn.ReadBatch(msgs[readAt:], 0)
+							if n == 0 || errRead != nil {
+								log.Printf("Session %s ended: %v", sessionKey.String(), errRead)
+								return
+							}
+							n, errRead = splitCoalescedMessages(msgs, readAt)
+							if errRead != nil {
+								log.Printf("GRO split error in session %s: %v", sessionKey.String(), errRead)
+								return
+							}
+						} else {
+							n, errRead = ipv4AppConn.ReadBatch(msgs, 0)
+							if n == 0 || errRead != nil {
+								log.Printf("Session %s ended: %v", sessionKey.String(), errRead)
+								return
+							}
 						}
 						readPos = 0
 					}
@@ -749,7 +1030,8 @@ func startServerAFPacket(proto uint8, iface string) {
 
 					replyTPacket.WritePacketData(sBuf.Bytes())
 				}
-			}(conn, ipLayer.SrcIP, uint16(udpLayer.SrcPort), ethLayer.SrcMAC, srcIP, rAddr, clientKey)
+			}(conn, ipLayer.SrcIP, uint16(udpLayer.SrcPort), ethLayer.SrcMAC, srcIP, rAddr, clientKey,
+				sessTxOffload, sessRxOffload)
 		}
 
 		conn.Write(udpLayer.Payload)
@@ -804,11 +1086,19 @@ func createBPFFilter(proto uint8, srcMAC net.HardwareAddr) []bpf.RawInstruction 
 // --- Shared Helpers ---
 
 // prepareMsgsUDP creates message buffers for UDP batch reads
-func prepareMsgsUDP() []ipv4.Message {
+// When groEnabled is true, OOB buffers are allocated for control message parsing (UDP_GRO)
+// and a larger data buffer is used to accommodate GRO-coalesced payloads
+func prepareMsgsUDP(groEnabled bool) []ipv4.Message {
 	msgs := make([]ipv4.Message, batchSize)
 	for i := range msgs {
 		msgs[i].Buffers = make([][]byte, 1)
-		msgs[i].Buffers[0] = make([]byte, udpPayloadSize)
+		if groEnabled {
+			// GRO can coalesce up to udpSegmentMaxDatagrams into one buffer
+			msgs[i].Buffers[0] = make([]byte, udpPayloadSize*udpSegmentMaxDatagrams)
+			msgs[i].OOB = make([]byte, gsoControlSize)
+		} else {
+			msgs[i].Buffers[0] = make([]byte, udpPayloadSize)
+		}
 	}
 	return msgs
 }
