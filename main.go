@@ -20,6 +20,7 @@ import (
 	"github.com/gopacket/gopacket"
 	"github.com/gopacket/gopacket/afpacket"
 	"github.com/gopacket/gopacket/layers"
+	"github.com/gopacket/gopacket/pcap"
 	"golang.org/x/net/bpf"
 	"golang.org/x/net/ipv4"
 	"golang.org/x/sys/unix"
@@ -27,12 +28,6 @@ import (
 
 // High-throughput tuning constants for AF_PACKET
 const (
-	// AF_PACKET ring buffer configuration (TPACKET_V3)
-	afBlockSize    = 1 << 20               // 1MB blocks
-	afNumBlocks    = 64                    // 64 blocks = 64MB ring buffer
-	afFrameSize    = 2048                  // Frame size for each packet slot
-	afBlockTimeout = 64 * time.Millisecond // Block retire timeout. Low value needed for low latency.
-
 	batchSize      = 64                     // Messages per batch read/write (for UDP side)
 	socketBufSize  = 1 << 24                // 16MB socket buffer
 	packetBufSize  = 1500                   // MTU size
@@ -42,6 +37,15 @@ const (
 	sizeOfGSOData          = 2     // uint16 size for UDP_SEGMENT value
 	udpSegmentMaxDatagrams = 64    // kernel hard limit
 	maxUDPGSOPayload       = 65535 // max payload size for a single GSO sendmsg
+)
+
+var (
+	// will be changed at runtime
+	// AF_PACKET ring buffer configuration (TPACKET_V3)
+	afBlockSize    = 1 << 20               // 1MB blocks
+	afNumBlocks    = 64                    // 64 blocks = 64MB ring buffer
+	afFrameSize    = 2048                  // Frame size for each packet slot
+	afBlockTimeout = 64 * time.Millisecond // Block retire timeout. Low value needed for low latency.
 )
 
 // Coarse timestamp to avoid time.Now() per packet
@@ -376,6 +380,30 @@ func getDefaultGatewayMAC(iface string) (net.HardwareAddr, error) {
 	return nil, fmt.Errorf("could not find gateway MAC")
 }
 
+// afpacketComputeSize computes the block_size and the num_blocks in such a way that the
+// allocated mmap buffer is close to but smaller than target_size_mb.
+// The restriction is that the block_size must be divisible by both the
+// frame size and page size.
+func afpacketComputeSize(targetSizeMb int, snaplen int, pageSize int) (
+	frameSize int, blockSize int, numBlocks int, err error) {
+
+	if snaplen < pageSize {
+		frameSize = pageSize / (pageSize / snaplen)
+	} else {
+		frameSize = (snaplen/pageSize + 1) * pageSize
+	}
+
+	// 128 is the default from the gopacket library so just use that
+	blockSize = frameSize * 128
+	numBlocks = (targetSizeMb * 1024 * 1024) / blockSize
+
+	if numBlocks == 0 {
+		return 0, 0, 0, fmt.Errorf("Interface buffersize is too small")
+	}
+
+	return frameSize, blockSize, numBlocks, nil
+}
+
 // ARPCache caches IP -> MAC mappings discovered via incoming packets
 type ARPCache struct {
 	cache sync.Map // net.IP string -> net.HardwareAddr
@@ -407,6 +435,15 @@ func main() {
 		}
 		log.Printf("Auto-detected interface: %s", iface)
 	}
+
+	// Calculate AF_PACKET buffer size
+	szFrame, szBlock, numBlocks, err := afpacketComputeSize(8, 65535, os.Getpagesize())
+	if err != nil {
+		log.Fatal(err)
+	}
+	afFrameSize = szFrame
+	afBlockSize = szBlock
+	afNumBlocks = numBlocks
 
 	if *mode == "client" {
 		if serverIP == nil {
@@ -466,6 +503,9 @@ type NatTable struct {
 	forward sync.Map
 	// key: VirtualPort (uint16) -> value: *natSession
 	reverse sync.Map
+	// Local RNG to avoid global lock contention in rand.Intn
+	// Only accessed by the single Uplink goroutine
+	rng *rand.Rand
 }
 
 func (n *NatTable) GetOrCreateVirtualPort(clientIP net.IP, clientPort int) uint16 {
@@ -496,7 +536,8 @@ func (n *NatTable) GetOrCreateVirtualPort(clientIP net.IP, clientPort int) uint1
 			return proposed
 		}
 		// Collision: pick random
-		proposed = uint16(rand.Intn(65535-1024) + 1024)
+		// 65535 - 1024 = 64511 range
+		proposed = uint16(n.rng.Intn(64511) + 1024)
 	}
 }
 
@@ -587,7 +628,9 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, prot
 	appConn.SetWriteBuffer(socketBufSize)
 
 	// Probe for GSO/GRO support on the app-facing UDP socket
-	txOffload, rxOffload := supportsUDPOffload(appConn)
+	// txOffload, rxOffload := supportsUDPOffload(appConn)
+	txOffload := false
+	rxOffload := false
 	if rxOffload {
 		if err := enableUDPGRO(appConn); err != nil {
 			log.Printf("Warning: Failed to enable UDP_GRO: %v", err)
@@ -600,7 +643,9 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, prot
 		log.Printf("UDP GSO available on app socket")
 	}
 
-	nat := &NatTable{}
+	nat := &NatTable{
+		rng: rand.New(rand.NewSource(time.Now().UnixNano())),
+	}
 	go nat.Cleanup()
 
 	// Reusable layer parsers for Downlink
@@ -619,48 +664,14 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, prot
 
 	// Downlink (AF_PACKET -> App)
 	// Reads raw Ethernet frames, strips headers, translates VirtualPort -> ClientPort
-	// Uses GSO to batch multiple payloads into one sendmsg call when possible
 	go func() {
-		// GSO write batching state for downlink
-		var gsoTxEnabled atomic.Bool
-		gsoTxEnabled.Store(txOffload)
-
-		// Accumulation buffer for GSO writes
-		gsoBuf := make([]byte, 0, maxUDPGSOPayload)
-		var gsoSegSize int
-		var gsoDgramCnt int
-
-		// Pre-allocated OOB buffer for GSO control messages (reused across flushes)
-		gsoOOB := make([]byte, 0, gsoControlSize)
-
 		// Reusable UDPAddr to avoid per-packet heap allocation
 		writeAddr := &net.UDPAddr{IP: make(net.IP, 4)}
-		// Track current GSO batch destination as natKey for fast comparison (no IP.Equal)
-		var gsoDstKey natKey
-
-		flushGSO := func() {
-			if gsoDgramCnt == 0 {
-				return
-			}
-			if gsoDgramCnt == 1 || !gsoTxEnabled.Load() {
-				// Single datagram or GSO disabled: just write normally
-				appConn.WriteToUDP(gsoBuf, writeAddr)
-			} else {
-				// Build OOB with UDP_SEGMENT (reuse pre-allocated buffer)
-				gsoOOB = gsoOOB[:0]
-				setGSOSize(&gsoOOB, uint16(gsoSegSize))
-				appConn.WriteMsgUDP(gsoBuf, gsoOOB, writeAddr)
-			}
-			gsoBuf = gsoBuf[:0]
-			gsoDgramCnt = 0
-			gsoSegSize = 0
-		}
 
 		for {
 			// Zero-copy read from AF_PACKET mmap'd ring buffer
 			data, _, err := tpacket.ZeroCopyReadPacketData()
 			if err != nil {
-				flushGSO()
 				continue
 			}
 
@@ -689,36 +700,10 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, prot
 
 			payload := udpLayer.Payload
 
-			// Build natKey for destination (6-byte value compare, no alloc)
-			dstKey := makeNatKey(sess.clientIP, sess.clientPort)
-
-			// Try to coalesce into GSO batch
-			if gsoTxEnabled.Load() && len(payload) > 0 {
-				canCoalesce := gsoDgramCnt > 0 &&
-					gsoDstKey == dstKey &&
-					len(payload) == gsoSegSize &&
-					gsoDgramCnt < udpSegmentMaxDatagrams &&
-					len(gsoBuf)+len(payload) <= maxUDPGSOPayload
-
-				if canCoalesce {
-					gsoBuf = append(gsoBuf, payload...)
-					gsoDgramCnt++
-					continue
-				}
-				// Flush previous batch if any
-				flushGSO()
-				// Start new batch — update the reusable writeAddr
-				copy(writeAddr.IP, sess.clientIP.To4())
-				writeAddr.Port = sess.clientPort
-				gsoDstKey = dstKey
-				gsoBuf = append(gsoBuf, payload...)
-				gsoSegSize = len(payload)
-				gsoDgramCnt = 1
-			} else {
-				flushGSO()
-				copy(writeAddr.IP, sess.clientIP.To4())
-				writeAddr.Port = sess.clientPort
-				appConn.WriteToUDP(payload, writeAddr)
+			writeAddr.IP = sess.clientIP
+			writeAddr.Port = sess.clientPort
+			if _, err := appConn.WriteToUDP(payload, writeAddr); err != nil {
+				log.Printf("WriteToUDP error in downlink (no coalesce): %v", err)
 			}
 		}
 	}()
@@ -827,7 +812,7 @@ func startServerAFPacket(proto uint8, iface string) {
 		log.Printf("Using Interface IP: %s", srcIP)
 	}
 
-	// Create AF_PACKET socket with TPACKET_V3
+	// Create Inbound AF_PACKET socket (RX)
 	tpacket, err := afpacket.NewTPacket(
 		afpacket.OptInterface(iface),
 		afpacket.OptTPacketVersion(afpacket.TPacketVersion3),
@@ -837,9 +822,27 @@ func startServerAFPacket(proto uint8, iface string) {
 		afpacket.OptBlockTimeout(afBlockTimeout),
 	)
 	if err != nil {
-		log.Fatalf("Failed to create AF_PACKET socket: %v", err)
+		log.Fatalf("Failed to create RX AF_PACKET socket: %v", err)
 	}
 	defer tpacket.Close()
+
+	// Create Outbound Shared AF_PACKET socket (TX)
+	// We use a separate socket/ring for TX to separate limits and potential locks,
+	// though we could share if careful. A separate TX ring is cleaner.
+	txTPacket, err := afpacket.NewTPacket(
+		afpacket.OptInterface(iface),
+		afpacket.OptTPacketVersion(afpacket.TPacketVersion3),
+		afpacket.OptBlockSize(1<<19), // 512KB blocks for TX
+		afpacket.OptNumBlocks(16),
+		afpacket.OptFrameSize(afFrameSize),
+	)
+	if err != nil {
+		log.Fatalf("Failed to create TX AF_PACKET socket: %v", err)
+	}
+	defer txTPacket.Close()
+
+	// Mutex to protect simultaneous writes to the shared TX ring
+	var txMutex sync.Mutex
 
 	// BPF: reject our own outgoing packets + only accept our custom IP protocol
 	filter := createBPFFilter(proto, srcMAC)
@@ -921,7 +924,9 @@ func startServerAFPacket(proto uint8, iface string) {
 			conn.SetWriteBuffer(socketBufSize)
 
 			// Probe for GSO/GRO support on this session socket
-			sessTxOffload, sessRxOffload := supportsUDPOffload(conn)
+			// sessTxOffload, sessRxOffload := supportsUDPOffload(conn)
+			sessTxOffload := false
+			sessRxOffload := false
 			if sessRxOffload {
 				if err := enableUDPGRO(conn); err != nil {
 					log.Printf("Warning: Failed to enable UDP_GRO on session socket: %v", err)
@@ -932,6 +937,13 @@ func startServerAFPacket(proto uint8, iface string) {
 			sessions.Store(clientKey, conn)
 			log.Printf("New Session: %s -> Target :%d (GSO=%v GRO=%v)", clientKey.String(), udpLayer.DstPort, sessTxOffload, sessRxOffload)
 
+			// Create safe copies of the slices backed by the mmap ring
+			safeClientIP := make(net.IP, len(ipLayer.SrcIP))
+			copy(safeClientIP, ipLayer.SrcIP)
+
+			safeClientMAC := make(net.HardwareAddr, len(ethLayer.SrcMAC))
+			copy(safeClientMAC, ethLayer.SrcMAC)
+
 			// Reply handler goroutine
 			go func(c *net.UDPConn, clientIP net.IP, clientPort uint16, clientMAC net.HardwareAddr,
 				srcServerIP net.IP, targetRAddr *net.UDPAddr, sessionKey natKey,
@@ -941,19 +953,7 @@ func startServerAFPacket(proto uint8, iface string) {
 				defer c.Close()
 				defer sessions.Delete(sessionKey)
 
-				// Create a separate TPacket for replies (thread safety)
-				replyTPacket, err := afpacket.NewTPacket(
-					afpacket.OptInterface(iface),
-					afpacket.OptTPacketVersion(afpacket.TPacketVersion3),
-					afpacket.OptBlockSize(1<<18), // 256KB blocks for TX
-					afpacket.OptNumBlocks(16),
-					afpacket.OptFrameSize(afFrameSize),
-				)
-				if err != nil {
-					log.Printf("Failed to create reply TPacket: %v", err)
-					return
-				}
-				defer replyTPacket.Close()
+				// Use shared txTPacket and txMutex from outer scope
 
 				sBuf := gopacket.NewSerializeBuffer()
 				sOpts := gopacket.SerializeOptions{FixLengths: true, ComputeChecksums: true}
@@ -997,7 +997,7 @@ func startServerAFPacket(proto uint8, iface string) {
 							resetOOB(msgs[readAt:])
 							n, errRead = ipv4AppConn.ReadBatch(msgs[readAt:], 0)
 							if n == 0 || errRead != nil {
-								log.Printf("Session %s ended: %v", sessionKey.String(), errRead)
+								// Normal EOF or timeout removal
 								return
 							}
 							n, errRead = splitCoalescedMessages(msgs, readAt)
@@ -1008,7 +1008,6 @@ func startServerAFPacket(proto uint8, iface string) {
 						} else {
 							n, errRead = ipv4AppConn.ReadBatch(msgs, 0)
 							if n == 0 || errRead != nil {
-								log.Printf("Session %s ended: %v", sessionKey.String(), errRead)
 								return
 							}
 						}
@@ -1026,13 +1025,22 @@ func startServerAFPacket(proto uint8, iface string) {
 						continue
 					}
 
-					replyTPacket.WritePacketData(sBuf.Bytes())
+					// Shared Mutex Write - Bottleneck potential but memory safe
+					txMutex.Lock()
+					err := txTPacket.WritePacketData(sBuf.Bytes())
+					txMutex.Unlock()
+
+					if err != nil {
+						log.Printf("TX error: %v", err)
+					}
 				}
-			}(conn, ipLayer.SrcIP, uint16(udpLayer.SrcPort), ethLayer.SrcMAC, srcIP, rAddr, clientKey,
+			}(conn, safeClientIP, uint16(udpLayer.SrcPort), safeClientMAC, srcIP, rAddr, clientKey,
 				sessTxOffload, sessRxOffload)
 		}
 
-		conn.Write(udpLayer.Payload)
+		if _, err := conn.Write(udpLayer.Payload); err != nil {
+			log.Printf("conn.Write error in Server AF_PACKET downlink: %v", err)
+		}
 	}
 }
 
@@ -1046,39 +1054,63 @@ func startServerAFPacket(proto uint8, iface string) {
 // All filtering happens in-kernel before packets reach the mmap ring buffer,
 // eliminating unnecessary copies and userspace processing.
 func createBPFFilter(proto uint8, srcMAC net.HardwareAddr) []bpf.RawInstruction {
-	// Split 6-byte MAC into a 4-byte and 2-byte comparison
-	macHi := uint32(srcMAC[0])<<24 | uint32(srcMAC[1])<<16 | uint32(srcMAC[2])<<8 | uint32(srcMAC[3])
-	macLo := uint32(srcMAC[4])<<8 | uint32(srcMAC[5])
-
-	return []bpf.RawInstruction{
-		// --- Check 1: Reject our own outgoing packets (src MAC filter) ---
-		//  0: ld [6]            Load src MAC bytes 0-3
-		{Op: 0x20, Jt: 0, Jf: 0, K: 6},
-		//  1: jeq macHi          Match? -> check rest (2). No match? -> protocol check (4)
-		{Op: 0x15, Jt: 0, Jf: 2, K: macHi},
-		//  2: ldh [10]           Load src MAC bytes 4-5
-		{Op: 0x28, Jt: 0, Jf: 0, K: 10},
-		//  3: jeq macLo          Full MAC match? -> reject (9). No? -> protocol check (4)
-		{Op: 0x15, Jt: 5, Jf: 0, K: macLo},
-
-		// --- Check 2: EtherType must be IPv4 ---
-		//  4: ldh [12]           Load EtherType
-		{Op: 0x28, Jt: 0, Jf: 0, K: 12},
-		//  5: jeq 0x0800         IPv4? -> check proto (6). Else -> reject (9)
-		{Op: 0x15, Jt: 0, Jf: 3, K: 0x0800},
-
-		// --- Check 3: IP protocol must match ---
-		//  6: ldb [23]           Load IP protocol (eth:14 + ip:9 = offset 23)
-		{Op: 0x30, Jt: 0, Jf: 0, K: 23},
-		//  7: jeq proto          Match? -> accept (8). Else -> reject (9)
-		{Op: 0x15, Jt: 0, Jf: 1, K: uint32(proto)},
-
-		// --- Verdicts ---
-		//  8: ret #262144        ACCEPT
-		{Op: 0x06, Jt: 0, Jf: 0, K: 262144},
-		//  9: ret #0             REJECT
-		{Op: 0x06, Jt: 0, Jf: 0, K: 0},
+	pcapBPF, err := pcap.CompileBPFFilter(
+		layers.LinkTypeEthernet,
+		65535,
+		fmt.Sprintf("not ether src %s and ip proto %d", srcMAC.String(), proto),
+	)
+	if err != nil {
+		log.Fatalf("Failed to compile BPF filter: %v", err)
 	}
+
+	bpfIns := []bpf.RawInstruction{}
+	for _, ins := range pcapBPF {
+		bpfIns2 := bpf.RawInstruction{
+			Op: ins.Code,
+			Jt: ins.Jt,
+			Jf: ins.Jf,
+			K:  ins.K,
+		}
+		bpfIns = append(bpfIns, bpfIns2)
+	}
+
+	return bpfIns
+
+	/*
+		// Split 6-byte MAC into a 4-byte and 2-byte comparison
+		macHi := uint32(srcMAC[0])<<24 | uint32(srcMAC[1])<<16 | uint32(srcMAC[2])<<8 | uint32(srcMAC[3])
+		macLo := uint32(srcMAC[4])<<8 | uint32(srcMAC[5])
+
+		return []bpf.RawInstruction{
+			// --- Check 1: Reject our own outgoing packets (src MAC filter) ---
+			//  0: ld [6]            Load src MAC bytes 0-3
+			{Op: 0x20, Jt: 0, Jf: 0, K: 6},
+			//  1: jeq macHi          Match? -> check rest (2). No match? -> protocol check (4)
+			{Op: 0x15, Jt: 0, Jf: 2, K: macHi},
+			//  2: ldh [10]           Load src MAC bytes 4-5
+			{Op: 0x28, Jt: 0, Jf: 0, K: 10},
+			//  3: jeq macLo          Full MAC match? -> reject (9). No? -> protocol check (4)
+			{Op: 0x15, Jt: 5, Jf: 0, K: macLo},
+
+			// --- Check 2: EtherType must be IPv4 ---
+			//  4: ldh [12]           Load EtherType
+			{Op: 0x28, Jt: 0, Jf: 0, K: 12},
+			//  5: jeq 0x0800         IPv4? -> check proto (6). Else -> reject (9)
+			{Op: 0x15, Jt: 0, Jf: 3, K: 0x0800},
+
+			// --- Check 3: IP protocol must match ---
+			//  6: ldb [23]           Load IP protocol (eth:14 + ip:9 = offset 23)
+			{Op: 0x30, Jt: 0, Jf: 0, K: 23},
+			//  7: jeq proto          Match? -> accept (8). Else -> reject (9)
+			{Op: 0x15, Jt: 0, Jf: 1, K: uint32(proto)},
+
+			// --- Verdicts ---
+			//  8: ret #262144        ACCEPT
+			{Op: 0x06, Jt: 0, Jf: 0, K: 262144},
+			//  9: ret #0             REJECT
+			{Op: 0x06, Jt: 0, Jf: 0, K: 0},
+		}
+	*/
 }
 
 // --- Shared Helpers ---
