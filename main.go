@@ -70,6 +70,7 @@ var (
 	targetPort = flag.Int("target-port", 8080, "Client: Port to forward traffic to on the Server side")
 	protoNum   = flag.Int("proto", 200, "Custom IP Protocol Number (0-255)")
 	ifaceName  = flag.String("iface", "", "Network interface to use for AF_PACKET (auto-detect if empty)")
+	fakeFrag   = flag.Bool("fake-frag", false, "Set the IP More Fragments (MF) flag with frag offset 0 (DPI evasion)")
 )
 
 // --- GSO/GRO Helpers ---
@@ -724,14 +725,19 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, prot
 		DstMAC:       dstMAC,
 		EthernetType: layers.EthernetTypeIPv4,
 	}
+	ipFlags := layers.IPv4DontFragment
+	if *fakeFrag {
+		ipFlags = layers.IPv4MoreFragments
+	}
 	ipHeader := &layers.IPv4{
-		Version:  4,
-		IHL:      5,
-		TTL:      64,
-		Protocol: layers.IPProtocol(proto),
-		SrcIP:    srcIP,
-		DstIP:    serverIP,
-		Flags:    layers.IPv4DontFragment,
+		Version:    4,
+		IHL:        5,
+		TTL:        64,
+		Protocol:   layers.IPProtocol(proto),
+		SrcIP:      srcIP,
+		DstIP:      serverIP,
+		Flags:      ipFlags,
+		FragOffset: 0,
 	}
 	udpHeader := &layers.UDP{
 		DstPort: layers.UDPPort(dstPort),
@@ -969,6 +975,10 @@ func startServerAFPacket(proto uint8, iface string) {
 					DstMAC:       clientMAC,
 					EthernetType: layers.EthernetTypeIPv4,
 				}
+				rIpFlags := layers.IPv4DontFragment
+				if *fakeFrag {
+					rIpFlags = layers.IPv4MoreFragments
+				}
 				rIpHeader := &layers.IPv4{
 					Version:  4,
 					IHL:      5,
@@ -976,7 +986,7 @@ func startServerAFPacket(proto uint8, iface string) {
 					Protocol: layers.IPProtocol(proto),
 					SrcIP:    srcServerIP,
 					DstIP:    dstClientIP,
-					Flags:    layers.IPv4DontFragment,
+					Flags:    rIpFlags,
 				}
 				rUdpHeader := &layers.UDP{
 					DstPort: layers.UDPPort(clientPort),
