@@ -821,7 +821,8 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, prot
 		// fake frag
 		if *fakeFrag {
 			ipHeaderFrag.Id = ipId
-			ipHeaderFrag.FragOffset = uint16(len(data) / 8)
+			// add udp header size
+			ipHeaderFrag.FragOffset = uint16((len(data) + 8) / 8)
 
 			if err := gopacket.SerializeLayers(serializeBuf, opts, ethHeader, ipHeaderFrag, gopacket.Payload([]byte("0"))); err != nil {
 				log.Printf("Serialize error: %v", err)
