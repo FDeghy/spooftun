@@ -4,6 +4,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"flag"
 	"fmt"
@@ -28,10 +29,10 @@ import (
 
 // High-throughput tuning constants for AF_PACKET
 const (
-	batchSize      = 64                     // Messages per batch read/write (for UDP side)
-	socketBufSize  = 1 << 24                // 16MB socket buffer
-	packetBufSize  = 1500                   // MTU size
-	udpPayloadSize = packetBufSize - 20 - 8 // 1472 bytes: fits after IP+UDP headers
+	batchSize      = 64                         // Messages per batch read/write (for UDP side)
+	socketBufSize  = 1 << 24                    // 16MB socket buffer
+	packetBufSize  = 1500                       // MTU size
+	udpPayloadSize = packetBufSize - 20 - 8 - 8 // 1472 bytes: fits after IP+UDP headers + padding
 
 	// GSO/GRO constants
 	sizeOfGSOData          = 2     // uint16 size for UDP_SEGMENT value
@@ -70,7 +71,7 @@ var (
 	targetPort = flag.Int("target-port", 8080, "Client: Port to forward traffic to on the Server side")
 	protoNum   = flag.Int("proto", 200, "Custom IP Protocol Number (0-255)")
 	ifaceName  = flag.String("iface", "", "Network interface to use for AF_PACKET (auto-detect if empty)")
-	fakeFrag   = flag.Bool("fake-frag", false, "Set the IP More Fragments (MF) flag with frag offset 0 (DPI evasion)")
+	fakeFrag   = flag.Bool("fake-frag", false, "Use fake frag only for *client uplink, must be enabled in *server to receiving fake frag packets")
 )
 
 // --- GSO/GRO Helpers ---
@@ -612,7 +613,7 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, prot
 
 	// BPF: reject our own outgoing packets + only accept our custom IP protocol
 	// This filters in-kernel, before packets ever reach the mmap ring buffer
-	filter := createBPFFilter(proto, srcMAC)
+	filter := createBPFFilter(proto, srcMAC, *fakeFrag)
 	if err := tpacket.SetBPF(filter); err != nil {
 		log.Printf("Warning: Failed to set BPF filter: %v", err)
 	}
@@ -683,7 +684,7 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, prot
 			}
 
 			// Userspace protocol filter (defense-in-depth: BPF may fail to attach)
-			if ipLayer.Protocol != layers.IPProtocol(proto) {
+			if ipLayer.Protocol != layers.IPProtocol(proto) || ipLayer.FragOffset != 0 {
 				continue
 			}
 
@@ -720,18 +721,22 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, prot
 	opts := gopacket.SerializeOptions{FixLengths: true, ComputeChecksums: true}
 
 	// Pre-build headers (will modify SrcPort for each packet)
+	var ipId uint16 = 1
+
+	ipFlags := layers.IPv4DontFragment
+	if *fakeFrag {
+		ipFlags = layers.IPv4MoreFragments
+	}
+
 	ethHeader := &layers.Ethernet{
 		SrcMAC:       srcMAC,
 		DstMAC:       dstMAC,
 		EthernetType: layers.EthernetTypeIPv4,
 	}
-	ipFlags := layers.IPv4DontFragment
-	if *fakeFrag {
-		ipFlags = layers.IPv4MoreFragments
-	}
 	ipHeader := &layers.IPv4{
 		Version:    4,
 		IHL:        5,
+		Id:         ipId,
 		TTL:        64,
 		Protocol:   layers.IPProtocol(proto),
 		SrcIP:      srcIP,
@@ -741,6 +746,19 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, prot
 	}
 	udpHeader := &layers.UDP{
 		DstPort: layers.UDPPort(dstPort),
+	}
+
+	// Fake frag IP header
+	ipHeaderFrag := &layers.IPv4{
+		Version:    4,
+		IHL:        5,
+		Id:         ipId,
+		TTL:        64,
+		Protocol:   layers.IPProtocol(proto),
+		SrcIP:      srcIP,
+		DstIP:      serverIP,
+		Flags:      0,
+		FragOffset: 0,
 	}
 
 	n := 0
@@ -784,6 +802,11 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, prot
 		// Build packet with Ethernet header
 		udpHeader.SrcPort = layers.UDPPort(vPort)
 		udpHeader.SetNetworkLayerForChecksum(ipHeader)
+		ipHeader.Id = ipId
+
+		if *fakeFrag {
+			data = padData(data, 8)
+		}
 
 		if err := gopacket.SerializeLayers(serializeBuf, opts, ethHeader, ipHeader, udpHeader, gopacket.Payload(data)); err != nil {
 			log.Printf("Serialize error: %v", err)
@@ -794,6 +817,24 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, prot
 		if err := tpacket.WritePacketData(serializeBuf.Bytes()); err != nil {
 			log.Printf("AF_PACKET write error: %v", err)
 		}
+
+		// fake frag
+		if *fakeFrag {
+			ipHeaderFrag.Id = ipId
+			ipHeaderFrag.FragOffset = uint16(len(data) / 8)
+
+			if err := gopacket.SerializeLayers(serializeBuf, opts, ethHeader, ipHeaderFrag, gopacket.Payload([]byte("0"))); err != nil {
+				log.Printf("Serialize error: %v", err)
+				continue
+			}
+
+			// Send via AF_PACKET (bypasses kernel IP stack)
+			if err := tpacket.WritePacketData(serializeBuf.Bytes()); err != nil {
+				log.Printf("AF_PACKET write error: %v", err)
+			}
+		}
+
+		ipId = (ipId + 1) % 65000
 	}
 }
 
@@ -851,7 +892,7 @@ func startServerAFPacket(proto uint8, iface string) {
 	var txMutex sync.Mutex
 
 	// BPF: reject our own outgoing packets + only accept our custom IP protocol
-	filter := createBPFFilter(proto, srcMAC)
+	filter := createBPFFilter(proto, srcMAC, *fakeFrag)
 	if err := tpacket.SetBPF(filter); err != nil {
 		log.Printf("Warning: Failed to set BPF filter: %v", err)
 	}
@@ -890,7 +931,7 @@ func startServerAFPacket(proto uint8, iface string) {
 		}
 
 		// Userspace protocol filter (defense-in-depth: BPF may fail to attach)
-		if ipLayer.Protocol != layers.IPProtocol(proto) {
+		if ipLayer.Protocol != layers.IPProtocol(proto) || ipLayer.FragOffset != 0 {
 			continue
 		}
 
@@ -1048,10 +1089,28 @@ func startServerAFPacket(proto uint8, iface string) {
 				sessTxOffload, sessRxOffload)
 		}
 
-		if _, err := conn.Write(udpLayer.Payload); err != nil {
+		payload := udpLayer.Payload
+		if *fakeFrag {
+			payload = unpadData(payload)
+		}
+		if _, err := conn.Write(payload); err != nil {
 			log.Printf("conn.Write error in Server AF_PACKET downlink: %v", err)
 		}
 	}
+}
+
+// Data utils
+
+// padding
+
+func padData(data []byte, blocksize int) []byte {
+	p := blocksize - (len(data) % blocksize)
+	return append(data, bytes.Repeat([]byte{byte(p)}, p)...)
+}
+
+func unpadData(data []byte) []byte {
+	p := data[len(data)-1]
+	return data[:len(data)-int(p)]
 }
 
 // --- BPF Filter ---
@@ -1063,11 +1122,16 @@ func startServerAFPacket(proto uint8, iface string) {
 //
 // All filtering happens in-kernel before packets reach the mmap ring buffer,
 // eliminating unnecessary copies and userspace processing.
-func createBPFFilter(proto uint8, srcMAC net.HardwareAddr) []bpf.RawInstruction {
+func createBPFFilter(proto uint8, srcMAC net.HardwareAddr, fakeFrag bool) []bpf.RawInstruction {
+	filter := fmt.Sprintf("not ether src %s and ip proto %d", srcMAC.String(), proto)
+	if fakeFrag {
+		// frag offset == 0
+		filter = fmt.Sprintf("not ether src %s and ip proto %d and ip[6:2] & 0x1FFF == 0", srcMAC.String(), proto)
+	}
 	pcapBPF, err := pcap.CompileBPFFilter(
 		layers.LinkTypeEthernet,
 		65535,
-		fmt.Sprintf("not ether src %s and ip proto %d", srcMAC.String(), proto),
+		filter,
 	)
 	if err != nil {
 		log.Fatalf("Failed to compile BPF filter: %v", err)
