@@ -1018,9 +1018,9 @@ func startServerAFPacket(proto uint8, iface string) {
 					EthernetType: layers.EthernetTypeIPv4,
 				}
 				rIpFlags := layers.IPv4DontFragment
-				if *fakeFrag {
-					rIpFlags = layers.IPv4MoreFragments
-				}
+				// if *fakeFrag {
+				// 	rIpFlags = layers.IPv4MoreFragments
+				// }
 				rIpHeader := &layers.IPv4{
 					Version:  4,
 					IHL:      5,
