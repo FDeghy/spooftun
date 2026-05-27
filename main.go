@@ -71,7 +71,9 @@ var (
 	listenAddr  = flag.String("listen", "127.0.0.1:1001", "Client: Local UDP port to bind. Server: Not used")
 	tunnelIP    = flag.String("remote-ip", "", "IP of the remote tunnel endpoint")
 	targetPort  = flag.Int("target-port", 8080, "Client: Port to forward traffic to on the Server side")
-	protoNum    = flag.Int("proto", 200, "Custom IP Protocol Number (0-255)")
+	protoNum    = flag.Int("proto", 200, "Custom IP Protocol Number (0-255). Default for both directions.")
+	uplinkProto = flag.Int("uplink-proto", -1, "IP protocol for client→server packets. Overrides -proto for that direction; -1 means inherit -proto.")
+	downProto   = flag.Int("downlink-proto", -1, "IP protocol for server→client packets. Overrides -proto for that direction; -1 means inherit -proto.")
 	ifaceName   = flag.String("iface", "", "Network interface to use for AF_PACKET (auto-detect if empty)")
 	fakeFrag    = flag.Bool("fake-frag", false, "Use fake frag only for *client uplink, must be enabled in *server to receiving fake frag packets")
 	filterDstIP = flag.String("filter-dst-ip", "", "Destination IP for BPF capture filter (TCP/UDP proto). Use when -src-ip is spoofed and the on-wire dst IP differs. Defaults to -src-ip.")
@@ -447,16 +449,25 @@ func main() {
 	afBlockSize = szBlock
 	afNumBlocks = numBlocks
 
+	upProto := uint8(*protoNum)
+	if *uplinkProto >= 0 {
+		upProto = uint8(*uplinkProto)
+	}
+	dnProto := uint8(*protoNum)
+	if *downProto >= 0 {
+		dnProto = uint8(*downProto)
+	}
+
 	if *mode == "client" {
 		if serverIP == nil {
 			log.Fatal("Remote IP is required for client mode. Use -remote-ip <IP>")
 		}
-		log.Printf("[Client-AF_PACKET] Forwarding %s -> Tunnel(%s) -> :%d (Proto %d) via %s",
-			*listenAddr, *tunnelIP, *targetPort, *protoNum, iface)
-		startClientAFPacket(*listenAddr, serverIP, uint16(*targetPort), uint8(*protoNum), iface)
+		log.Printf("[Client-AF_PACKET] Forwarding %s -> Tunnel(%s) -> :%d (Up=Proto %d, Down=Proto %d) via %s",
+			*listenAddr, *tunnelIP, *targetPort, upProto, dnProto, iface)
+		startClientAFPacket(*listenAddr, serverIP, uint16(*targetPort), upProto, dnProto, iface)
 	} else {
-		log.Printf("[Server-AF_PACKET] Listening on Proto %d via %s", *protoNum, iface)
-		startServerAFPacket(uint8(*protoNum), iface)
+		log.Printf("[Server-AF_PACKET] Listening on Up=Proto %d, replying Down=Proto %d via %s", upProto, dnProto, iface)
+		startServerAFPacket(upProto, dnProto, iface)
 	}
 }
 
@@ -585,7 +596,7 @@ func (n *NatTable) Cleanup() {
 
 // --- AF_PACKET Client ---
 
-func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, proto uint8, iface string) {
+func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, upProto, dnProto uint8, iface string) {
 	// Get interface info
 	srcMAC, ifaceIP, err := getInterfaceInfo(iface)
 	if err != nil {
@@ -630,7 +641,8 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, prot
 	// This filters in-kernel, before packets ever reach the mmap ring buffer.
 	// For TCP/UDP modes we also narrow by tunnel peer IPs and target port.
 	filterDst := resolveFilterDstIP(srcIP)
-	filter := createBPFFilter(proto, srcMAC, *fakeFrag, serverIP, filterDst, dstPort, true)
+	// Client receives downlink (server→client) traffic, so the BPF filters dnProto.
+	filter := createBPFFilter(dnProto, srcMAC, *fakeFrag, serverIP, filterDst, dstPort, true)
 	if err := tpacket.SetBPF(filter); err != nil {
 		log.Printf("Warning: Failed to set BPF filter: %v", err)
 	}
@@ -696,8 +708,9 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, prot
 				continue
 			}
 
-			// Userspace protocol filter (defense-in-depth: BPF may fail to attach)
-			if ipLayer.Protocol != layers.IPProtocol(proto) || ipLayer.FragOffset != 0 {
+			// Userspace protocol filter (defense-in-depth: BPF may fail to attach).
+			// Incoming on the client is server→client traffic → dnProto.
+			if ipLayer.Protocol != layers.IPProtocol(dnProto) || ipLayer.FragOffset != 0 {
 				continue
 			}
 
@@ -749,7 +762,7 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, prot
 		IHL:        5,
 		Id:         ipId,
 		TTL:        64,
-		Protocol:   layers.IPProtocol(proto),
+		Protocol:   layers.IPProtocol(upProto),
 		SrcIP:      srcIP,
 		DstIP:      serverIP,
 		Flags:      ipFlags,
@@ -775,7 +788,7 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, prot
 		IHL:        5,
 		Id:         ipId,
 		TTL:        64,
-		Protocol:   layers.IPProtocol(proto),
+		Protocol:   layers.IPProtocol(upProto),
 		SrcIP:      srcIP,
 		DstIP:      serverIP,
 		Flags:      0,
@@ -869,7 +882,7 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, prot
 
 // --- AF_PACKET Server ---
 
-func startServerAFPacket(proto uint8, iface string) {
+func startServerAFPacket(upProto, dnProto uint8, iface string) {
 	// Get interface info
 	srcMAC, ifaceIP, err := getInterfaceInfo(iface)
 	if err != nil {
@@ -923,7 +936,8 @@ func startServerAFPacket(proto uint8, iface string) {
 	// BPF: reject our own outgoing packets + only accept our custom IP protocol.
 	// For TCP/UDP modes we also narrow by our IP and the target port.
 	filterDst := resolveFilterDstIP(srcIP)
-	filter := createBPFFilter(proto, srcMAC, *fakeFrag, nil, filterDst, uint16(*targetPort), false)
+	// Server receives uplink (client→server) traffic, so the BPF filters upProto.
+	filter := createBPFFilter(upProto, srcMAC, *fakeFrag, nil, filterDst, uint16(*targetPort), false)
 	if err := tpacket.SetBPF(filter); err != nil {
 		log.Printf("Warning: Failed to set BPF filter: %v", err)
 	}
@@ -958,8 +972,9 @@ func startServerAFPacket(proto uint8, iface string) {
 			continue
 		}
 
-		// Userspace protocol filter (defense-in-depth: BPF may fail to attach)
-		if ipLayer.Protocol != layers.IPProtocol(proto) || ipLayer.FragOffset != 0 {
+		// Userspace protocol filter (defense-in-depth: BPF may fail to attach).
+		// Incoming on the server is client→server traffic → upProto.
+		if ipLayer.Protocol != layers.IPProtocol(upProto) || ipLayer.FragOffset != 0 {
 			continue
 		}
 
@@ -1049,7 +1064,7 @@ func startServerAFPacket(proto uint8, iface string) {
 					Version:  4,
 					IHL:      5,
 					TTL:      64,
-					Protocol: layers.IPProtocol(proto),
+					Protocol: layers.IPProtocol(dnProto),
 					SrcIP:    srcServerIP,
 					DstIP:    dstClientIP,
 					Flags:    rIpFlags,
