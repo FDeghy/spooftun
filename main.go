@@ -612,8 +612,9 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, prot
 	defer tpacket.Close()
 
 	// BPF: reject our own outgoing packets + only accept our custom IP protocol
-	// This filters in-kernel, before packets ever reach the mmap ring buffer
-	filter := createBPFFilter(proto, srcMAC, *fakeFrag)
+	// This filters in-kernel, before packets ever reach the mmap ring buffer.
+	// For TCP/UDP modes we also narrow by tunnel peer IPs and target port.
+	filter := createBPFFilter(proto, srcMAC, *fakeFrag, serverIP, srcIP, dstPort, true)
 	if err := tpacket.SetBPF(filter); err != nil {
 		log.Printf("Warning: Failed to set BPF filter: %v", err)
 	}
@@ -892,8 +893,9 @@ func startServerAFPacket(proto uint8, iface string) {
 	// Mutex to protect simultaneous writes to the shared TX ring
 	var txMutex sync.Mutex
 
-	// BPF: reject our own outgoing packets + only accept our custom IP protocol
-	filter := createBPFFilter(proto, srcMAC, *fakeFrag)
+	// BPF: reject our own outgoing packets + only accept our custom IP protocol.
+	// For TCP/UDP modes we also narrow by our IP and the target port.
+	filter := createBPFFilter(proto, srcMAC, *fakeFrag, nil, srcIP, uint16(*targetPort), false)
 	if err := tpacket.SetBPF(filter); err != nil {
 		log.Printf("Warning: Failed to set BPF filter: %v", err)
 	}
@@ -1120,33 +1122,66 @@ func unpadData(data []byte) []byte {
 //  1. Rejects packets where src MAC == our own MAC (outgoing loopback)
 //  2. Accepts only IPv4 (EtherType 0x0800)
 //  3. Accepts only our custom IP protocol number
+//  4. For TCP (6) / UDP (17): narrows by tunnel IPs and port so we don't
+//     accidentally siphon unrelated TCP/UDP traffic on the interface.
 //
 // All filtering happens in-kernel before packets reach the mmap ring buffer,
 // eliminating unnecessary copies and userspace processing.
-func createBPFFilter(proto uint8, srcMAC net.HardwareAddr, fakeFrag bool) []bpf.RawInstruction {
-	filter := fmt.Sprintf("not ether src %s and ip proto %d", srcMAC.String(), proto)
+func createBPFFilter(proto uint8, srcMAC net.HardwareAddr, fakeFrag bool, remoteIP, localIP net.IP, port uint16, isClient bool) []bpf.RawInstruction {
+	parts := []string{
+		fmt.Sprintf("not ether src %s", srcMAC.String()),
+		fmt.Sprintf("ip proto %d", proto),
+	}
+
+	// TCP/UDP need IP+port narrowing — otherwise we'd capture every packet
+	// of those well-known protocols on the interface.
+	if proto == 6 || proto == 17 {
+		if isClient {
+			// Replies arrive from the server endpoint with src port == target port.
+			if remoteIP != nil {
+				parts = append(parts, fmt.Sprintf("src host %s", remoteIP.String()))
+			}
+			if localIP != nil {
+				parts = append(parts, fmt.Sprintf("dst host %s", localIP.String()))
+			}
+			if port != 0 {
+				parts = append(parts, fmt.Sprintf("src port %d", port))
+			}
+		} else {
+			// Incoming tunnel traffic lands on the server's IP and target port.
+			if localIP != nil {
+				parts = append(parts, fmt.Sprintf("dst host %s", localIP.String()))
+			}
+			if port != 0 {
+				parts = append(parts, fmt.Sprintf("dst port %d", port))
+			}
+		}
+	}
+
 	if fakeFrag {
 		// frag offset == 0
-		filter = fmt.Sprintf("not ether src %s and ip proto %d and ip[6:2] & 0x1FFF == 0", srcMAC.String(), proto)
+		parts = append(parts, "ip[6:2] & 0x1FFF == 0")
 	}
+
+	filter := strings.Join(parts, " and ")
+
 	pcapBPF, err := pcap.CompileBPFFilter(
 		layers.LinkTypeEthernet,
 		65535,
 		filter,
 	)
 	if err != nil {
-		log.Fatalf("Failed to compile BPF filter: %v", err)
+		log.Fatalf("Failed to compile BPF filter %q: %v", filter, err)
 	}
 
-	bpfIns := []bpf.RawInstruction{}
+	bpfIns := make([]bpf.RawInstruction, 0, len(pcapBPF))
 	for _, ins := range pcapBPF {
-		bpfIns2 := bpf.RawInstruction{
+		bpfIns = append(bpfIns, bpf.RawInstruction{
 			Op: ins.Code,
 			Jt: ins.Jt,
 			Jf: ins.Jf,
 			K:  ins.K,
-		}
-		bpfIns = append(bpfIns, bpfIns2)
+		})
 	}
 
 	return bpfIns
