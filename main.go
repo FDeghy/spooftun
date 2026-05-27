@@ -5,6 +5,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"flag"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"math/rand"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -64,15 +66,21 @@ func init() {
 
 // Configuration
 var (
-	mode       = flag.String("mode", "client", "Mode: 'client' or 'server'")
-	customSrc  = flag.String("src-ip", "", "Force a specific Source IP (Spoofing). Leave empty to auto-detect.")
-	listenAddr = flag.String("listen", "127.0.0.1:1001", "Client: Local UDP port to bind. Server: Not used")
-	tunnelIP   = flag.String("remote-ip", "", "IP of the remote tunnel endpoint")
-	targetPort = flag.Int("target-port", 8080, "Client: Port to forward traffic to on the Server side")
-	protoNum   = flag.Int("proto", 200, "Custom IP Protocol Number (0-255)")
-	ifaceName  = flag.String("iface", "", "Network interface to use for AF_PACKET (auto-detect if empty)")
-	fakeFrag   = flag.Bool("fake-frag", false, "Use fake frag only for *client uplink, must be enabled in *server to receiving fake frag packets")
+	mode        = flag.String("mode", "client", "Mode: 'client' or 'server'")
+	customSrc   = flag.String("src-ip", "", "Force a specific Source IP (Spoofing). Leave empty to auto-detect.")
+	listenAddr  = flag.String("listen", "127.0.0.1:1001", "Client: Local UDP port to bind. Server: Not used")
+	tunnelIP    = flag.String("remote-ip", "", "IP of the remote tunnel endpoint")
+	targetPort  = flag.Int("target-port", 8080, "Client: Port to forward traffic to on the Server side")
+	protoNum    = flag.Int("proto", 200, "Custom IP Protocol Number (0-255)")
+	ifaceName   = flag.String("iface", "", "Network interface to use for AF_PACKET (auto-detect if empty)")
+	fakeFrag    = flag.Bool("fake-frag", false, "Use fake frag only for *client uplink, must be enabled in *server to receiving fake frag packets")
+	filterDstIP = flag.String("filter-dst-ip", "", "Destination IP for BPF capture filter (TCP/UDP proto). Use when -src-ip is spoofed and the on-wire dst IP differs. Defaults to -src-ip.")
+	fakeTCP     = flag.Bool("fake-tcp", false, "Use a TCP-shaped header instead of UDP for tunnel framing. Must match on both ends.")
+	tcpFlags    = flag.String("tcp-flags", "0x18", "TCP flag byte (hex or decimal) used with -fake-tcp. Examples: 0x18=PSH+ACK, 0x10=ACK, 0x02=SYN.")
 )
+
+// tcpFlagByte is parsed from -tcp-flags at startup.
+var tcpFlagByte uint8
 
 // --- GSO/GRO Helpers ---
 
@@ -406,24 +414,16 @@ func afpacketComputeSize(targetSizeMb int, snaplen int, pageSize int) (
 	return frameSize, blockSize, numBlocks, nil
 }
 
-// ARPCache caches IP -> MAC mappings discovered via incoming packets
-type ARPCache struct {
-	cache sync.Map // net.IP string -> net.HardwareAddr
-}
-
-func (a *ARPCache) Get(ip net.IP) net.HardwareAddr {
-	if v, ok := a.cache.Load(ip.String()); ok {
-		return v.(net.HardwareAddr)
-	}
-	return nil
-}
-
-func (a *ARPCache) Set(ip net.IP, mac net.HardwareAddr) {
-	a.cache.Store(ip.String(), mac)
-}
-
 func main() {
 	flag.Parse()
+
+	if *fakeTCP {
+		v, err := strconv.ParseUint(*tcpFlags, 0, 8)
+		if err != nil {
+			log.Fatalf("Invalid -tcp-flags %q: %v", *tcpFlags, err)
+		}
+		tcpFlagByte = uint8(v)
+	}
 
 	serverIP := net.ParseIP(*tunnelIP)
 
@@ -458,6 +458,21 @@ func main() {
 		log.Printf("[Server-AF_PACKET] Listening on Proto %d via %s", *protoNum, iface)
 		startServerAFPacket(uint8(*protoNum), iface)
 	}
+}
+
+// resolveFilterDstIP returns the dst-host IP for the BPF capture filter.
+// Falls back to the supplied IP (typically srcIP) if -filter-dst-ip is unset.
+// The CLI override exists because srcIP may be a spoofed/customSrc value
+// that doesn't match what packets actually carry on the wire.
+func resolveFilterDstIP(fallback net.IP) net.IP {
+	if *filterDstIP == "" {
+		return fallback
+	}
+	ip := net.ParseIP(*filterDstIP)
+	if ip == nil {
+		log.Fatalf("Invalid -filter-dst-ip: %q", *filterDstIP)
+	}
+	return ip
 }
 
 // getOutboundIP determines the preferred local IP of this machine
@@ -512,33 +527,33 @@ type NatTable struct {
 
 func (n *NatTable) GetOrCreateVirtualPort(clientIP net.IP, clientPort int) uint16 {
 	key := makeNatKey(clientIP, clientPort)
+	now := atomic.LoadInt64(&coarseTime)
 
 	// 1. Check existing - fast path
 	if val, ok := n.forward.Load(key); ok {
 		vPort := val.(uint16)
 		if s, ok := n.reverse.Load(vPort); ok {
-			sess := s.(*natSession)
-			sess.lastSeen = atomic.LoadInt64(&coarseTime)
+			atomic.StoreInt64(&s.(*natSession).lastSeen, now)
 		}
 		return vPort
 	}
 
-	// 2. Allocation Logic - try original port first (slow path, acceptable)
+	// 2. Allocation Logic - try original port first (slow path, acceptable).
+	// Session is allocated once and reused across collision retries because
+	// LoadOrStore only retains it on a successful store.
+	session := &natSession{
+		clientIP:   clientIP,
+		clientPort: clientPort,
+		lastSeen:   now,
+		forwardKey: key,
+	}
 	proposed := uint16(clientPort)
 	for {
-		session := &natSession{
-			clientIP:   clientIP,
-			clientPort: clientPort,
-			lastSeen:   atomic.LoadInt64(&coarseTime),
-			forwardKey: key,
-		}
-		// Try to store atomically
 		if _, loaded := n.reverse.LoadOrStore(proposed, session); !loaded {
 			n.forward.Store(key, proposed)
 			return proposed
 		}
-		// Collision: pick random
-		// 65535 - 1024 = 64511 range
+		// Collision: pick random in [1024, 65535)
 		proposed = uint16(n.rng.Intn(64511) + 1024)
 	}
 }
@@ -546,7 +561,7 @@ func (n *NatTable) GetOrCreateVirtualPort(clientIP net.IP, clientPort int) uint1
 func (n *NatTable) GetSession(virtualPort uint16) *natSession {
 	if val, ok := n.reverse.Load(virtualPort); ok {
 		sess := val.(*natSession)
-		sess.lastSeen = atomic.LoadInt64(&coarseTime)
+		atomic.StoreInt64(&sess.lastSeen, atomic.LoadInt64(&coarseTime))
 		return sess
 	}
 	return nil
@@ -559,7 +574,7 @@ func (n *NatTable) Cleanup() {
 		n.reverse.Range(func(key, value interface{}) bool {
 			vPort := key.(uint16)
 			sess := value.(*natSession)
-			if sess.lastSeen < threshold {
+			if atomic.LoadInt64(&sess.lastSeen) < threshold {
 				n.reverse.Delete(vPort)
 				n.forward.Delete(sess.forwardKey)
 			}
@@ -614,7 +629,8 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, prot
 	// BPF: reject our own outgoing packets + only accept our custom IP protocol
 	// This filters in-kernel, before packets ever reach the mmap ring buffer.
 	// For TCP/UDP modes we also narrow by tunnel peer IPs and target port.
-	filter := createBPFFilter(proto, srcMAC, *fakeFrag, serverIP, srcIP, dstPort, true)
+	filterDst := resolveFilterDstIP(srcIP)
+	filter := createBPFFilter(proto, srcMAC, *fakeFrag, serverIP, filterDst, dstPort, true)
 	if err := tpacket.SetBPF(filter); err != nil {
 		log.Printf("Warning: Failed to set BPF filter: %v", err)
 	}
@@ -651,25 +667,21 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, prot
 	}
 	go nat.Cleanup()
 
-	// Reusable layer parsers for Downlink
+	// Reusable layer parsers for Downlink. We only need Ethernet + IPv4 here;
+	// the inner transport (UDP or TCP) is parsed by parseFakeTransport since
+	// gopacket won't auto-chain to either for a custom IP protocol number.
 	var ethLayer layers.Ethernet
 	var ipLayer layers.IPv4
-	var udpLayer layers.UDP
-
-	// Parser for full Ethernet frames
-	ethParser := gopacket.NewDecodingLayerParser(layers.LayerTypeEthernet, &ethLayer, &ipLayer, &udpLayer)
+	ethParser := gopacket.NewDecodingLayerParser(layers.LayerTypeEthernet, &ethLayer, &ipLayer)
 	ethParser.IgnoreUnsupported = true
 	decodedLayers := make([]gopacket.LayerType, 0, 4)
-
-	// Custom protocol layer parser (since gopacket won't auto-chain to UDP for unknown protocols)
-	udpParser := gopacket.NewDecodingLayerParser(layers.LayerTypeUDP, &udpLayer)
-	udpParser.IgnoreUnsupported = true
 
 	// Downlink (AF_PACKET -> App)
 	// Reads raw Ethernet frames, strips headers, translates VirtualPort -> ClientPort
 	go func() {
-		// Reusable UDPAddr to avoid per-packet heap allocation
-		writeAddr := &net.UDPAddr{IP: make(net.IP, 4)}
+		// Reusable UDPAddr to avoid per-packet heap allocation.
+		// IP is assigned from sess.clientIP per packet, so no preallocation needed.
+		writeAddr := &net.UDPAddr{}
 
 		for {
 			// Zero-copy read from AF_PACKET mmap'd ring buffer
@@ -689,19 +701,17 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, prot
 				continue
 			}
 
-			// Parse UDP from IPv4 payload (custom proto won't auto-chain)
-			udpParser.DecodeLayers(ipLayer.Payload, &decodedLayers)
-			if len(decodedLayers) == 0 || decodedLayers[0] != layers.LayerTypeUDP {
+			// Parse transport header (UDP or TCP) from IP payload
+			_, dstPortRecv, payload, ok := parseFakeTransport(ipLayer.Payload, *fakeTCP)
+			if !ok {
 				continue
 			}
 
-			// Reverse NAT: VirtualPort (udp.DstPort) -> Client Session
-			sess := nat.GetSession(uint16(udpLayer.DstPort))
+			// Reverse NAT: VirtualPort (transport.DstPort) -> Client Session
+			sess := nat.GetSession(dstPortRecv)
 			if sess == nil {
 				continue
 			}
-
-			payload := udpLayer.Payload
 
 			writeAddr.IP = sess.clientIP
 			writeAddr.Port = sess.clientPort
@@ -745,9 +755,19 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, prot
 		Flags:      ipFlags,
 		FragOffset: 0,
 	}
-	udpHeader := &layers.UDP{
-		DstPort: layers.UDPPort(dstPort),
+	// Transport header — either UDP or TCP based on -fake-tcp. Both share the
+	// same first 4 bytes (src/dst port), so the rest of the tunnel logic is
+	// identical.
+	var udpHeader *layers.UDP
+	var tcpHeader *layers.TCP
+	if *fakeTCP {
+		tcpHeader = newFakeTCPHeader(dstPort, tcpFlagByte)
+		tcpHeader.SetNetworkLayerForChecksum(ipHeader)
+	} else {
+		udpHeader = &layers.UDP{DstPort: layers.UDPPort(dstPort)}
+		udpHeader.SetNetworkLayerForChecksum(ipHeader)
 	}
+	hdrLen := transportHeaderLen()
 
 	// Fake frag IP header
 	ipHeaderFrag := &layers.IPv4{
@@ -801,15 +821,21 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, prot
 		vPort := nat.GetOrCreateVirtualPort(cAddr.IP, cAddr.Port)
 
 		// Build packet with Ethernet header
-		udpHeader.SrcPort = layers.UDPPort(vPort)
-		udpHeader.SetNetworkLayerForChecksum(ipHeader)
 		ipHeader.Id = ipId
-
-		if *fakeFrag {
-			data = padData(data, 8)
+		var transport gopacket.SerializableLayer
+		if *fakeTCP {
+			tcpHeader.SrcPort = layers.TCPPort(vPort)
+			transport = tcpHeader
+		} else {
+			udpHeader.SrcPort = layers.UDPPort(vPort)
+			transport = udpHeader
 		}
 
-		if err := gopacket.SerializeLayers(serializeBuf, opts, ethHeader, ipHeader, udpHeader, gopacket.Payload(data)); err != nil {
+		if *fakeFrag {
+			data = padData(data, 8, hdrLen)
+		}
+
+		if err := gopacket.SerializeLayers(serializeBuf, opts, ethHeader, ipHeader, transport, gopacket.Payload(data)); err != nil {
 			log.Printf("Serialize error: %v", err)
 			continue
 		}
@@ -822,8 +848,9 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, prot
 		// fake frag
 		if *fakeFrag {
 			ipHeaderFrag.Id = ipId
-			// add udp header size
-			ipHeaderFrag.FragOffset = uint16((len(data) + 8) / 8)
+			// Offset of the fake fragment in 8-byte units: after the real
+			// transport header + padded data.
+			ipHeaderFrag.FragOffset = uint16((len(data) + hdrLen) / 8)
 
 			if err := gopacket.SerializeLayers(serializeBuf, opts, ethHeader, ipHeaderFrag, gopacket.Payload([]byte("0"))); err != nil {
 				log.Printf("Serialize error: %v", err)
@@ -895,13 +922,13 @@ func startServerAFPacket(proto uint8, iface string) {
 
 	// BPF: reject our own outgoing packets + only accept our custom IP protocol.
 	// For TCP/UDP modes we also narrow by our IP and the target port.
-	filter := createBPFFilter(proto, srcMAC, *fakeFrag, nil, srcIP, uint16(*targetPort), false)
+	filterDst := resolveFilterDstIP(srcIP)
+	filter := createBPFFilter(proto, srcMAC, *fakeFrag, nil, filterDst, uint16(*targetPort), false)
 	if err := tpacket.SetBPF(filter); err != nil {
 		log.Printf("Warning: Failed to set BPF filter: %v", err)
 	}
 
 	sessions := sync.Map{}
-	arpCache := &ARPCache{}
 
 	autoDst := false
 	if *tunnelIP == "" {
@@ -909,14 +936,12 @@ func startServerAFPacket(proto uint8, iface string) {
 		log.Printf("Auto-detecting Remote IP from incoming packets for each session")
 	}
 
-	// Parsers
+	// Parsers — only Ethernet+IPv4; transport (UDP/TCP) is parsed manually
+	// since gopacket can't auto-chain through a custom IP proto number.
 	var ethLayer layers.Ethernet
 	var ipLayer layers.IPv4
-	var udpLayer layers.UDP
-	ethParser := gopacket.NewDecodingLayerParser(layers.LayerTypeEthernet, &ethLayer, &ipLayer, &udpLayer)
+	ethParser := gopacket.NewDecodingLayerParser(layers.LayerTypeEthernet, &ethLayer, &ipLayer)
 	ethParser.IgnoreUnsupported = true
-	udpParser := gopacket.NewDecodingLayerParser(layers.LayerTypeUDP, &udpLayer)
-	udpParser.IgnoreUnsupported = true
 	decodedLayers := make([]gopacket.LayerType, 0, 4)
 
 	for {
@@ -938,26 +963,23 @@ func startServerAFPacket(proto uint8, iface string) {
 			continue
 		}
 
-		// Cache the source MAC for this IP (for replies)
-		arpCache.Set(ipLayer.SrcIP, ethLayer.SrcMAC)
-
-		// Parse UDP from IPv4 payload
-		err = udpParser.DecodeLayers(ipLayer.Payload, &decodedLayers)
-		if len(decodedLayers) == 0 || decodedLayers[0] != layers.LayerTypeUDP {
+		// Parse transport header (UDP or TCP) from IPv4 payload
+		clientSrcPort, clientDstPort, innerPayload, ok := parseFakeTransport(ipLayer.Payload, *fakeTCP)
+		if !ok {
 			continue
 		}
 
 		// Session key: ClientRealIP + VirtualSrcPort
-		clientKey := makeNatKey(ipLayer.SrcIP, int(udpLayer.SrcPort))
+		clientKey := makeNatKey(ipLayer.SrcIP, int(clientSrcPort))
 
 		var conn *net.UDPConn
-		val, ok := sessions.Load(clientKey)
+		val, sessOk := sessions.Load(clientKey)
 
-		if ok {
+		if sessOk {
 			conn = val.(*net.UDPConn)
 		} else {
 			// NEW SESSION
-			targetAddr := fmt.Sprintf("127.0.0.1:%d", udpLayer.DstPort)
+			targetAddr := fmt.Sprintf("127.0.0.1:%d", clientDstPort)
 			rAddr, err := net.ResolveUDPAddr("udp", targetAddr)
 			if err != nil {
 				log.Printf("Resolve error: %v", err)
@@ -985,7 +1007,7 @@ func startServerAFPacket(proto uint8, iface string) {
 			}
 
 			sessions.Store(clientKey, conn)
-			log.Printf("New Session: %s -> Target :%d (GSO=%v GRO=%v)", clientKey.String(), udpLayer.DstPort, sessTxOffload, sessRxOffload)
+			log.Printf("New Session: %s -> Target :%d (GSO=%v GRO=%v)", clientKey.String(), clientDstPort, sessTxOffload, sessRxOffload)
 
 			// Create safe copies of the slices backed by the mmap ring
 			safeClientIP := make(net.IP, len(ipLayer.SrcIP))
@@ -1032,8 +1054,15 @@ func startServerAFPacket(proto uint8, iface string) {
 					DstIP:    dstClientIP,
 					Flags:    rIpFlags,
 				}
-				rUdpHeader := &layers.UDP{
-					DstPort: layers.UDPPort(clientPort),
+				// Reply transport header (UDP or TCP), src port set per-packet.
+				var rUdpHeader *layers.UDP
+				var rTcpHeader *layers.TCP
+				if *fakeTCP {
+					rTcpHeader = newFakeTCPHeader(clientPort, tcpFlagByte)
+					rTcpHeader.SetNetworkLayerForChecksum(rIpHeader)
+				} else {
+					rUdpHeader = &layers.UDP{DstPort: layers.UDPPort(clientPort)}
+					rUdpHeader.SetNetworkLayerForChecksum(rIpHeader)
 				}
 
 				var errRead error
@@ -1071,10 +1100,16 @@ func startServerAFPacket(proto uint8, iface string) {
 					readPos++
 					payload := msg.Buffers[0][:msg.N]
 
-					rUdpHeader.SrcPort = layers.UDPPort(targetRAddr.Port)
-					rUdpHeader.SetNetworkLayerForChecksum(rIpHeader)
+					var transport gopacket.SerializableLayer
+					if *fakeTCP {
+						rTcpHeader.SrcPort = layers.TCPPort(targetRAddr.Port)
+						transport = rTcpHeader
+					} else {
+						rUdpHeader.SrcPort = layers.UDPPort(targetRAddr.Port)
+						transport = rUdpHeader
+					}
 
-					if err := gopacket.SerializeLayers(sBuf, sOpts, rEthHeader, rIpHeader, rUdpHeader, gopacket.Payload(payload)); err != nil {
+					if err := gopacket.SerializeLayers(sBuf, sOpts, rEthHeader, rIpHeader, transport, gopacket.Payload(payload)); err != nil {
 						log.Printf("Serialize error: %v", err)
 						continue
 					}
@@ -1088,11 +1123,11 @@ func startServerAFPacket(proto uint8, iface string) {
 						log.Printf("TX error: %v", err)
 					}
 				}
-			}(conn, safeClientIP, uint16(udpLayer.SrcPort), safeClientMAC, srcIP, rAddr, clientKey,
+			}(conn, safeClientIP, clientSrcPort, safeClientMAC, srcIP, rAddr, clientKey,
 				sessTxOffload, sessRxOffload)
 		}
 
-		payload := udpLayer.Payload
+		payload := innerPayload
 		if *fakeFrag {
 			payload = unpadData(payload)
 		}
@@ -1106,14 +1141,82 @@ func startServerAFPacket(proto uint8, iface string) {
 
 // padding
 
-func padData(data []byte, blocksize int) []byte {
-	p := blocksize - (len(data) % blocksize)
+// padData appends PKCS#7-style padding so that headerLen+len(data) becomes
+// a multiple of blockSize. headerLen accounts for the transport header that
+// will precede the data on the wire — needed because the IP fragment offset
+// (used by fake-frag) is expressed in 8-byte units relative to the IP body.
+func padData(data []byte, blockSize, headerLen int) []byte {
+	p := blockSize - ((headerLen + len(data)) % blockSize)
 	return append(data, bytes.Repeat([]byte{byte(p)}, p)...)
 }
 
 func unpadData(data []byte) []byte {
-	p := data[len(data)-1]
-	return data[:len(data)-int(p)]
+	if len(data) == 0 {
+		return data
+	}
+	p := int(data[len(data)-1])
+	if p == 0 || p > len(data) {
+		// malformed pad byte — leave data untouched
+		return data
+	}
+	return data[:len(data)-p]
+}
+
+// --- Fake transport (UDP/TCP) helpers ---
+
+// transportHeaderLen returns the wire size of the chosen transport header.
+// UDP=8, TCP (minimum, no options) = 20. Used for fake-frag offset math.
+func transportHeaderLen() int {
+	if *fakeTCP {
+		return 20
+	}
+	return 8
+}
+
+// newFakeTCPHeader builds a TCP header with the user-configured flag byte.
+// Seq/Ack are constants; the goal is to mimic a mid-flow segment shape, not
+// to participate in a real TCP handshake (the kernel never sees these packets
+// — both ends use AF_PACKET).
+func newFakeTCPHeader(dstPort uint16, flagsByte uint8) *layers.TCP {
+	return &layers.TCP{
+		DstPort:    layers.TCPPort(dstPort),
+		Seq:        1,
+		Ack:        0,
+		DataOffset: 5, // 20-byte header, no options
+		Window:     65535,
+		FIN:        flagsByte&0x01 != 0,
+		SYN:        flagsByte&0x02 != 0,
+		RST:        flagsByte&0x04 != 0,
+		PSH:        flagsByte&0x08 != 0,
+		ACK:        flagsByte&0x10 != 0,
+		URG:        flagsByte&0x20 != 0,
+		ECE:        flagsByte&0x40 != 0,
+		CWR:        flagsByte&0x80 != 0,
+	}
+}
+
+// parseFakeTransport reads src/dst port and inner payload from an IP body
+// shaped as either UDP (8-byte header) or TCP (variable-length header).
+// Both protocols place srcPort at bytes 0-1 and dstPort at bytes 2-3.
+func parseFakeTransport(ipPayload []byte, useTCP bool) (srcPort, dstPort uint16, payload []byte, ok bool) {
+	if useTCP {
+		if len(ipPayload) < 20 {
+			return 0, 0, nil, false
+		}
+		srcPort = binary.BigEndian.Uint16(ipPayload[0:2])
+		dstPort = binary.BigEndian.Uint16(ipPayload[2:4])
+		dataOff := int(ipPayload[12]>>4) * 4
+		if dataOff < 20 || dataOff > len(ipPayload) {
+			return 0, 0, nil, false
+		}
+		return srcPort, dstPort, ipPayload[dataOff:], true
+	}
+	if len(ipPayload) < 8 {
+		return 0, 0, nil, false
+	}
+	srcPort = binary.BigEndian.Uint16(ipPayload[0:2])
+	dstPort = binary.BigEndian.Uint16(ipPayload[2:4])
+	return srcPort, dstPort, ipPayload[8:], true
 }
 
 // --- BPF Filter ---
@@ -1124,6 +1227,11 @@ func unpadData(data []byte) []byte {
 //  3. Accepts only our custom IP protocol number
 //  4. For TCP (6) / UDP (17): narrows by tunnel IPs and port so we don't
 //     accidentally siphon unrelated TCP/UDP traffic on the interface.
+//
+// Port matching uses raw IP-body byte reads (ip[20:2] / ip[22:2]) rather
+// than the `tcp/udp port X` shorthand. The src/dst port fields share the
+// same layout for TCP and UDP, and the IP-proto check already discriminates
+// the two — so the byte reads remain correct for either protocol.
 //
 // All filtering happens in-kernel before packets reach the mmap ring buffer,
 // eliminating unnecessary copies and userspace processing.
@@ -1145,7 +1253,9 @@ func createBPFFilter(proto uint8, srcMAC net.HardwareAddr, fakeFrag bool, remote
 				parts = append(parts, fmt.Sprintf("dst host %s", localIP.String()))
 			}
 			if port != 0 {
-				parts = append(parts, fmt.Sprintf("src port %d", port))
+				// dst port = first 2 bytes of IP body (offset 20 assumes IHL=5,
+				// which our tunnel always emits)
+				parts = append(parts, fmt.Sprintf("ip[22:2] == %d", port))
 			}
 		} else {
 			// Incoming tunnel traffic lands on the server's IP and target port.
@@ -1153,7 +1263,8 @@ func createBPFFilter(proto uint8, srcMAC net.HardwareAddr, fakeFrag bool, remote
 				parts = append(parts, fmt.Sprintf("dst host %s", localIP.String()))
 			}
 			if port != 0 {
-				parts = append(parts, fmt.Sprintf("dst port %d", port))
+				// dst port = bytes 2-3 of IP body (offset 22 from IP header start)
+				parts = append(parts, fmt.Sprintf("ip[22:2] == %d", port))
 			}
 		}
 	}
