@@ -642,7 +642,7 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, upPr
 	// For TCP/UDP modes we also narrow by tunnel peer IPs and target port.
 	filterDst := resolveFilterDstIP(srcIP)
 	// Client receives downlink (server→client) traffic, so the BPF filters dnProto.
-	filter := createBPFFilter(dnProto, srcMAC, *fakeFrag, serverIP, filterDst, dstPort, true)
+	filter := createBPFFilter(dnProto, srcMAC, *fakeFrag, filterDst, dstPort, true)
 	if err := tpacket.SetBPF(filter); err != nil {
 		log.Printf("Warning: Failed to set BPF filter: %v", err)
 	}
@@ -937,7 +937,7 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 	// For TCP/UDP modes we also narrow by our IP and the target port.
 	filterDst := resolveFilterDstIP(srcIP)
 	// Server receives uplink (client→server) traffic, so the BPF filters upProto.
-	filter := createBPFFilter(upProto, srcMAC, *fakeFrag, nil, filterDst, uint16(*targetPort), false)
+	filter := createBPFFilter(upProto, srcMAC, *fakeFrag, filterDst, uint16(*targetPort), false)
 	if err := tpacket.SetBPF(filter); err != nil {
 		log.Printf("Warning: Failed to set BPF filter: %v", err)
 	}
@@ -1250,7 +1250,7 @@ func parseFakeTransport(ipPayload []byte, useTCP bool) (srcPort, dstPort uint16,
 //
 // All filtering happens in-kernel before packets reach the mmap ring buffer,
 // eliminating unnecessary copies and userspace processing.
-func createBPFFilter(proto uint8, srcMAC net.HardwareAddr, fakeFrag bool, remoteIP, localIP net.IP, port uint16, isClient bool) []bpf.RawInstruction {
+func createBPFFilter(proto uint8, srcMAC net.HardwareAddr, fakeFrag bool, localIP net.IP, port uint16, isClient bool) []bpf.RawInstruction {
 	parts := []string{
 		fmt.Sprintf("not ether src %s", srcMAC.String()),
 		fmt.Sprintf("ip proto %d", proto),
@@ -1260,10 +1260,8 @@ func createBPFFilter(proto uint8, srcMAC net.HardwareAddr, fakeFrag bool, remote
 	// of those well-known protocols on the interface.
 	if proto == 6 || proto == 17 {
 		if isClient {
-			// Replies arrive from the server endpoint with src port == target port.
-			if remoteIP != nil {
-				parts = append(parts, fmt.Sprintf("src host %s", remoteIP.String()))
-			}
+			// src IP may be spoofed — don't filter on it.
+			// Match on dst host (our real IP) and src port (server's target port).
 			if localIP != nil {
 				parts = append(parts, fmt.Sprintf("dst host %s", localIP.String()))
 			}
@@ -1273,7 +1271,8 @@ func createBPFFilter(proto uint8, srcMAC net.HardwareAddr, fakeFrag bool, remote
 				parts = append(parts, fmt.Sprintf("ip[20:2] == %d", port))
 			}
 		} else {
-			// Incoming tunnel traffic lands on the server's IP and target port.
+			// src IP may be spoofed — don't filter on it.
+			// Match on dst host (our real IP) and dst port (target port).
 			if localIP != nil {
 				parts = append(parts, fmt.Sprintf("dst host %s", localIP.String()))
 			}
