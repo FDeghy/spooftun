@@ -1268,9 +1268,9 @@ func createBPFFilter(proto uint8, srcMAC net.HardwareAddr, fakeFrag bool, remote
 				parts = append(parts, fmt.Sprintf("dst host %s", localIP.String()))
 			}
 			if port != 0 {
-				// dst port = first 2 bytes of IP body (offset 20 assumes IHL=5,
-				// which our tunnel always emits)
-				parts = append(parts, fmt.Sprintf("ip[22:2] == %d", port))
+				// src port in server→client reply = the server's target port.
+				// ip[20:2] is the src port field (IHL=5 assumed).
+				parts = append(parts, fmt.Sprintf("ip[20:2] == %d", port))
 			}
 		} else {
 			// Incoming tunnel traffic lands on the server's IP and target port.
