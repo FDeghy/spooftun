@@ -1,41 +1,45 @@
 name: Build
-
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch: {}
-
 jobs:
   build:
     # main.go is behind //go:build linux and gopacket/pcap needs libpcap via cgo,
-    # so this must run on a Linux runner.
-    runs-on: ubuntu-latest
-
+    # so this must run on Linux runners. arm64 uses a native arm64 runner since
+    # cgo needs the arch-matching libpcap headers/libs, not cross-compilation.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            goarch: amd64
+          - runner: ubuntu-24.04-arm
+            goarch: arm64
+    runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Install libpcap
         run: |
           sudo apt-get update
           sudo apt-get install -y libpcap-dev
-
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           cache: true
-
       - name: Vet
         run: go vet ./...
-
       - name: Build
-        run: go build -v -o spooftun .
-
+        env:
+          CGO_ENABLED: 1
+          GOARCH: ${{ matrix.goarch }}
+        run: go build -v -trimpath -ldflags="-s -w" -o spooftun .
       - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
-          name: spooftun-linux-amd64
+          name: spooftun-linux-${{ matrix.goarch }}
           path: spooftun
