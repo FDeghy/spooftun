@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"os"
 	"unsafe"
 
 	"golang.org/x/net/ipv4"
@@ -17,24 +16,6 @@ import (
 
 // gsoControlSize is the cmsg space needed for UDP_SEGMENT
 var gsoControlSize = unix.CmsgSpace(sizeOfGSOData)
-
-// supportsUDPOffload probes the socket for GSO (UDP_SEGMENT) and GRO (UDP_GRO) support
-func supportsUDPOffload(conn *net.UDPConn) (txOffload, rxOffload bool) {
-	rc, err := conn.SyscallConn()
-	if err != nil {
-		return
-	}
-	err = rc.Control(func(fd uintptr) {
-		_, errSyscall := unix.GetsockoptInt(int(fd), unix.IPPROTO_UDP, unix.UDP_SEGMENT)
-		txOffload = errSyscall == nil
-		opt, errSyscall := unix.GetsockoptInt(int(fd), unix.IPPROTO_UDP, unix.UDP_GRO)
-		rxOffload = errSyscall == nil && opt == 1
-	})
-	if err != nil {
-		return false, false
-	}
-	return txOffload, rxOffload
-}
 
 // enableUDPGRO enables UDP_GRO on the socket
 func enableUDPGRO(conn *net.UDPConn) error {
@@ -72,33 +53,6 @@ func getGSOSize(control []byte) (int, error) {
 		}
 	}
 	return 0, nil
-}
-
-// setGSOSize sets a UDP_SEGMENT in control based on gsoSize
-func setGSOSize(control *[]byte, gsoSize uint16) {
-	existingLen := len(*control)
-	avail := cap(*control) - existingLen
-	space := unix.CmsgSpace(sizeOfGSOData)
-	if avail < space {
-		return
-	}
-	*control = (*control)[:cap(*control)]
-	gsoControl := (*control)[existingLen:]
-	hdr := (*unix.Cmsghdr)(unsafe.Pointer(&(gsoControl)[0]))
-	hdr.Level = unix.SOL_UDP
-	hdr.Type = unix.UDP_SEGMENT
-	hdr.SetLen(unix.CmsgLen(sizeOfGSOData))
-	copy((gsoControl)[unix.CmsgLen(0):], unsafe.Slice((*byte)(unsafe.Pointer(&gsoSize)), sizeOfGSOData))
-	*control = (*control)[:existingLen+space]
-}
-
-// errShouldDisableUDPGSO checks if GSO should be disabled due to EIO (missing tx checksum offload)
-func errShouldDisableUDPGSO(err error) bool {
-	var serr *os.SyscallError
-	if errors.As(err, &serr) {
-		return serr.Err == unix.EIO
-	}
-	return false
 }
 
 // splitCoalescedMessages splits GRO-coalesced messages into individual datagrams

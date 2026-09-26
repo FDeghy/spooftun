@@ -192,7 +192,7 @@ func afpacketComputeSize(targetSizeMb int, snaplen int, pageSize int) (
 	numBlocks = (targetSizeMb * 1024 * 1024) / blockSize
 
 	if numBlocks == 0 {
-		return 0, 0, 0, fmt.Errorf("Interface buffersize is too small")
+		return 0, 0, 0, fmt.Errorf("interface buffersize is too small")
 	}
 
 	return frameSize, blockSize, numBlocks, nil
