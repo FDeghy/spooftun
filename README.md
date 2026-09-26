@@ -1,10 +1,10 @@
 # spooftun
 
 A high-throughput Linux UDP tunnel that carries traffic under a configurable
-**custom IP protocol number** using `AF_PACKET` (TPACKET_V3) for both receive
-and transmit, bypassing the kernel IP stack. It supports source-IP spoofing, a
-per-flow NAT layer, and optional obfuscation via fake TCP-shaped framing and
-fake IP fragmentation.
+**custom IP protocol number** using a TPACKET_V3 `AF_PACKET` receive ring and
+raw `AF_PACKET` writes for transmit, bypassing the kernel IP stack. It supports
+source-IP spoofing, a per-flow NAT layer, and optional obfuscation via fake
+TCP-shaped framing and fake IP fragmentation.
 
 ## How it works
 
@@ -100,13 +100,14 @@ All files are `package main` under the `//go:build linux` constraint.
 | File | Responsibility |
 |------|----------------|
 | `main.go` | Entrypoint `main()`: flag parsing, interface/ring setup, mode dispatch. |
-| `config.go` | Flag definitions, tuning constants, runtime AF_PACKET ring config, coarse clock. |
+| `config.go` | Flag definitions, tuning constants, runtime AF_PACKET receive-ring config, coarse clock. |
 | `nat.go` | Client-side NAT table mapping `client IP:port` ↔ virtual port. |
 | `netutil.go` | Interface / ARP / default-route discovery and ring-buffer sizing. |
 | `framing.go` | Fixed-offset Ethernet/IPv4 parsing plus fake UDP/TCP and fragmentation framing. |
 | `bpf.go` | In-kernel BPF capture filter and filter-IP resolution. |
 | `client.go` | Client data path (app → tunnel and tunnel → app). |
 | `server.go` | Server data path (tunnel → target and target → tunnel). |
+| `tx.go` | Send-only AF_PACKET socket for server replies. |
 | `offload.go` | UDP GSO/GRO helpers (scaffolding, currently disabled). |
 
 ## Notes & limitations

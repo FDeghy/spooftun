@@ -1,9 +1,9 @@
 //go:build linux
 
 // Command spooftun is a high-throughput Linux UDP tunnel that carries traffic
-// under a configurable custom IP protocol number using AF_PACKET (TPACKET_V3)
-// for both RX and TX, bypassing the kernel IP stack. It supports source-IP
-// spoofing, a per-flow NAT layer, and optional obfuscation via fake TCP-shaped
+// under a configurable custom IP protocol number using AF_PACKET (TPACKET_V3
+// for RX and raw socket writes for TX), bypassing the kernel IP stack. It
+// supports source-IP spoofing, a per-flow NAT layer, and optional fake TCP-shaped
 // framing and fake IP fragmentation.
 //
 // The code is split across files by concern:

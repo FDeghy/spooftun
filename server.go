@@ -52,20 +52,13 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 	}
 	defer tpacket.Close()
 
-	// Create Outbound Shared AF_PACKET socket (TX)
-	// We use a separate socket/ring for TX to separate limits and potential locks,
-	// though we could share if careful. A separate TX ring is cleaner.
-	txTPacket, err := afpacket.NewTPacket(
-		afpacket.OptInterface(iface),
-		afpacket.OptTPacketVersion(afpacket.TPacketVersion3),
-		afpacket.OptBlockSize(1<<19), // 512KB blocks for TX
-		afpacket.OptNumBlocks(16),
-		afpacket.OptFrameSize(afFrameSize),
-	)
+	// TX uses write(2), not a PACKET_TX_RING. A send-only socket avoids
+	// allocating an unused RX ring and receiving unrelated interface traffic.
+	txSender, err := newPacketSender(iface)
 	if err != nil {
 		log.Fatalf("Failed to create TX AF_PACKET socket: %v", err)
 	}
-	defer txTPacket.Close()
+	defer txSender.Close()
 
 	// No mutex around TX: WritePacketData is a single write(2) per packet, which
 	// the kernel emits atomically for a packet socket, so reply goroutines can
@@ -170,7 +163,7 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 				defer c.Close()
 				defer sessions.Delete(sessionKey)
 
-				// Use shared txTPacket from outer scope (concurrent writes are safe)
+				// Use shared txSender from outer scope (concurrent writes are safe)
 
 				sBuf := gopacket.NewSerializeBuffer()
 				sOpts := gopacket.SerializeOptions{FixLengths: true, ComputeChecksums: true}
@@ -261,7 +254,7 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 						continue
 					}
 
-					err := txTPacket.WritePacketData(sBuf.Bytes())
+					err := txSender.WritePacketData(sBuf.Bytes())
 					if err != nil {
 						log.Printf("TX error: %v", err)
 					}
