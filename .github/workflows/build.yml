@@ -1,8 +1,11 @@
 name: Build
 on:
   push:
+    branches:
+      - '**'
     tags:
       - 'v*'
+  pull_request: {}
   workflow_dispatch: {}
 jobs:
   build:
@@ -32,6 +35,15 @@ jobs:
           cache: true
       - name: Vet
         run: go vet ./...
+      - name: Format
+        run: test -z "$(gofmt -l *.go)"
+      - name: Test
+        run: go test ./...
+      - name: Race
+        run: go test -race ./...
+      - name: Staticcheck
+        if: matrix.goarch == 'amd64'
+        run: go run honnef.co/go/tools/cmd/staticcheck@v0.8.1 ./...
       - name: Build
         env:
           CGO_ENABLED: 1
