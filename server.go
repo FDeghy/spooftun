@@ -77,7 +77,7 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 	// Server receives uplink (client→server) traffic, so the BPF filters upProto.
 	filter := createBPFFilter(upProto, srcMAC, *fakeFrag, filterDst, uint16(*targetPort), false)
 	if err := tpacket.SetBPF(filter); err != nil {
-		log.Printf("Warning: Failed to set BPF filter: %v", err)
+		log.Fatalf("Failed to set BPF filter: %v", err)
 	}
 
 	sessions := sync.Map{}

@@ -65,7 +65,7 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, upPr
 	// Client receives downlink (server→client) traffic, so the BPF filters dnProto.
 	filter := createBPFFilter(dnProto, srcMAC, *fakeFrag, filterDst, dstPort, true)
 	if err := tpacket.SetBPF(filter); err != nil {
-		log.Printf("Warning: Failed to set BPF filter: %v", err)
+		log.Fatalf("Failed to set BPF filter: %v", err)
 	}
 
 	// Local UDP socket for application traffic
