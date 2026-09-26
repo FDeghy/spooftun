@@ -27,7 +27,9 @@ var (
 	afBlockSize    = 1 << 20               // 1MB blocks
 	afNumBlocks    = 64                    // 64 blocks = 64MB ring buffer
 	afFrameSize    = 2048                  // Frame size for each packet slot
-	afBlockTimeout = 64 * time.Millisecond // Block retire timeout. Low value needed for low latency.
+	// V3 exposes packets only after their block fills or retires. Keep the
+	// retire wait short so sparse traffic does not sit in an RX block.
+	afBlockTimeout = time.Millisecond
 )
 
 // Coarse timestamp to avoid time.Now() per packet
