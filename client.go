@@ -69,7 +69,10 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, upPr
 	}
 
 	// Local UDP socket for application traffic
-	udpAddr, _ := net.ResolveUDPAddr("udp4", localAddr)
+	udpAddr, err := net.ResolveUDPAddr("udp4", localAddr)
+	if err != nil {
+		log.Fatalf("Failed to resolve UDP listen address %q: %v", localAddr, err)
+	}
 	appConn, err := net.ListenUDP("udp4", udpAddr)
 	if err != nil {
 		log.Fatalf("Failed to listen on UDP: %v", err)
