@@ -56,13 +56,12 @@ func getGSOSize(control []byte) (int, error) {
 }
 
 // splitCoalescedMessages splits GRO-coalesced messages into individual datagrams
-func splitCoalescedMessages(msgs []ipv4.Message, firstMsgAt int) (int, error) {
+func splitCoalescedMessages(msgs []ipv4.Message, firstMsgAt, received int) (int, error) {
 	n := 0
-	for i := firstMsgAt; i < len(msgs); i++ {
+	for i := firstMsgAt; i < firstMsgAt+received; i++ {
 		msg := &msgs[i]
-		if msg.N == 0 {
-			return n, nil
-		}
+		// Snapshot source metadata before a destination slot may alias it.
+		data, addr, flags := msg.Buffers[0][:msg.N], msg.Addr, msg.Flags
 		var (
 			gsoSize    int
 			start      int
@@ -76,19 +75,20 @@ func splitCoalescedMessages(msgs []ipv4.Message, firstMsgAt int) (int, error) {
 		}
 		if gsoSize > 0 {
 			numToSplit = (msg.N + gsoSize - 1) / gsoSize
-			end = gsoSize
+			end = min(gsoSize, len(data))
 		}
 		for j := 0; j < numToSplit; j++ {
 			if n > i {
 				return n, errors.New("splitting coalesced packet resulted in overflow")
 			}
-			copied := copy(msgs[n].Buffers[0], msg.Buffers[0][start:end])
+			copied := copy(msgs[n].Buffers[0], data[start:end])
 			msgs[n].N = copied
-			msgs[n].Addr = msg.Addr
+			msgs[n].Addr = addr
+			msgs[n].Flags = flags
 			start = end
 			end += gsoSize
-			if end > msg.N {
-				end = msg.N
+			if end > len(data) {
+				end = len(data)
 			}
 			n++
 		}
@@ -122,7 +122,7 @@ func prepareMsgsUDP(groEnabled bool) []ipv4.Message {
 			msgs[i].Buffers[0] = make([]byte, udpPayloadSize*udpSegmentMaxDatagrams)
 			msgs[i].OOB = make([]byte, gsoControlSize)
 		} else {
-			msgs[i].Buffers[0] = make([]byte, udpPayloadSize)
+			msgs[i].Buffers[0] = make([]byte, *tunnelMTU+1)
 		}
 	}
 	return msgs

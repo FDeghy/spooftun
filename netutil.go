@@ -4,11 +4,17 @@ package main
 
 import (
 	"bufio"
+	"encoding/binary"
 	"fmt"
+	"io"
 	"net"
 	"os"
+	"strconv"
 	"strings"
+	"syscall"
 	"time"
+
+	"golang.org/x/sys/unix"
 )
 
 // getInterfaceInfo returns the MAC address and IP of the specified interface
@@ -79,99 +85,154 @@ func findDefaultInterface(dstIP net.IP) (string, error) {
 	return "", fmt.Errorf("could not find interface for %s", localAddr.IP)
 }
 
-// lookupARPCache reads /proc/net/arp to find MAC for an IP
-func lookupARPCache(ip net.IP) net.HardwareAddr {
-	file, err := os.Open("/proc/net/arp")
-	if err != nil {
-		return nil
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	scanner.Scan() // Skip header line
-
-	ipStr := ip.String()
+// parseARPCache only accepts complete Ethernet entries on the selected interface.
+func parseARPCache(r io.Reader, iface string, ip net.IP) net.HardwareAddr {
+	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
 		fields := strings.Fields(scanner.Text())
-		if len(fields) >= 4 && fields[0] == ipStr {
-			mac, err := net.ParseMAC(fields[3])
-			if err == nil && fields[2] != "0x0" { // 0x0 means incomplete
-				return mac
-			}
+		if len(fields) < 6 || fields[0] != ip.String() || fields[5] != iface {
+			continue
+		}
+		flags, err := strconv.ParseUint(fields[2], 0, 32)
+		if err != nil || flags&2 == 0 { // ATF_COM: a complete hardware address
+			continue
+		}
+		hardwareType, err := strconv.ParseUint(fields[1], 0, 32)
+		if err != nil || hardwareType != 1 { // ARPHRD_ETHER
+			continue
+		}
+		mac, err := net.ParseMAC(fields[3])
+		if err == nil && len(mac) == 6 && mac[0]&1 == 0 && !allZeroMAC(mac) {
+			return mac
 		}
 	}
 	return nil
 }
 
-// getNeighborMAC gets the MAC address for a destination IP (via ARP cache or probe)
-func getNeighborMAC(iface string, dstIP net.IP) (net.HardwareAddr, error) {
-	// First check ARP cache
-	if mac := lookupARPCache(dstIP); mac != nil {
-		return mac, nil
+func allZeroMAC(mac net.HardwareAddr) bool {
+	for _, b := range mac {
+		if b != 0 {
+			return false
+		}
 	}
-
-	// Trigger ARP by sending a probe packet
-	conn, err := net.DialTimeout("udp4", dstIP.String()+":1", 500*time.Millisecond)
-	if err == nil {
-		conn.Close()
-	}
-
-	// Wait for ARP to populate
-	time.Sleep(200 * time.Millisecond)
-
-	if mac := lookupARPCache(dstIP); mac != nil {
-		return mac, nil
-	}
-
-	// Try default gateway
-	return getDefaultGatewayMAC(iface)
+	return true
 }
 
-// getDefaultGatewayMAC finds the default gateway and gets its MAC
-func getDefaultGatewayMAC(iface string) (net.HardwareAddr, error) {
-	// Read /proc/net/route to find default gateway
+func lookupARPCache(iface string, ip net.IP) net.HardwareAddr {
+	file, err := os.Open("/proc/net/arp")
+	if err != nil {
+		return nil
+	}
+	defer file.Close()
+	return parseARPCache(file, iface, ip)
+}
+
+// routeNextHop selects the longest matching UP route on iface in Linux's main
+// IPv4 routing table. Equal prefixes use the lowest metric. A direct route must
+// resolve the destination itself; an unresolved direct neighbor must never fall
+// back to an unrelated default gateway.
+func routeNextHop(r io.Reader, iface string, dstIP net.IP) (net.IP, error) {
+	dst := dstIP.To4()
+	if dst == nil {
+		return nil, fmt.Errorf("destination must be IPv4")
+	}
+	destination := binary.LittleEndian.Uint32(dst)
+	bestPrefix, bestMetric := -1, ^uint64(0)
+	var nextHop net.IP
+	scanner := bufio.NewScanner(r)
+	for scanner.Scan() {
+		fields := strings.Fields(scanner.Text())
+		if len(fields) < 8 || fields[0] != iface {
+			continue
+		}
+		network, e1 := strconv.ParseUint(fields[1], 16, 32)
+		gateway, e2 := strconv.ParseUint(fields[2], 16, 32)
+		flags, e3 := strconv.ParseUint(fields[3], 16, 32)
+		metric, e4 := strconv.ParseUint(fields[6], 10, 64)
+		mask, e5 := strconv.ParseUint(fields[7], 16, 32)
+		if e1 != nil || e2 != nil || e3 != nil || e4 != nil || e5 != nil || flags&1 == 0 {
+			continue
+		}
+		maskBytes := make(net.IPMask, 4)
+		binary.LittleEndian.PutUint32(maskBytes, uint32(mask))
+		prefix, bits := maskBytes.Size()
+		if bits != 32 || destination&uint32(mask) != uint32(network)&uint32(mask) {
+			continue
+		}
+		if prefix < bestPrefix || prefix == bestPrefix && metric >= bestMetric {
+			continue
+		}
+		bestPrefix, bestMetric = prefix, metric
+		nextHop = nil
+		if flags&0x200 != 0 {
+			continue
+		} // RTF_REJECT wins over a less specific route
+		if flags&2 == 0 {
+			nextHop = append(net.IP(nil), dst...)
+		} else if gateway != 0 {
+			nextHop = net.IPv4(byte(gateway), byte(gateway>>8), byte(gateway>>16), byte(gateway>>24))
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("read routes: %w", err)
+	}
+	if nextHop == nil {
+		return nil, fmt.Errorf("no usable IPv4 route to %s on %s", dstIP, iface)
+	}
+	return nextHop, nil
+}
+
+// getNeighborMAC resolves the routed next hop rather than assuming every
+// off-link destination uses the first default gateway in /proc/net/route.
+func getNeighborMAC(iface string, dstIP net.IP) (net.HardwareAddr, error) {
 	file, err := os.Open("/proc/net/route")
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	scanner.Scan() // Skip header
-
-	for scanner.Scan() {
-		fields := strings.Fields(scanner.Text())
-		if len(fields) < 3 {
-			continue
-		}
-
-		// Look for default route (Destination = 00000000)
-		if fields[1] == "00000000" {
-			// Gateway is in hex, little-endian (Linux)
-			var gw uint32
-			fmt.Sscanf(fields[2], "%x", &gw)
-
-			gwIP := net.IPv4(byte(gw), byte(gw>>8), byte(gw>>16), byte(gw>>24))
-
-			// Now get MAC for gateway
-			if mac := lookupARPCache(gwIP); mac != nil {
-				return mac, nil
-			}
-
-			// Trigger ARP for gateway
-			conn, err := net.DialTimeout("udp4", gwIP.String()+":1", 500*time.Millisecond)
-			if err == nil {
-				conn.Close()
-			}
-			time.Sleep(200 * time.Millisecond)
-
-			if mac := lookupARPCache(gwIP); mac != nil {
-				return mac, nil
-			}
-		}
+	nextHop, err := routeNextHop(file, iface, dstIP)
+	file.Close()
+	if err != nil {
+		return nil, err
+	}
+	if mac := lookupARPCache(iface, nextHop); mac != nil {
+		return mac, nil
 	}
 
-	return nil, fmt.Errorf("could not find gateway MAC")
+	// Dial alone does not send a datagram and therefore need not initiate ARP.
+	// Pin the actual probe to the same device used by the AF_PACKET socket.
+	dialer := net.Dialer{
+		Timeout: 500 * time.Millisecond,
+		Control: func(_, _ string, raw syscall.RawConn) error {
+			var bindErr error
+			if err := raw.Control(func(fd uintptr) {
+				bindErr = unix.SetsockoptString(int(fd), unix.SOL_SOCKET, unix.SO_BINDTODEVICE, iface)
+			}); err != nil {
+				return err
+			}
+			return bindErr
+		},
+	}
+	conn, err := dialer.Dial("udp4", net.JoinHostPort(nextHop.String(), "1"))
+	if err != nil {
+		return nil, fmt.Errorf("probe neighbor %s on %s: %w", nextHop, iface, err)
+	}
+	conn.SetWriteDeadline(time.Now().Add(500 * time.Millisecond))
+	_, err = conn.Write([]byte{0})
+	conn.Close()
+	if err != nil {
+		return nil, fmt.Errorf("probe neighbor %s on %s: %w", nextHop, iface, err)
+	}
+	deadline := time.Now().Add(500 * time.Millisecond)
+	for {
+		if mac := lookupARPCache(iface, nextHop); mac != nil {
+			return mac, nil
+		}
+		if time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	return nil, fmt.Errorf("could not resolve neighbor %s on %s", nextHop, iface)
 }
 
 // afpacketComputeSize computes the block_size and the num_blocks in such a way that the
@@ -180,20 +241,38 @@ func getDefaultGatewayMAC(iface string) (net.HardwareAddr, error) {
 // frame size and page size.
 func afpacketComputeSize(targetSizeMb int, snaplen int, pageSize int) (
 	frameSize int, blockSize int, numBlocks int, err error) {
-
-	if snaplen < pageSize {
-		frameSize = pageSize / (pageSize / snaplen)
-	} else {
-		frameSize = (snaplen/pageSize + 1) * pageSize
+	const mib = 1024 * 1024
+	maxInt := int(^uint(0) >> 1)
+	if targetSizeMb <= 0 || targetSizeMb > maxInt/mib || snaplen <= 0 || pageSize < 16 || pageSize&(pageSize-1) != 0 {
+		return 0, 0, 0, fmt.Errorf("invalid packet ring size, snaplen, or page size")
 	}
-
-	// 128 is the default from the gopacket library so just use that
-	blockSize = frameSize * 128
-	numBlocks = (targetSizeMb * 1024 * 1024) / blockSize
-
-	if numBlocks == 0 {
+	budget := targetSizeMb * mib
+	if snaplen > budget || pageSize > budget {
 		return 0, 0, 0, fmt.Errorf("interface buffersize is too small")
 	}
-
+	// A power-of-two frame is 16-byte aligned and divides any larger Linux
+	// page. Integer division of pageSize by a slot count can produce frames
+	// that violate both constraints, notably with small MTUs or 64 KiB pages.
+	frameSize = 16
+	for frameSize < snaplen {
+		if frameSize > maxInt/2 {
+			return 0, 0, 0, fmt.Errorf("packet frame size overflows int")
+		}
+		frameSize *= 2
+	}
+	blockSize = max(pageSize, frameSize)
+	if blockSize > budget {
+		return 0, 0, 0, fmt.Errorf("interface buffersize is too small")
+	}
+	// Prefer 128 frames per block, reducing the block for small requested
+	// rings. Both divisibility requirements survive each power-of-two step.
+	desiredBlock := budget
+	if frameSize <= budget/128 {
+		desiredBlock = frameSize * 128
+	}
+	for blockSize < desiredBlock && blockSize <= budget/2 {
+		blockSize *= 2
+	}
+	numBlocks = budget / blockSize
 	return frameSize, blockSize, numBlocks, nil
 }

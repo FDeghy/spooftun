@@ -10,6 +10,7 @@ import (
 	"github.com/gopacket/gopacket/afpacket"
 	"github.com/gopacket/gopacket/layers"
 	"golang.org/x/net/ipv4"
+	"golang.org/x/sys/unix"
 )
 
 // startClientAFPacket runs the client side of the tunnel: it accepts local
@@ -18,6 +19,16 @@ import (
 // sends it via AF_PACKET. The reverse direction unwraps server replies and
 // delivers them back to the originating application socket.
 func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, upProto, dnProto uint8, iface string) {
+	mtu, err := effectiveMTU(iface)
+	if err != nil {
+		log.Fatal(err)
+	}
+	maxPayload := payloadLimit(mtu, *fakeTCP, *fakeFrag)
+	txSender, err := newPacketSender(iface)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer txSender.Close()
 	// Get interface info
 	srcMAC, ifaceIP, err := getInterfaceInfo(iface)
 	if err != nil {
@@ -149,12 +160,26 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, upPr
 
 	// Uplink (App -> AF_PACKET)
 	// Reads UDP from App, translates ClientPort -> VirtualPort, wraps in Ethernet + IP + Proto, sends raw
-	// Uses GRO to receive coalesced datagrams from the kernel
+	// recvmmsg batches application datagrams; GRO remains disabled.
 	ipv4AppConn := ipv4.NewPacketConn(appConn)
 	msgs := prepareMsgsUDP(rxOffload)
 
 	// Reusable serialize buffer
-	serializeBuf := gopacket.NewSerializeBuffer()
+	var serializeBuf gopacket.SerializeBuffer
+	txBuffers := make([]gopacket.SerializeBuffer, batchSize*2)
+	for i := range txBuffers {
+		txBuffers[i] = gopacket.NewSerializeBufferExpectedSize(64, mtu)
+	}
+	frames := make([][]byte, 0, batchSize*2)
+	flush := func() {
+		if len(frames) > 0 {
+			if _, err := txSender.WriteBatch(frames); err != nil {
+				log.Printf("TX batch: %v", err)
+			}
+			frames = frames[:0]
+		}
+	}
+	defer flush()
 	opts := gopacket.SerializeOptions{FixLengths: true, ComputeChecksums: true}
 
 	// Pre-build headers (will modify SrcPort for each packet)
@@ -212,9 +237,10 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, upPr
 	readPos := 0
 	for {
 		if readPos >= n {
+			flush()
 			if rxOffload {
 				// With GRO: read into fewer slots, then split coalesced messages
-				readAt := len(msgs) - (batchSize / udpSegmentMaxDatagrams)
+				readAt := len(msgs) - ((batchSize + udpSegmentMaxDatagrams - 1) / udpSegmentMaxDatagrams)
 				if readAt < 0 {
 					readAt = 0
 				}
@@ -224,7 +250,7 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, upPr
 					log.Printf("Read UDP error: %v", err)
 					continue
 				}
-				n, err = splitCoalescedMessages(msgs, readAt)
+				n, err = splitCoalescedMessages(msgs, readAt, n)
 				if err != nil {
 					log.Printf("GRO split error: %v", err)
 					continue
@@ -240,12 +266,19 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, upPr
 		}
 		msg := &msgs[readPos]
 		readPos++
+		if msg.Flags&unix.MSG_TRUNC != 0 || msg.N > maxPayload {
+			continue
+		}
 		data := msg.Buffers[0][:msg.N]
 		cAddr := msg.Addr.(*net.UDPAddr)
 
 		// NAT: Client -> VirtualPort
-		vPort := nat.GetOrCreateVirtualPort(cAddr.IP, cAddr.Port)
+		vPort, natErr := nat.GetOrCreateVirtualPort(cAddr.IP, cAddr.Port)
+		if natErr != nil {
+			continue
+		}
 
+		serializeBuf = txBuffers[len(frames)]
 		// Build packet with Ethernet header
 		ipHeader.Id = ipId
 		var transport gopacket.SerializableLayer
@@ -267,12 +300,11 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, upPr
 		}
 
 		// Send via AF_PACKET (bypasses kernel IP stack)
-		if err := tpacket.WritePacketData(serializeBuf.Bytes()); err != nil {
-			log.Printf("AF_PACKET write error: %v", err)
-		}
+		frames = append(frames, serializeBuf.Bytes())
 
 		// fake frag
 		if *fakeFrag {
+			serializeBuf = txBuffers[len(frames)]
 			ipHeaderFrag.Id = ipId
 			// Offset of the fake fragment in 8-byte units: after the real
 			// transport header + padded data.
@@ -284,9 +316,7 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, upPr
 			}
 
 			// Send via AF_PACKET (bypasses kernel IP stack)
-			if err := tpacket.WritePacketData(serializeBuf.Bytes()); err != nil {
-				log.Printf("AF_PACKET write error: %v", err)
-			}
+			frames = append(frames, serializeBuf.Bytes())
 		}
 
 		ipId = (ipId + 1) % 65000

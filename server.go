@@ -7,19 +7,72 @@ import (
 	"log"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gopacket/gopacket"
 	"github.com/gopacket/gopacket/afpacket"
 	"github.com/gopacket/gopacket/layers"
 	"golang.org/x/net/ipv4"
+	"golang.org/x/sys/unix"
 )
 
 // startServerAFPacket runs the server side of the tunnel: it captures uplink
 // frames (client→server) under the custom IP protocol number, forwards the
 // inner payload to a local target port, and spawns a per-flow reply goroutine
 // that wraps target responses back into tunnel frames on a shared TX socket.
+type serverSession struct {
+	conn     *net.UDPConn
+	lastSeen atomic.Int64
+}
+
+// Use the coarse clock's upper bound so timestamp quantization cannot expire
+// a session before its idle timeout. Short timeouts retain full precision.
+func sessionActivityTime() int64 {
+	if *sessionTimeout < time.Second {
+		return time.Now().UnixNano()
+	}
+	return atomic.LoadInt64(&coarseTime) + int64(coarseTimeInterval)
+}
+
+func (s *serverSession) refresh(now int64) bool {
+	for {
+		last := s.lastSeen.Load()
+		if last == retiredSessionTime {
+			return false
+		}
+		if s.lastSeen.CompareAndSwap(last, max(last, now)) {
+			return true
+		}
+	}
+}
+
+func (s *serverSession) expireIdle(now int64, timeout time.Duration) bool {
+	for {
+		last := s.lastSeen.Load()
+		if last == retiredSessionTime {
+			return true
+		}
+		if now-last < int64(timeout) {
+			return false
+		}
+		if s.lastSeen.CompareAndSwap(last, retiredSessionTime) {
+			return true
+		}
+	}
+}
+
+func (s *serverSession) idleDeadline(timeout time.Duration) time.Time {
+	return time.Unix(0, s.lastSeen.Load()).Add(timeout)
+}
+
 func startServerAFPacket(upProto, dnProto uint8, iface string) {
+	mtu, err := effectiveMTU(iface)
+	if err != nil {
+		log.Fatal(err)
+	}
+	maxReply := payloadLimit(mtu, *fakeTCP, false)
+	maxUplink := payloadLimit(mtu, *fakeTCP, *fakeFrag)
 	// Get interface info
 	srcMAC, ifaceIP, err := getInterfaceInfo(iface)
 	if err != nil {
@@ -52,7 +105,7 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 	}
 	defer tpacket.Close()
 
-	// TX uses write(2), not a PACKET_TX_RING. A send-only socket avoids
+	// TX uses sendmmsg(2) batches. A send-only socket avoids
 	// allocating an unused RX ring and receiving unrelated interface traffic.
 	txSender, err := newPacketSender(iface)
 	if err != nil {
@@ -60,9 +113,7 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 	}
 	defer txSender.Close()
 
-	// No mutex around TX: WritePacketData is a single write(2) per packet, which
-	// the kernel emits atomically for a packet socket, so reply goroutines can
-	// write concurrently to the shared TX socket without interleaving.
+	// The sender handles concurrent batches from independent reply goroutines.
 
 	// BPF: reject our own outgoing packets + only accept our custom IP protocol.
 	// For TCP/UDP modes we also narrow by our IP and the target port.
@@ -107,14 +158,30 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 			continue
 		}
 
+		payload := innerPayload
+		if *fakeFrag {
+			payload = unpadData(payload)
+			if payload == nil {
+				continue
+			}
+		}
+		if len(payload) > maxUplink {
+			continue
+		}
 		// Session key: ClientRealIP + VirtualSrcPort
 		clientKey := makeNatKey(pkt.srcIP, int(clientSrcPort))
 
 		var conn *net.UDPConn
+		var state *serverSession
 		val, sessOk := sessions.Load(clientKey)
+		if sessOk && !val.(*serverSession).refresh(sessionActivityTime()) {
+			sessions.CompareAndDelete(clientKey, val)
+			sessOk = false
+		}
 
 		if sessOk {
-			conn = val.(*net.UDPConn)
+			state = val.(*serverSession)
+			conn = state.conn
 		} else {
 			// NEW SESSION
 			targetAddr := fmt.Sprintf("127.0.0.1:%d", clientDstPort)
@@ -144,7 +211,9 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 				}
 			}
 
-			sessions.Store(clientKey, conn)
+			state = &serverSession{conn: conn}
+			state.lastSeen.Store(sessionActivityTime())
+			sessions.Store(clientKey, state)
 			log.Printf("New Session: %s -> Target :%d (GSO=%v GRO=%v)", clientKey.String(), clientDstPort, sessTxOffload, sessRxOffload)
 
 			// Create safe copies of the slices backed by the mmap ring
@@ -157,15 +226,30 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 			// Reply handler goroutine
 			go func(c *net.UDPConn, clientIP net.IP, clientPort uint16, clientMAC net.HardwareAddr,
 				srcServerIP net.IP, targetRAddr *net.UDPAddr, sessionKey natKey,
-				txOff, rxOff bool) {
+				txOff, rxOff bool, state *serverSession) {
 				ipv4AppConn := ipv4.NewPacketConn(c)
 				msgs := prepareMsgsUDP(rxOff)
 				defer c.Close()
-				defer sessions.Delete(sessionKey)
+				defer sessions.CompareAndDelete(sessionKey, state)
+				defer state.lastSeen.Store(retiredSessionTime)
 
 				// Use shared txSender from outer scope (concurrent writes are safe)
 
-				sBuf := gopacket.NewSerializeBuffer()
+				var sBuf gopacket.SerializeBuffer
+				txBuffers := make([]gopacket.SerializeBuffer, batchSize)
+				for i := range txBuffers {
+					txBuffers[i] = gopacket.NewSerializeBufferExpectedSize(64, mtu)
+				}
+				frames := make([][]byte, 0, batchSize)
+				flush := func() {
+					if len(frames) > 0 {
+						if _, err := txSender.WriteBatch(frames); err != nil {
+							log.Printf("TX batch: %v", err)
+						}
+						frames = frames[:0]
+					}
+				}
+				defer flush()
 				sOpts := gopacket.SerializeOptions{FixLengths: true, ComputeChecksums: true}
 
 				dstClientIP := net.ParseIP(*tunnelIP)
@@ -206,31 +290,37 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 				var errRead error
 				n := 0
 				readPos := 0
+				// Packet activity advances lastSeen without resetting Go's socket
+				// timer. Renew the deadline only when the previous one fires.
+				if err := ipv4AppConn.SetReadDeadline(state.idleDeadline(*sessionTimeout)); err != nil {
+					return
+				}
 				for {
 					if readPos >= n {
-						// Arm the idle timeout only before an actual read, not on
-						// every drained packet — one syscall per batch, not per packet.
-						ipv4AppConn.SetReadDeadline(time.Now().Add(30 * time.Second))
+						flush()
+						readAt := 0
 						if rxOff {
 							// With GRO: read into fewer slots, then split
-							readAt := len(msgs) - (batchSize / udpSegmentMaxDatagrams)
+							readAt = len(msgs) - ((batchSize + udpSegmentMaxDatagrams - 1) / udpSegmentMaxDatagrams)
 							if readAt < 0 {
 								readAt = 0
 							}
 							resetOOB(msgs[readAt:])
-							n, errRead = ipv4AppConn.ReadBatch(msgs[readAt:], 0)
-							if n == 0 || errRead != nil {
-								// Normal EOF or timeout removal
-								return
+						}
+						n, errRead = ipv4AppConn.ReadBatch(msgs[readAt:], 0)
+						if n == 0 || errRead != nil {
+							if ne, ok := errRead.(net.Error); ok && ne.Timeout() && !state.expireIdle(time.Now().UnixNano(), *sessionTimeout) {
+								if err := ipv4AppConn.SetReadDeadline(state.idleDeadline(*sessionTimeout)); err != nil {
+									return
+								}
+								continue
 							}
-							n, errRead = splitCoalescedMessages(msgs, readAt)
+							return
+						}
+						if rxOff {
+							n, errRead = splitCoalescedMessages(msgs, readAt, n)
 							if errRead != nil {
 								log.Printf("GRO split error in session %s: %v", sessionKey.String(), errRead)
-								return
-							}
-						} else {
-							n, errRead = ipv4AppConn.ReadBatch(msgs, 0)
-							if n == 0 || errRead != nil {
 								return
 							}
 						}
@@ -238,8 +328,13 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 					}
 					msg := &msgs[readPos]
 					readPos++
+					if msg.Flags&unix.MSG_TRUNC != 0 || msg.N > maxReply {
+						continue
+					}
+					state.refresh(sessionActivityTime())
 					payload := msg.Buffers[0][:msg.N]
 
+					sBuf = txBuffers[len(frames)]
 					var transport gopacket.SerializableLayer
 					if *fakeTCP {
 						rTcpHeader.SrcPort = layers.TCPPort(targetRAddr.Port)
@@ -254,19 +349,12 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 						continue
 					}
 
-					err := txSender.WritePacketData(sBuf.Bytes())
-					if err != nil {
-						log.Printf("TX error: %v", err)
-					}
+					frames = append(frames, sBuf.Bytes())
 				}
 			}(conn, safeClientIP, clientSrcPort, safeClientMAC, srcIP, rAddr, clientKey,
-				sessTxOffload, sessRxOffload)
+				sessTxOffload, sessRxOffload, state)
 		}
 
-		payload := innerPayload
-		if *fakeFrag {
-			payload = unpadData(payload)
-		}
 		if _, err := conn.Write(payload); err != nil {
 			log.Printf("conn.Write error in Server AF_PACKET downlink: %v", err)
 		}

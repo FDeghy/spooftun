@@ -24,10 +24,29 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"time"
 )
 
 func main() {
 	flag.Parse()
+	if *mode != "client" && *mode != "server" {
+		log.Fatal("Invalid -mode: use client or server")
+	}
+	if *protoNum < 0 || *protoNum > 255 || *uplinkProto < -1 || *uplinkProto > 255 || *downProto < -1 || *downProto > 255 {
+		log.Fatal("Protocol numbers must be 0..255 (-1 inherits for directional overrides)")
+	}
+	if *targetPort < 1 || *targetPort > 65535 {
+		log.Fatal("Target port must be 1..65535")
+	}
+	if *ringMB < 1 || *ringMB > 1024 || *blockTimeout < time.Millisecond || *sessionTimeout <= 0 || *tunnelMTU < 68 || *tunnelMTU > 65535 {
+		log.Fatal("Invalid ring size, timeout, or MTU")
+	}
+	for _, value := range []string{*customSrc, *tunnelIP, *filterDstIP} {
+		if value != "" && net.ParseIP(value).To4() == nil {
+			log.Fatalf("Expected IPv4 address: %q", value)
+		}
+	}
+	afBlockTimeout = *blockTimeout
 
 	if *fakeTCP {
 		v, err := strconv.ParseUint(*tcpFlags, 0, 8)
@@ -52,11 +71,10 @@ func main() {
 
 	// Calculate AF_PACKET buffer size.
 	// snaplen is sized to one Ethernet MTU frame (header + IP MTU, rounded up)
-	// rather than 65535: our tunnel frames never exceed the MTU, and a 64KB
-	// snaplen would pad every ring slot to 64KB, shrinking the ring to a
-	// handful of frames and causing drops under load.
-	const afSnaplen = 2048 // >= 14 (eth) + packetBufSize, next power of two
-	szFrame, szBlock, numBlocks, err := afpacketComputeSize(16, afSnaplen, os.Getpagesize())
+	// Size the ring for the configured MTU and packet metadata rather than
+	// a fixed 64 KiB capture size.
+	afSnaplen := *tunnelMTU + 14 + 128 // account for packet-ring metadata
+	szFrame, szBlock, numBlocks, err := afpacketComputeSize(*ringMB, afSnaplen, os.Getpagesize())
 	if err != nil {
 		log.Fatal(err)
 	}

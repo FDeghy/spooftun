@@ -2,7 +2,7 @@
 
 A high-throughput Linux UDP tunnel that carries traffic under a configurable
 **custom IP protocol number** using a TPACKET_V3 `AF_PACKET` receive ring and
-raw `AF_PACKET` writes for transmit, bypassing the kernel IP stack. It supports
+batched `sendmmsg` on send-only `AF_PACKET` sockets for transmit, bypassing the kernel IP stack. It supports
 source-IP spoofing, a per-flow NAT layer, and optional obfuscation via fake
 TCP-shaped framing and fake IP fragmentation.
 
@@ -24,21 +24,19 @@ TCP-shaped framing and fake IP fragmentation.
   from the local service are wrapped back into tunnel frames and returned to the
   client, which delivers them to the originating application socket.
 
-Because both ends use `AF_PACKET`, the packets never traverse the host IP stack,
-and the transport header is purely cosmetic framing (the kernel never parses it).
+AF_PACKET receives frames before normal IP processing. Copies can still reach the host IP stack; the tunnel itself parses cosmetic transport framing directly.
 
 ## Requirements
 
 - **Linux** (the whole program is behind a `//go:build linux` tag).
 - **Root** / `CAP_NET_RAW` + `CAP_NET_ADMIN` — required to open `AF_PACKET`
   sockets and attach BPF filters.
-- **libpcap** (with headers, e.g. `libpcap-dev`) — the BPF capture filter is
-  compiled at runtime via cgo, so libpcap is needed to both build and run.
+- **Go 1.27.3** to build. Classic BPF is assembled in Go; libpcap and cgo are not required.
 
 ## Build
 
 ```sh
-go build -o spooftun .
+CGO_ENABLED=0 go build -trimpath -o spooftun .
 ```
 
 ## Usage
@@ -112,12 +110,62 @@ All files are `package main` under the `//go:build linux` constraint.
 
 ## Notes & limitations
 
-- **Tunnel MTU**: the read buffers are sized for a single ~1500-byte Ethernet
-  frame after encapsulation. Applications should keep datagrams within the
-  tunnel MTU; oversized datagrams are truncated.
+- **Tunnel MTU**: oversized application datagrams are dropped whole, never forwarded after truncation. At MTU 1500, client payload limits are 1472 bytes (UDP), 1471 (UDP + fake frag), 1460 (fake TCP), and 1459 (fake TCP + fake frag). The limit is capped by the selected interface MTU. Fake fragmentation applies only to uplink.
 - **Custom protocol delivery**: because frames are also seen by the host stack
   as an unknown IP protocol, you may want a firewall rule to drop them on the
   local stack so the OS doesn't emit ICMP protocol-unreachable replies.
 - **`-fake-tcp` and stateful firewalls**: the fake TCP segments carry static
   sequence/ack values and no handshake, so a stateful TCP inspector may mark
   them invalid. It only helps against stateless DPI.
+
+## Performance and validation
+
+RX retains a zero-copy TPACKET_V3 ring. TX batches packets already returned by
+UDP recvmmsg; it never waits to fill a batch. Both endpoints reuse separate
+serialization buffers per queued frame. Per-session UDP reads use 16 slots
+instead of 64 (about 24 KB vs 94 KB payload storage at MTU 1500), plus reusable
+TX buffers. GRO/GSO remain disabled pending segmentation/checksum validation.
+
+- `-ring-mb 16`: RX ring budget, separate from UDP socket buffers.
+- `-block-timeout 1ms`: block retirement latency. Try 5ms for bulk traffic,
+  measuring latency, CPU and packet loss; increasing it may add latency.
+- `-mtu 1500`: maximum outer IP size, capped to interface MTU.
+- `-session-timeout 1m`: server idle expiry, refreshed by either direction.
+
+Application datagrams must fit the smaller MTU of the actual end-to-end path;
+interface MTU alone cannot discover bottlenecks elsewhere. Route discovery uses
+the selected interface's main IPv4 routing table; policy routing requires a
+kernel netlink route lookup before it can be supported fully.
+
+Run native Linux checks (race needs a C compiler, release builds do not):
+
+```sh
+go test ./...
+go test -race ./...
+go vet ./...
+sudo bash scripts/netns-test.sh --benchmark
+go test -run '^$' -bench 'BenchmarkPacketSender|BenchmarkNat' -benchmem .
+```
+
+The namespace suite changes only temporary veth interfaces and namespaces, and
+removes its own processes/network on exit. Measurements are local one-flow echo
+results, not Internet bandwidth. See [PERFORMANCE.md](PERFORMANCE.md) for measured
+results and raw packet I/O alternatives.
+
+### Kernel processing of tunnel frames
+
+AF_PACKET capture does not consume packets. With protocol 17, normal UDP delivery
+can duplicate tunnel replies into an application socket; protocol 6 can trigger
+TCP resets. Use narrow ingress rules on BOTH endpoints to suppress normal kernel
+processing of the tunnel traffic. For example, on a dedicated tunnel interface:
+
+```sh
+# Example only: substitute the actual interface and tunnel protocol.
+# Do not broadly drop TCP on an interface carrying SSH.
+sudo iptables -t raw -I PREROUTING -i tun0 -p 200 -j DROP
+```
+
+For protocol 17/6, restrict rules to peer/destination addresses and the tunnel
+port and account for non-initial fake fragments. Apply firewall changes with
+out-of-band access; the program never changes host firewall rules itself.
+The test suite configures these rules only in disposable network namespaces.

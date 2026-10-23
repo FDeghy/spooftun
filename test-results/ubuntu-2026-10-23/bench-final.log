@@ -1,0 +1,18 @@
+goos: linux
+goarch: amd64
+pkg: spooftun
+cpu: Intel(R) Xeon(R) CPU E5-2670 v2 @ 2.50GHz
+BenchmarkNATGetSession-2     	74162521	        16.42 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNATGetSession-2     	76287848	        16.20 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNATGetSession-2     	68209640	        19.11 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNATExistingFlow-2   	 7304157	       143.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNATExistingFlow-2   	14003336	        87.21 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNATExistingFlow-2   	15583842	        76.09 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPacketSender/WritePacketData-2         	   12123	    106595 ns/op	 180.12 MB/s	       0 B/op	       0 allocs/op
+BenchmarkPacketSender/WritePacketData-2         	   14484	     88412 ns/op	 217.16 MB/s	       0 B/op	       0 allocs/op
+BenchmarkPacketSender/WritePacketData-2         	   18586	     84106 ns/op	 228.28 MB/s	       0 B/op	       0 allocs/op
+BenchmarkPacketSender/WriteBatch-2              	   10000	    104446 ns/op	 183.83 MB/s	       0 B/op	       0 allocs/op
+BenchmarkPacketSender/WriteBatch-2              	   12424	    117565 ns/op	 163.31 MB/s	       0 B/op	       0 allocs/op
+BenchmarkPacketSender/WriteBatch-2              	   16332	    122193 ns/op	 157.13 MB/s	       0 B/op	       0 allocs/op
+PASS
+ok  	spooftun	23.401s

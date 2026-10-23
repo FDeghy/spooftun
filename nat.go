@@ -3,6 +3,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"math/rand"
 	"net"
@@ -38,6 +39,28 @@ type natSession struct {
 	forwardKey natKey
 }
 
+var errNATExhausted = errors.New("NAT virtual port space exhausted")
+
+// A retired session must never be refreshed or returned by a later lookup.
+const retiredSessionTime int64 = -1
+
+func (s *natSession) refresh(now int64) bool {
+	for {
+		last := atomic.LoadInt64(&s.lastSeen)
+		if last == retiredSessionTime {
+			return false
+		}
+		// Concurrent readers can have slightly different timestamps. Do not
+		// move the activity clock backwards, but still synchronize retirement.
+		if now < last {
+			now = last
+		}
+		if atomic.CompareAndSwapInt64(&s.lastSeen, last, now) {
+			return true
+		}
+	}
+}
+
 // NatTable maps client (IP:port) <-> a 16-bit virtual port used on the wire.
 //
 // The reverse direction (virtual port -> session) is the per-packet hot path
@@ -45,9 +68,9 @@ type natSession struct {
 // array of atomic pointers: O(1), lock-free, and allocation-free (a plain
 // sync.Map would box the uint16 key into an interface{} on every packet).
 //
-// The forward direction (client key -> virtual port) is touched once per new
-// flow on the uplink and by the cleanup goroutine, so a mutex-guarded map is
-// cheap enough there.
+// The forward direction (client key -> virtual port) uses a shared read lock
+// for existing uplink flows. Allocation and cleanup serialize mutations of
+// both directions under the write lock.
 type NatTable struct {
 	reverse [65536]atomic.Pointer[natSession]
 
@@ -55,7 +78,7 @@ type NatTable struct {
 	forward map[natKey]uint16
 
 	// Local RNG to avoid global lock contention in rand.Intn.
-	// Only accessed by the single Uplink goroutine.
+	// Accessed under mu on the allocation path.
 	rng *rand.Rand
 }
 
@@ -66,24 +89,37 @@ func newNatTable() *NatTable {
 	}
 }
 
-func (n *NatTable) GetOrCreateVirtualPort(clientIP net.IP, clientPort int) uint16 {
+func (n *NatTable) GetOrCreateVirtualPort(clientIP net.IP, clientPort int) (uint16, error) {
 	key := makeNatKey(clientIP, clientPort)
 	now := atomic.LoadInt64(&coarseTime)
 
 	// Fast path: an existing mapping whose session is still live.
 	n.mu.RLock()
 	vPort, ok := n.forward[key]
-	n.mu.RUnlock()
 	if ok {
-		if s := n.reverse[vPort].Load(); s != nil {
-			atomic.StoreInt64(&s.lastSeen, now)
-			return vPort
+		if s := n.reverse[vPort].Load(); s != nil && s.refresh(now) {
+			n.mu.RUnlock()
+			return vPort, nil
 		}
-		// Stale forward entry (session was reaped): fall through to reallocate.
+	}
+	n.mu.RUnlock()
+
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	// Another uplink may have allocated this flow while we waited.
+	if v, exists := n.forward[key]; exists {
+		if s := n.reverse[v].Load(); s != nil && s.refresh(now) {
+			return v, nil
+		}
+	}
+	if len(n.forward) == len(n.reverse) {
+		return 0, errNATExhausted
 	}
 
 	// Slow path: allocate a virtual port. Try the client's real port first,
-	// then random ports in [1024, 65535). The clientIP slice may alias a
+	// then scan from a random offset over the entire virtual-port space.
+	// These ports are wire identifiers, not local bind ports; low ports and
+	// 65535 are valid too. The clientIP slice may alias a
 	// reusable read buffer, so copy it into the retained session.
 	ip4 := clientIP.To4()
 	ipCopy := make(net.IP, len(ip4))
@@ -95,43 +131,66 @@ func (n *NatTable) GetOrCreateVirtualPort(clientIP net.IP, clientPort int) uint1
 		forwardKey: key,
 	}
 	proposed := uint16(clientPort)
-	for {
-		if n.reverse[proposed].CompareAndSwap(nil, session) {
-			n.mu.Lock()
-			n.forward[key] = proposed
-			n.mu.Unlock()
-			return proposed
+	if n.reverse[proposed].Load() != nil {
+		start := n.rng.Intn(len(n.reverse))
+		found := false
+		for offset := range len(n.reverse) {
+			candidate := uint16(start + offset)
+			if n.reverse[candidate].Load() == nil {
+				proposed = candidate
+				found = true
+				break
+			}
 		}
-		// Collision: pick random in [1024, 65534].
-		proposed = uint16(n.rng.Intn(64511) + 1024)
+		if !found {
+			return 0, errNATExhausted
+		}
 	}
+	n.reverse[proposed].Store(session)
+	n.forward[key] = proposed
+	return proposed, nil
 }
 
 func (n *NatTable) GetSession(virtualPort uint16) *natSession {
 	sess := n.reverse[virtualPort].Load()
-	if sess != nil {
-		atomic.StoreInt64(&sess.lastSeen, atomic.LoadInt64(&coarseTime))
+	if sess != nil && sess.refresh(atomic.LoadInt64(&coarseTime)) {
+		return sess
 	}
-	return sess
+	return nil
 }
 
 func (n *NatTable) Cleanup() {
 	for {
 		time.Sleep(30 * time.Second)
-		threshold := time.Now().Add(-60 * time.Second).UnixNano()
-		for i := range n.reverse {
-			sess := n.reverse[i].Load()
-			if sess == nil || atomic.LoadInt64(&sess.lastSeen) >= threshold {
-				continue
-			}
-			// Delete the forward entry first so a concurrent uplink misses and
-			// reallocates cleanly; guard against clobbering a fresh remapping.
-			n.mu.Lock()
-			if v, ok := n.forward[sess.forwardKey]; ok && v == uint16(i) {
-				delete(n.forward, sess.forwardKey)
-			}
-			n.mu.Unlock()
-			n.reverse[i].Store(nil)
+		n.cleanupOnce(time.Now())
+	}
+}
+
+func (n *NatTable) cleanupOnce(now time.Time) {
+	threshold := now.Add(-60 * time.Second).UnixNano()
+	for i := range n.reverse {
+		sess := n.reverse[i].Load()
+		if sess == nil {
+			continue
 		}
+		last := atomic.LoadInt64(&sess.lastSeen)
+		if last >= threshold {
+			continue
+		}
+		n.expireSession(uint16(i), sess, last)
+	}
+}
+
+func (n *NatTable) expireSession(port uint16, sess *natSession, last int64) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	// Retirement and refresh compete on the same timestamp. If a packet
+	// refreshed since our stale check, leave the mapping live. Also verify
+	// identity before touching a slot that may have been reused.
+	if n.reverse[port].Load() == sess && atomic.CompareAndSwapInt64(&sess.lastSeen, last, retiredSessionTime) {
+		if v, ok := n.forward[sess.forwardKey]; ok && v == port {
+			delete(n.forward, sess.forwardKey)
+		}
+		n.reverse[port].Store(nil)
 	}
 }

@@ -44,11 +44,11 @@ func parseEthIPv4(frame []byte) (ethIPv4, bool) {
 	if ihl < 20 || ihl > len(ip) {
 		return p, false
 	}
-	// Trust the IP total-length field, but clamp to the captured bytes in case
-	// of truncation so payload never runs past the buffer.
+	// Reject truncated or invalid IP lengths. Ethernet padding after the
+	// declared IP packet is excluded from the returned payload.
 	totalLen := int(binary.BigEndian.Uint16(ip[2:4]))
 	if totalLen < ihl || totalLen > len(ip) {
-		totalLen = len(ip)
+		return p, false
 	}
 	p.srcMAC = frame[6:12]
 	p.proto = ip[9]
@@ -125,7 +125,7 @@ func parseFakeTransport(ipPayload []byte, useTCP bool) (srcPort, dstPort uint16,
 func padData(data []byte, blockSize, headerLen int) []byte {
 	p := blockSize - ((headerLen + len(data)) % blockSize)
 	// Append p copies of the pad byte. The uplink read buffer has spare
-	// capacity (udpPayloadSize), so this reuses the backing array — no alloc.
+	// capacity for the MTU, so this reuses the backing array — no alloc.
 	for i := 0; i < p; i++ {
 		data = append(data, byte(p))
 	}
@@ -134,12 +134,40 @@ func padData(data []byte, blockSize, headerLen int) []byte {
 
 func unpadData(data []byte) []byte {
 	if len(data) == 0 {
-		return data
+		return nil
 	}
 	p := int(data[len(data)-1])
-	if p == 0 || p > len(data) {
-		// malformed pad byte — leave data untouched
-		return data
+	if p == 0 || p > 8 || p > len(data) {
+		return nil
+	}
+	for _, b := range data[len(data)-p:] {
+		if int(b) != p {
+			return nil
+		}
 	}
 	return data[:len(data)-p]
+}
+
+// payloadLimit includes the mandatory fake-fragment padding and transport header.
+func payloadLimit(mtu int, tcp, frag bool) int {
+	header := 8
+	if tcp {
+		header = 20
+	}
+	if frag {
+		return ((mtu-20)/8)*8 - header - 1
+	}
+	return mtu - 20 - header
+}
+
+func effectiveMTU(iface string) (int, error) {
+	dev, err := net.InterfaceByName(iface)
+	if err != nil {
+		return 0, err
+	}
+	mtu := *tunnelMTU
+	if dev.MTU < mtu {
+		mtu = dev.MTU
+	}
+	return mtu, nil
 }
