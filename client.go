@@ -7,7 +7,6 @@ import (
 	"net"
 
 	"github.com/gopacket/gopacket"
-	"github.com/gopacket/gopacket/afpacket"
 	"github.com/gopacket/gopacket/layers"
 	"golang.org/x/net/ipv4"
 	"golang.org/x/sys/unix"
@@ -16,7 +15,7 @@ import (
 // startClientAFPacket runs the client side of the tunnel: it accepts local
 // application UDP traffic, NATs each flow to a virtual port, wraps it in a
 // raw Ethernet+IP+fake-transport frame under a custom IP protocol number, and
-// sends it via AF_PACKET. The reverse direction unwraps server replies and
+// sends it through the selected AF_PACKET or AF_XDP backend. The reverse direction unwraps server replies and
 // delivers them back to the originating application socket.
 func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, upProto, dnProto uint8, iface string) {
 	mtu, err := effectiveMTU(iface)
@@ -24,11 +23,6 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, upPr
 		log.Fatal(err)
 	}
 	maxPayload := payloadLimit(mtu, *fakeTCP, *fakeFrag)
-	txSender, err := newPacketSender(iface)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer txSender.Close()
 	// Get interface info
 	srcMAC, ifaceIP, err := getInterfaceInfo(iface)
 	if err != nil {
@@ -55,29 +49,13 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, upPr
 	}
 	log.Printf("Destination MAC: %s", dstMAC)
 
-	// Create AF_PACKET socket with TPACKET_V3 for high-performance mmap'd ring buffer
-	tpacket, err := afpacket.NewTPacket(
-		afpacket.OptInterface(iface),
-		afpacket.OptTPacketVersion(afpacket.TPacketVersion3),
-		afpacket.OptBlockSize(afBlockSize),
-		afpacket.OptNumBlocks(afNumBlocks),
-		afpacket.OptFrameSize(afFrameSize),
-		afpacket.OptBlockTimeout(afBlockTimeout),
-	)
-	if err != nil {
-		log.Fatalf("Failed to create AF_PACKET socket: %v", err)
-	}
-	defer tpacket.Close()
-
-	// BPF: reject our own outgoing packets + only accept our custom IP protocol
-	// This filters in-kernel, before packets ever reach the mmap ring buffer.
-	// For TCP/UDP modes we also narrow by tunnel peer IPs and target port.
 	filterDst := resolveFilterDstIP(srcIP)
-	// Client receives downlink (server→client) traffic, so the BPF filters dnProto.
-	filter := createBPFFilter(dnProto, srcMAC, *fakeFrag, filterDst, dstPort, true)
-	if err := tpacket.SetBPF(filter); err != nil {
-		log.Fatalf("Failed to set BPF filter: %v", err)
+	receiver, txSender, err := newTunnelIO(iface, dnProto, srcMAC, filterDst, dstPort, true)
+	if err != nil {
+		log.Fatalf("Initialize packet backend: %v", err)
 	}
+	defer receiver.Close()
+	defer txSender.Close()
 
 	// Local UDP socket for application traffic
 	udpAddr, err := net.ResolveUDPAddr("udp4", localAddr)
@@ -112,7 +90,7 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, upPr
 	nat := newNatTable()
 	go nat.Cleanup()
 
-	// Downlink (AF_PACKET -> App)
+	// Downlink (packet backend -> App)
 	// Reads raw Ethernet frames, strips headers, translates VirtualPort -> ClientPort
 	go func() {
 		// Reusable UDPAddr to avoid per-packet heap allocation.
@@ -120,10 +98,10 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, upPr
 		writeAddr := &net.UDPAddr{}
 
 		for {
-			// Zero-copy read from AF_PACKET mmap'd ring buffer
-			data, _, err := tpacket.ZeroCopyReadPacketData()
+			// Read a borrowed frame; its bytes remain valid until the next read.
+			data, err := receiver.ReadPacket()
 			if err != nil {
-				continue
+				log.Fatalf("Packet receive failed: %v", err)
 			}
 
 			// Parse Ethernet + IPv4 header (fixed-offset, no gopacket dispatch).

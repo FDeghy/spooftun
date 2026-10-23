@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/gopacket/gopacket"
-	"github.com/gopacket/gopacket/afpacket"
 	"github.com/gopacket/gopacket/layers"
 	"golang.org/x/net/ipv4"
 	"golang.org/x/sys/unix"
@@ -20,7 +19,7 @@ import (
 // startServerAFPacket runs the server side of the tunnel: it captures uplink
 // frames (client→server) under the custom IP protocol number, forwards the
 // inner payload to a local target port, and spawns a per-flow reply goroutine
-// that wraps target responses back into tunnel frames on a shared TX socket.
+// that wraps target responses back into tunnel frames on the selected backend.
 type serverSession struct {
 	conn     *net.UDPConn
 	lastSeen atomic.Int64
@@ -91,38 +90,13 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 		log.Printf("Using Interface IP: %s", srcIP)
 	}
 
-	// Create Inbound AF_PACKET socket (RX)
-	tpacket, err := afpacket.NewTPacket(
-		afpacket.OptInterface(iface),
-		afpacket.OptTPacketVersion(afpacket.TPacketVersion3),
-		afpacket.OptBlockSize(afBlockSize),
-		afpacket.OptNumBlocks(afNumBlocks),
-		afpacket.OptFrameSize(afFrameSize),
-		afpacket.OptBlockTimeout(afBlockTimeout),
-	)
-	if err != nil {
-		log.Fatalf("Failed to create RX AF_PACKET socket: %v", err)
-	}
-	defer tpacket.Close()
-
-	// TX uses sendmmsg(2) batches. A send-only socket avoids
-	// allocating an unused RX ring and receiving unrelated interface traffic.
-	txSender, err := newPacketSender(iface)
-	if err != nil {
-		log.Fatalf("Failed to create TX AF_PACKET socket: %v", err)
-	}
-	defer txSender.Close()
-
-	// The sender handles concurrent batches from independent reply goroutines.
-
-	// BPF: reject our own outgoing packets + only accept our custom IP protocol.
-	// For TCP/UDP modes we also narrow by our IP and the target port.
 	filterDst := resolveFilterDstIP(srcIP)
-	// Server receives uplink (client→server) traffic, so the BPF filters upProto.
-	filter := createBPFFilter(upProto, srcMAC, *fakeFrag, filterDst, uint16(*targetPort), false)
-	if err := tpacket.SetBPF(filter); err != nil {
-		log.Fatalf("Failed to set BPF filter: %v", err)
+	receiver, txSender, err := newTunnelIO(iface, upProto, srcMAC, filterDst, uint16(*targetPort), false)
+	if err != nil {
+		log.Fatalf("Initialize packet backend: %v", err)
 	}
+	defer receiver.Close()
+	defer txSender.Close()
 
 	sessions := sync.Map{}
 
@@ -133,11 +107,10 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 	}
 
 	for {
-		// Zero-copy read from ring buffer
-		data, _, err := tpacket.ZeroCopyReadPacketData()
+		// Read a borrowed frame from the selected packet backend.
+		data, err := receiver.ReadPacket()
 		if err != nil {
-			// Timeout is expected when no packets arrive — silently retry
-			continue
+			log.Fatalf("Packet receive failed: %v", err)
 		}
 
 		// Parse Ethernet + IPv4 (fixed-offset, no gopacket dispatch).

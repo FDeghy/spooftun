@@ -193,6 +193,15 @@ def stop(proc):
             proc.wait()
 
 
+def read_tunnel_logs(logs):
+    output = {}
+    for endpoint, log in logs.items():
+        log.flush()
+        log.seek(0)
+        output[endpoint] = log.read()
+    return output
+
+
 def orchestrate(args):
     results = []
     # Cover custom protocol with all framing variants and the special BPF
@@ -209,7 +218,8 @@ def orchestrate(args):
             for proto, tcp, frag in modes:
                 common = ["-iface", "tun0", "-target-port", "18080", "-proto", str(proto)]
                 if not args.baseline:
-                    common += ["-session-timeout", "1s"]
+                    common += ["-session-timeout", "1s", "-backend", args.backend,
+                               "-afpacket-tx", args.afpacket_tx]
                     if args.block_timeout:
                         common += ["-block-timeout", args.block_timeout]
                 if tcp:
@@ -217,20 +227,21 @@ def orchestrate(args):
                 if frag:
                     common += ["-fake-frag"]
                 processes = []
-                log = open(os.path.join(work, "tunnel.log"), "w+")
+                logs = {endpoint: open(os.path.join(work, endpoint + ".log"), "w+")
+                        for endpoint in ("client", "server")}
                 try:
                     server = run_in(args.server_ns, [args.binary, "-mode", "server"] + common,
-                                    stdout=log, stderr=log)
+                                    stdout=logs["server"], stderr=logs["server"])
                     processes.append(server)
                     client = run_in(args.client_ns, [args.binary, "-mode", "client", "-listen", "127.0.0.1:18081",
-                                    "-remote-ip", "192.0.2.2"] + common, stdout=log, stderr=log)
+                                    "-remote-ip", "192.0.2.2"] + common,
+                                    stdout=logs["client"], stderr=logs["client"])
                     processes.append(client)
                     for _ in range(10):
                         time.sleep(0.05)
                         if any(proc.poll() is not None for proc in processes) or echo.poll() is not None:
-                            log.flush()
-                            log.seek(0)
-                            raise RuntimeError("tunnel or echo target exited during startup:\n" + log.read())
+                            raise RuntimeError("tunnel or echo target exited during startup:\n" +
+                                               json.dumps(read_tunnel_logs(logs)))
                     header = 20 if tcp else 8
                     limit = ((1500 - 20) // 8) * 8 - header - 1 if frag else 1500 - 20 - header
                     checks = {"skipped": "baseline performance run"}
@@ -241,13 +252,32 @@ def orchestrate(args):
                         check = subprocess.run(["ip", "netns", "exec", args.client_ns] + command,
                                                capture_output=True, text=True, timeout=30)
                         if check.returncode:
-                            log.flush()
-                            log.seek(0)
                             raise RuntimeError("probe failed (proto=%d tcp=%s frag=%s): %s\n%s" %
-                                               (proto, tcp, frag, check.stderr, log.read()))
+                                               (proto, tcp, frag, check.stderr,
+                                                json.dumps(read_tunnel_logs(logs))))
                         checks = json.loads(check.stdout)
+                        if args.backend == "xdp":
+                            # ICMP does not match any tunnel framing mode. A reply
+                            # verifies that attached XDP leaves other IPv4 traffic
+                            # on the namespace's normal network stack.
+                            ping = subprocess.run(["ip", "netns", "exec", args.client_ns,
+                                                   "ping", "-c", "1", "-W", "1", "192.0.2.2"],
+                                                  capture_output=True, text=True, timeout=5)
+                            if ping.returncode:
+                                raise RuntimeError("XDP unmatched ICMP passthrough failed:\n%s\n%s\n%s" %
+                                                   (ping.stdout, ping.stderr,
+                                                    json.dumps(read_tunnel_logs(logs))))
+                            checks["unmatched_icmp_passthrough"] = "passed"
+                    # Preserve observed attachment/copy modes, excluding session
+                    # traffic even when startup finishes during the first probe.
+                    startup = {endpoint: [line for line in output.splitlines()
+                                          if "New Session" not in line and
+                                          any(marker in line for marker in
+                                              ("packet backend=", "AF_XDP", "XDP"))]
+                               for endpoint, output in read_tunnel_logs(logs).items()}
                     entry = {"protocol": proto, "fake_tcp": tcp, "fake_frag": frag,
-                             "status": "passed", "checks": checks}
+                             "status": "passed", "checks": checks,
+                             "backend_startup": startup}
                     if (args.benchmark or args.baseline) and proto == 200 and not tcp and not frag:
                         entry["benchmarks"] = []
                         for size, iteration in [(size, i) for i in range(1, args.iterations + 1) for size in [64, 512, 1400]]:
@@ -257,10 +287,9 @@ def orchestrate(args):
                                     "--pids", "%d,%d" % (client.pid, server.pid)], text=True, stderr=subprocess.STDOUT,
                                     timeout=args.duration + 10)
                             except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
-                                log.flush()
-                                log.seek(0)
                                 raise RuntimeError("benchmark failed (%d bytes): %s\n%s\n%s" %
-                                                   (size, exc, getattr(exc, "output", ""), log.read())) from exc
+                                                   (size, exc, getattr(exc, "output", ""),
+                                                    json.dumps(read_tunnel_logs(logs)))) from exc
                             measurement = json.loads(output)
                             measurement["iteration"] = iteration
                             entry["benchmarks"].append(measurement)
@@ -268,12 +297,15 @@ def orchestrate(args):
                 finally:
                     for proc in reversed(processes):
                         stop(proc)
-                    log.close()
+                    for log in logs.values():
+                        log.close()
         finally:
             stop(echo)
             echo_log.close()
     return {"status": "passed", "network": "isolated veth network namespaces",
             "baseline_mode": args.baseline,
+            "requested_backend": None if args.baseline else args.backend,
+            "requested_afpacket_tx": None if args.baseline else args.afpacket_tx,
             "block_timeout": "baseline default" if args.baseline else (args.block_timeout or "current default"),
             "benchmark_scope": "Python echo harness, one flow; not an Internet bandwidth measurement",
             "results": results}
@@ -287,6 +319,8 @@ def main():
     p.add_argument("--benchmark", action="store_true")
     p.add_argument("--bench-only", action="store_true")
     p.add_argument("--baseline", action="store_true", help="benchmark original defaults without correctness probes or new flags")
+    p.add_argument("--backend", choices=("afpacket", "xdp"), default="afpacket")
+    p.add_argument("--afpacket-tx", choices=("sendmmsg", "ring"), default="sendmmsg")
     p.add_argument("--duration", type=float, default=3)
     p.add_argument("--iterations", type=int, default=1)
     p.add_argument("--block-timeout", help="override current-build ring retirement duration, e.g. 1ms or 5ms")

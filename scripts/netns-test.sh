@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # All traffic and route changes stay within two temporary network namespaces.
+# Backend options are forwarded to both endpoints by bench-netns.py:
+#   --backend afpacket|xdp --afpacket-tx sendmmsg|ring
+# XDP attachment is confined to tun0 inside those namespaces.
 set -euo pipefail
 ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 [[ $EUID -eq 0 ]] || { echo 'Network namespace tests require root.' >&2; exit 1; }

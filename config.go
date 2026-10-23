@@ -48,6 +48,8 @@ func init() {
 
 // Configuration
 var (
+	backend        = flag.String("backend", "afpacket", "Packet backend: afpacket or xdp (AF_XDP)")
+	afpacketTX     = flag.String("afpacket-tx", "sendmmsg", "AF_PACKET transmitter: sendmmsg or ring")
 	ringMB         = flag.Int("ring-mb", 16, "AF_PACKET RX ring size in MiB")
 	blockTimeout   = flag.Duration("block-timeout", time.Millisecond, "TPACKET_V3 block retirement latency")
 	tunnelMTU      = flag.Int("mtu", 1500, "Maximum tunnel IPv4 packet size (capped to interface MTU)")

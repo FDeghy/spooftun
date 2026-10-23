@@ -1,10 +1,10 @@
 # spooftun
 
-A high-throughput Linux UDP tunnel that carries traffic under a configurable
-**custom IP protocol number** using a TPACKET_V3 `AF_PACKET` receive ring and
-batched `sendmmsg` on send-only `AF_PACKET` sockets for transmit, bypassing the kernel IP stack. It supports
-source-IP spoofing, a per-flow NAT layer, and optional obfuscation via fake
-TCP-shaped framing and fake IP fragmentation.
+A Linux UDP tunnel that carries traffic under a configurable **custom IP
+protocol number**. Choose AF_PACKET (TPACKET_V3 receive with sendmmsg or TX-ring
+transmit) or AF_XDP (eBPF redirect with automatic zero-copy/copy selection).
+It supports source-IP spoofing, per-flow NAT, fake TCP-shaped framing and
+fake IP fragmentation.
 
 ## How it works
 
@@ -169,3 +169,61 @@ For protocol 17/6, restrict rules to peer/destination addresses and the tunnel
 port and account for non-initial fake fragments. Apply firewall changes with
 out-of-band access; the program never changes host firewall rules itself.
 The test suite configures these rules only in disposable network namespaces.
+
+## Packet backends
+
+AF_PACKET remains the default. Both choices use the same tunnel wire format,
+NAT, local UDP forwarding, MTU checks, and shaping flags.
+
+```sh
+# Existing receive path; choose the raw transmitter explicitly for comparison.
+sudo ./spooftun -mode server -backend afpacket -afpacket-tx sendmmsg
+sudo ./spooftun -mode server -backend afpacket -afpacket-tx ring
+
+# AF_XDP on both endpoints; other tunnel flags must still match.
+sudo ./spooftun -mode server -backend xdp -iface eth0
+sudo ./spooftun -mode client -backend xdp -iface eth0 -remote-ip SERVER_IP
+```
+
+The XDP backend loads a small eBPF program and an XSK map in Go; no clang,
+libbpf, or cgo is required. It tries native AF_XDP zero-copy first, native
+copy second, and generic XDP copy last. The log reports the kernel's actual
+mode, attachment type and queue count. Permission, verifier, memory-lock and
+allocation errors remain explicit failures; they are not silently relabeled
+as lack of NIC support.
+
+An existing XDP program is never replaced. If another firewall, CNI or
+monitoring program owns the interface, startup fails. Only matching tunnel
+traffic is redirected; unrelated traffic passes to the network stack.
+Use a dedicated tunnel protocol/port and review existing interface consumers
+before enabling XDP. Successful XDP redirection consumes matching frames,
+whereas AF_PACKET is a tap and still needs normal-stack isolation for
+protocols 6/17.
+
+Requirements and limits:
+- Linux 5.9+ with AF_XDP, eBPF and bpf_link XDP support, and suitable privileges.
+- Zero-copy additionally requires native NIC/driver support. Copy fallback
+  cannot provide NIC zero-copy and may perform differently.
+- One socket/UMEM per discovered RX queue, covering RSS queue distribution.
+  Each queue allocates 4 MiB UMEM; ensure sufficient locked-memory allowance.
+  TX uses queue zero; concurrent server writers are synchronized.
+- Interface MTU must be at most 3826 for this single-buffer implementation.
+  Jumbo/multi-buffer XDP is not supported.
+- Changing interface queue configuration while running is not supported.
+- Closing the backend detaches its own program and closes maps, sockets and
+  mappings; it never pins programs or changes interface routes/firewall rules.
+
+PACKET_TX_RING uses a separate send-only TPACKET_V2 mmap ring (~1 MiB).
+A TX ring is not a guarantee of NIC zero-copy. The explicit sendmmsg option is
+retained for comparison and rollback. sendmmsg remains the default because the
+TX-ring benchmark was mixed across payload sizes. See [PACKET_BACKENDS.md](PACKET_BACKENDS.md)
+for measured results and the backend decision.
+
+Compare backends on isolated namespace interfaces:
+
+```sh
+sudo bash scripts/netns-test.sh --backend afpacket --afpacket-tx sendmmsg --bench-only --benchmark --iterations 3
+sudo bash scripts/netns-test.sh --backend afpacket --afpacket-tx ring --bench-only --benchmark --iterations 3
+sudo bash scripts/netns-test.sh --backend xdp --bench-only --benchmark --iterations 3
+sudo env SPOOFTUN_NETNS_TEST=1 go test -run TestNetworkNamespaceIntegration -v .
+```

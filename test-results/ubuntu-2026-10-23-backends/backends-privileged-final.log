@@ -1,0 +1,27 @@
+=== RUN   TestTXRingLayout
+--- PASS: TestTXRingLayout (0.00s)
+=== RUN   TestTXRingValidationAndClose
+--- PASS: TestTXRingValidationAndClose (0.00s)
+=== RUN   TestTXRingWrongFormatRecovery
+--- PASS: TestTXRingWrongFormatRecovery (0.00s)
+=== RUN   TestTXRingSubmissionFailure
+--- PASS: TestTXRingSubmissionFailure (0.00s)
+=== RUN   TestTXRingKernel
+--- PASS: TestTXRingKernel (0.04s)
+=== RUN   TestXDPRingWrapAndCompletionOwnership
+--- PASS: TestXDPRingWrapAndCompletionOwnership (0.00s)
+=== RUN   TestXDPRXSliceLifetimeAndQueueCoverage
+--- PASS: TestXDPRXSliceLifetimeAndQueueCoverage (0.01s)
+=== RUN   TestXDPInvalidBatchDoesNotPublishOrConsumeFrames
+--- PASS: TestXDPInvalidBatchDoesNotPublishOrConsumeFrames (0.00s)
+=== RUN   TestXDPFallbackOnlyForUnsupportedBindOrAttach
+--- PASS: TestXDPFallbackOnlyForUnsupportedBindOrAttach (0.00s)
+=== RUN   TestXDPInstructionsAssemble
+--- PASS: TestXDPInstructionsAssemble (0.00s)
+=== RUN   TestXDPKernelFilter
+--- PASS: TestXDPKernelFilter (0.00s)
+=== RUN   TestXDPGenericCopyLifecycle
+2026/10/23 16:38:04 AF_XDP native zero-copy unavailable: bind AF_XDP queue 0: operation not supported
+--- PASS: TestXDPGenericCopyLifecycle (1.11s)
+PASS
+ok  	spooftun	2.222s

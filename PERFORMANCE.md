@@ -57,20 +57,10 @@ Transmit uses a protocol-zero AF_PACKET socket, so no unused receive ring is
 allocated for TX. Qdisc bypass is not enabled: bypassing host traffic control
 can defeat configured QoS and is not a universal throughput improvement.
 
-Next methods, selected by profiling rather than added speculatively:
-
-1. PACKET_TX_RING: map a dedicated TX ring and submit multiple frames per
-   doorbell syscall; compare copy/descriptor overhead and ring pressure with
-   sendmmsg. Keep the existing V3 RX path.
-2. PACKET_FANOUT_HASH: distribute flows across RX workers if one receive
-   goroutine saturates a core. Preserve per-flow ordering and shard session
-   state consistently; extra workers are not automatically better on two CPUs.
-3. AF_XDP: queue-specific UMEM rings can support driver-dependent zero-copy.
-   Probe XDP/zero-copy support on the actual NIC first; copy-mode fallback is
-   not proof of an advantage. This requires a separate backend and XDP setup.
-4. Profile serialization/checksum and per-packet local UDP sends. A specialized
-   encoder or safe ring-block-aware batching could help, but needs wire-format
-   equivalence and lifetime tests. Do not queue slices into a reused RX ring.
+PACKET_TX_RING and AF_XDP are implemented as selectable backends. See
+[PACKET_BACKENDS.md](PACKET_BACKENDS.md) for the current measurements, fallback
+behavior and retained sendmmsg default. The remaining larger optimizations
+are flow-sharded receive fanout and profiling the encoder/local UDP boundary.
 
 Primary references:
 - [Linux PACKET_MMAP](https://docs.kernel.org/networking/packet_mmap.html)

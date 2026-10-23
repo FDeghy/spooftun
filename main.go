@@ -2,7 +2,7 @@
 
 // Command spooftun is a high-throughput Linux UDP tunnel that carries traffic
 // under a configurable custom IP protocol number using AF_PACKET (TPACKET_V3
-// for RX and raw socket writes for TX), bypassing the kernel IP stack. It
+// RX with sendmmsg/TX ring) or AF_XDP (automatic zero-copy/copy fallback). It
 // supports source-IP spoofing, a per-flow NAT layer, and optional fake TCP-shaped
 // framing and fake IP fragmentation.
 //
@@ -29,6 +29,12 @@ import (
 
 func main() {
 	flag.Parse()
+	if *backend != "afpacket" && *backend != "xdp" {
+		log.Fatal("Invalid -backend: use afpacket or xdp")
+	}
+	if *afpacketTX != "sendmmsg" && *afpacketTX != "ring" {
+		log.Fatal("Invalid -afpacket-tx: use sendmmsg or ring")
+	}
 	if *mode != "client" && *mode != "server" {
 		log.Fatal("Invalid -mode: use client or server")
 	}
@@ -95,11 +101,11 @@ func main() {
 		if serverIP == nil {
 			log.Fatal("Remote IP is required for client mode. Use -remote-ip <IP>")
 		}
-		log.Printf("[Client-AF_PACKET] Forwarding %s -> Tunnel(%s) -> :%d (Up=Proto %d, Down=Proto %d) via %s",
+		log.Printf("[Client] Forwarding %s -> Tunnel(%s) -> :%d (Up=Proto %d, Down=Proto %d) via %s",
 			*listenAddr, *tunnelIP, *targetPort, upProto, dnProto, iface)
 		startClientAFPacket(*listenAddr, serverIP, uint16(*targetPort), upProto, dnProto, iface)
 	} else {
-		log.Printf("[Server-AF_PACKET] Listening on Up=Proto %d, replying Down=Proto %d via %s", upProto, dnProto, iface)
+		log.Printf("[Server] Listening on Up=Proto %d, replying Down=Proto %d via %s", upProto, dnProto, iface)
 		startServerAFPacket(upProto, dnProto, iface)
 	}
 }

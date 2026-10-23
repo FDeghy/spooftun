@@ -35,7 +35,7 @@ jobs:
         run: go test ./...
       - name: Namespace integration
         if: matrix.goarch == 'amd64'
-        run: sudo env PATH="$PATH" bash scripts/netns-test.sh
+        run: sudo env PATH="$PATH" SPOOFTUN_NETNS_TEST=1 go test -run TestNetworkNamespaceIntegration -v .
       - name: Race
         run: go test -race ./...
       - name: Staticcheck
