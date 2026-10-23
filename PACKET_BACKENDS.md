@@ -97,6 +97,21 @@ the maximum throughput between separate hosts or a 1-Gbps capability.
 See [performance methodology](PERFORMANCE.md#what-the-benchmarks-establish)
 and [WireGuard MTU/CPU troubleshooting](WIREGUARD.md).
 
+## XDP receive troubleshooting
+
+The error `Packet receive failed: XDP fill ownership invariant violated`
+was caused by treating a temporarily full FILL ring as corruption. Linux
+can publish RX descriptors before releasing the shared FILL consumer index
+([kernel xsk_flush implementation](https://github.com/torvalds/linux/blob/v6.8/net/xdp/xsk.c#L312-L317)).
+The receiver now retains the returned frame and waits for a free FILL slot
+before publishing it, with a short interruptible wait to avoid busy-spinning.
+Tests force delayed consumer publication, exercise counter wraparound and
+shutdown, and receive repeated packet bursts through the real kernel rings.
+See the [before/after test evidence](test-results/ubuntu-2026-10-24-xdp-fill/).
+
+For an immediate workaround with an older binary, use
+`-backend afpacket -afpacket-tx sendmmsg`.
+
 ## Reproduce
 
 ```sh

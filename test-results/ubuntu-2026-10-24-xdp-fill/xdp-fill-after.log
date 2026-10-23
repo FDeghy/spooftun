@@ -1,0 +1,162 @@
+=== RUN   TestXDPRXWaitsForFillConsumer
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-512
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-4294967295
+--- PASS: TestXDPRXWaitsForFillConsumer (0.04s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-512 (0.02s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-4294967295 (0.02s)
+=== RUN   TestXDPCloseInterruptsFillWait
+--- PASS: TestXDPCloseInterruptsFillWait (0.02s)
+=== RUN   TestXDPRXWaitsForFillConsumer
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-512
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-4294967295
+--- PASS: TestXDPRXWaitsForFillConsumer (0.04s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-512 (0.02s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-4294967295 (0.02s)
+=== RUN   TestXDPCloseInterruptsFillWait
+--- PASS: TestXDPCloseInterruptsFillWait (0.02s)
+=== RUN   TestXDPRXWaitsForFillConsumer
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-512
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-4294967295
+--- PASS: TestXDPRXWaitsForFillConsumer (0.04s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-512 (0.02s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-4294967295 (0.02s)
+=== RUN   TestXDPCloseInterruptsFillWait
+--- PASS: TestXDPCloseInterruptsFillWait (0.02s)
+=== RUN   TestXDPRXWaitsForFillConsumer
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-512
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-4294967295
+--- PASS: TestXDPRXWaitsForFillConsumer (0.04s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-512 (0.02s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-4294967295 (0.02s)
+=== RUN   TestXDPCloseInterruptsFillWait
+--- PASS: TestXDPCloseInterruptsFillWait (0.02s)
+=== RUN   TestXDPRXWaitsForFillConsumer
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-512
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-4294967295
+--- PASS: TestXDPRXWaitsForFillConsumer (0.05s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-512 (0.02s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-4294967295 (0.02s)
+=== RUN   TestXDPCloseInterruptsFillWait
+--- PASS: TestXDPCloseInterruptsFillWait (0.02s)
+=== RUN   TestXDPRXWaitsForFillConsumer
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-512
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-4294967295
+--- PASS: TestXDPRXWaitsForFillConsumer (0.04s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-512 (0.02s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-4294967295 (0.02s)
+=== RUN   TestXDPCloseInterruptsFillWait
+--- PASS: TestXDPCloseInterruptsFillWait (0.02s)
+=== RUN   TestXDPRXWaitsForFillConsumer
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-512
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-4294967295
+--- PASS: TestXDPRXWaitsForFillConsumer (0.04s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-512 (0.02s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-4294967295 (0.02s)
+=== RUN   TestXDPCloseInterruptsFillWait
+--- PASS: TestXDPCloseInterruptsFillWait (0.02s)
+=== RUN   TestXDPRXWaitsForFillConsumer
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-512
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-4294967295
+--- PASS: TestXDPRXWaitsForFillConsumer (0.05s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-512 (0.02s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-4294967295 (0.02s)
+=== RUN   TestXDPCloseInterruptsFillWait
+--- PASS: TestXDPCloseInterruptsFillWait (0.02s)
+=== RUN   TestXDPRXWaitsForFillConsumer
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-512
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-4294967295
+--- PASS: TestXDPRXWaitsForFillConsumer (0.04s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-512 (0.02s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-4294967295 (0.02s)
+=== RUN   TestXDPCloseInterruptsFillWait
+--- PASS: TestXDPCloseInterruptsFillWait (0.02s)
+=== RUN   TestXDPRXWaitsForFillConsumer
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-512
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-4294967295
+--- PASS: TestXDPRXWaitsForFillConsumer (0.04s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-512 (0.02s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-4294967295 (0.02s)
+=== RUN   TestXDPCloseInterruptsFillWait
+--- PASS: TestXDPCloseInterruptsFillWait (0.02s)
+=== RUN   TestXDPRXWaitsForFillConsumer
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-512
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-4294967295
+--- PASS: TestXDPRXWaitsForFillConsumer (0.04s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-512 (0.02s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-4294967295 (0.02s)
+=== RUN   TestXDPCloseInterruptsFillWait
+--- PASS: TestXDPCloseInterruptsFillWait (0.02s)
+=== RUN   TestXDPRXWaitsForFillConsumer
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-512
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-4294967295
+--- PASS: TestXDPRXWaitsForFillConsumer (0.04s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-512 (0.02s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-4294967295 (0.02s)
+=== RUN   TestXDPCloseInterruptsFillWait
+--- PASS: TestXDPCloseInterruptsFillWait (0.02s)
+=== RUN   TestXDPRXWaitsForFillConsumer
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-512
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-4294967295
+--- PASS: TestXDPRXWaitsForFillConsumer (0.04s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-512 (0.02s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-4294967295 (0.02s)
+=== RUN   TestXDPCloseInterruptsFillWait
+--- PASS: TestXDPCloseInterruptsFillWait (0.02s)
+=== RUN   TestXDPRXWaitsForFillConsumer
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-512
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-4294967295
+--- PASS: TestXDPRXWaitsForFillConsumer (0.04s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-512 (0.02s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-4294967295 (0.02s)
+=== RUN   TestXDPCloseInterruptsFillWait
+--- PASS: TestXDPCloseInterruptsFillWait (0.02s)
+=== RUN   TestXDPRXWaitsForFillConsumer
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-512
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-4294967295
+--- PASS: TestXDPRXWaitsForFillConsumer (0.04s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-512 (0.02s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-4294967295 (0.02s)
+=== RUN   TestXDPCloseInterruptsFillWait
+--- PASS: TestXDPCloseInterruptsFillWait (0.02s)
+=== RUN   TestXDPRXWaitsForFillConsumer
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-512
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-4294967295
+--- PASS: TestXDPRXWaitsForFillConsumer (0.04s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-512 (0.02s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-4294967295 (0.02s)
+=== RUN   TestXDPCloseInterruptsFillWait
+--- PASS: TestXDPCloseInterruptsFillWait (0.02s)
+=== RUN   TestXDPRXWaitsForFillConsumer
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-512
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-4294967295
+--- PASS: TestXDPRXWaitsForFillConsumer (0.04s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-512 (0.02s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-4294967295 (0.02s)
+=== RUN   TestXDPCloseInterruptsFillWait
+--- PASS: TestXDPCloseInterruptsFillWait (0.02s)
+=== RUN   TestXDPRXWaitsForFillConsumer
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-512
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-4294967295
+--- PASS: TestXDPRXWaitsForFillConsumer (0.04s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-512 (0.02s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-4294967295 (0.02s)
+=== RUN   TestXDPCloseInterruptsFillWait
+--- PASS: TestXDPCloseInterruptsFillWait (0.02s)
+=== RUN   TestXDPRXWaitsForFillConsumer
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-512
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-4294967295
+--- PASS: TestXDPRXWaitsForFillConsumer (0.04s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-512 (0.02s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-4294967295 (0.02s)
+=== RUN   TestXDPCloseInterruptsFillWait
+--- PASS: TestXDPCloseInterruptsFillWait (0.02s)
+=== RUN   TestXDPRXWaitsForFillConsumer
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-512
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-4294967295
+--- PASS: TestXDPRXWaitsForFillConsumer (0.04s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-512 (0.02s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-4294967295 (0.02s)
+=== RUN   TestXDPCloseInterruptsFillWait
+--- PASS: TestXDPCloseInterruptsFillWait (0.02s)
+PASS
+ok  	spooftun	2.555s

@@ -1,0 +1,14 @@
+=== RUN   TestXDPRXWaitsForFillConsumer
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-512
+    xdp_test.go:114: reader did not wait for FILL release: XDP fill ownership invariant violated
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-4294967295
+    xdp_test.go:114: reader did not wait for FILL release: XDP fill ownership invariant violated
+--- FAIL: TestXDPRXWaitsForFillConsumer (0.00s)
+    --- FAIL: TestXDPRXWaitsForFillConsumer/producer-512 (0.00s)
+    --- FAIL: TestXDPRXWaitsForFillConsumer/producer-4294967295 (0.00s)
+=== RUN   TestXDPCloseInterruptsFillWait
+    xdp_test.go:150: reader did not wait for FILL release: XDP fill ownership invariant violated
+--- FAIL: TestXDPCloseInterruptsFillWait (0.00s)
+FAIL
+FAIL	spooftun	0.046s
+FAIL

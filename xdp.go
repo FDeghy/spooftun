@@ -315,11 +315,24 @@ func (x *xdpIO) ReadPacket() ([]byte, error) {
 	if x.closed.Load() {
 		return nil, os.ErrClosed
 	}
-	if x.held != nil {
+	for x.held != nil {
+		if x.closed.Load() {
+			return nil, os.ErrClosed
+		}
 		q := x.held
 		p := atomic.LoadUint32(q.fill.producer)
 		if p-atomic.LoadUint32(q.fill.consumer) >= xdpRingSize {
-			return nil, fmt.Errorf("XDP fill ownership invariant violated")
+			// The kernel can publish RX before releasing its cached FILL
+			// consumer (xsk_flush does this). Retain the frame until that
+			// slot is released; never overwrite a kernel-owned ring entry.
+			// RX may already be readable, so polling the socket here would
+			// spin. A short eventfd-only wait bounds CPU use and lets Close
+			// interrupt us even if FILL progress stops.
+			_, err := unix.Poll([]unix.PollFd{{Fd: int32(x.wake), Events: unix.POLLIN}}, 1)
+			if err != nil && err != unix.EINTR {
+				return nil, err
+			}
+			continue
 		}
 		*q.fill.address(p) = x.heldAddr
 		atomic.StoreUint32(q.fill.producer, p+1)

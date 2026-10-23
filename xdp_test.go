@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"net"
 	"os"
 	"sync/atomic"
@@ -71,6 +72,96 @@ func TestXDPRXSliceLifetimeAndQueueCoverage(t *testing.T) {
 	}
 	if *q0.fill.producer != 1 || *q0.fill.address(0) != 0 {
 		t.Fatal("held RX frame not recycled by base address")
+	}
+}
+
+// xsk_flush publishes RX before releasing the FILL consumer. Model that
+// ordering explicitly instead of relying on the scheduler to hit the race.
+func TestXDPRXWaitsForFillConsumer(t *testing.T) {
+	for _, p := range []uint32{xdpRingSize, ^uint32(0)} {
+		t.Run(fmt.Sprintf("producer-%d", p), func(t *testing.T) {
+			wake, err := unix.Eventfd(0, unix.EFD_CLOEXEC|unix.EFD_NONBLOCK)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer unix.Close(wake)
+			q := &xdpQueue{rx: fakeXDPRing(16), fill: fakeXDPRing(8), umem: make([]byte, 2*xdpFrameSize)}
+			*q.fill.producer, *q.fill.consumer = p, p-xdpRingSize
+			*q.fill.address(p) = 12345
+			for i := uint32(0); i < 2; i++ {
+				addr := i*xdpFrameSize + 256
+				q.umem[addr] = byte(41 + i)
+				*q.rx.packet(i) = unix.XDPDesc{Addr: uint64(addr), Len: 1}
+			}
+			*q.rx.producer = 2
+			x := &xdpIO{wake: wake, queues: []*xdpQueue{q}}
+			a, err := x.ReadPacket()
+			if err != nil || len(a) != 1 || a[0] != 41 {
+				t.Fatalf("first RX: %v %v", a, err)
+			}
+			done := make(chan error, 1)
+			go func() {
+				b, err := x.ReadPacket()
+				if err == nil && (len(b) != 1 || b[0] != 42) {
+					err = fmt.Errorf("second RX: %v", b)
+				}
+				done <- err
+			}()
+			// Release even on failure so the test never leaks a blocked reader.
+			defer func() { atomic.StoreUint32(q.fill.consumer, p-xdpRingSize+1) }()
+			select {
+			case err := <-done:
+				t.Fatalf("reader did not wait for FILL release: %v", err)
+			case <-time.After(20 * time.Millisecond):
+			}
+			if atomic.LoadUint32(q.fill.producer) != p {
+				t.Fatal("published into a full FILL ring")
+			}
+			atomic.StoreUint32(q.fill.consumer, p-xdpRingSize+1)
+			select {
+			case err := <-done:
+				if err != nil {
+					t.Fatal(err)
+				}
+			case <-time.After(time.Second):
+				t.Fatal("reader did not resume after FILL release")
+			}
+			if *q.fill.producer != p+1 || *q.fill.address(p) != 0 || x.heldAddr != xdpFrameSize {
+				t.Fatal("RX frame was lost, duplicated, or recycled with the wrong address")
+			}
+		})
+	}
+}
+
+func TestXDPCloseInterruptsFillWait(t *testing.T) {
+	wake, err := unix.Eventfd(0, unix.EFD_CLOEXEC|unix.EFD_NONBLOCK)
+	if err != nil {
+		t.Fatal(err)
+	}
+	q := &xdpQueue{fill: fakeXDPRing(8)}
+	*q.fill.producer = xdpRingSize
+	// No mapped queues: Close must still wake a reader returning its held frame.
+	x := &xdpIO{wake: wake, held: q}
+	defer x.Close()
+	done := make(chan error, 1)
+	go func() { _, err := x.ReadPacket(); done <- err }()
+	select {
+	case err := <-done:
+		t.Fatalf("reader did not wait for FILL release: %v", err)
+	case <-time.After(20 * time.Millisecond):
+	}
+	closed := make(chan struct{})
+	go func() { x.Close(); close(closed) }()
+	select {
+	case <-closed:
+	case <-time.After(time.Second):
+		t.Fatal("Close did not interrupt FILL wait")
+	}
+	if err := <-done; !errors.Is(err, os.ErrClosed) {
+		t.Fatalf("ReadPacket after Close: %v", err)
+	}
+	if *q.fill.producer != xdpRingSize {
+		t.Fatal("Close published a frame into a full ring")
 	}
 }
 
@@ -240,6 +331,30 @@ func TestXDPGenericCopyLifecycle(t *testing.T) {
 	}
 }
 
+func TestXDPNativeCopyReceiveBursts(t *testing.T) {
+	iface, peer := os.Getenv("SPOOFTUN_XDP_TEST_IFACE"), os.Getenv("SPOOFTUN_XDP_TEST_PEER")
+	if iface == "" || peer == "" {
+		t.Skip("set SPOOFTUN_XDP_TEST_IFACE and SPOOFTUN_XDP_TEST_PEER to isolated veth peers")
+	}
+	dev, err := net.InterfaceByName(iface)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ids, err := xdpQueueIDs(iface)
+	if err != nil {
+		t.Fatal(err)
+	}
+	x, err := openXDPIO(dev, ids, 200, dev.HardwareAddr, nil, 0, false, false, link.XDPDriverMode)
+	if xdpUnsupported(err) {
+		t.Skipf("native-copy unavailable: %v", err)
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer x.Close()
+	testXDPFrames(t, x, dev, peer)
+}
+
 func testXDPFrames(t *testing.T, x *xdpIO, dev *net.Interface, peerName string) {
 	t.Helper()
 	peer, err := net.InterfaceByName(peerName)
@@ -282,6 +397,7 @@ func testXDPFrames(t *testing.T, x *xdpIO, dev *net.Interface, peerName string) 
 		x.Close()
 		t.Fatal("XDP RX timed out")
 	}
+	testXDPReceiveBursts(t, x, fd, frame)
 	out := bytes.Clone(frame)
 	copy(out[:6], peer.HardwareAddr)
 	copy(out[6:12], dev.HardwareAddr)
@@ -308,4 +424,53 @@ func testXDPFrames(t *testing.T, x *xdpIO, dev *net.Interface, peerName string) 
 		}
 	}
 	t.Fatal("AF_XDP TX frame did not reach veth peer")
+}
+
+func testXDPReceiveBursts(t *testing.T, x *xdpIO, fd int, frame []byte) {
+	t.Helper()
+	const burst, rounds = 64, 128 // Reuse every RX frame across many ring wraps.
+	want := bytes.Clone(frame)
+	send := bytes.Clone(frame)
+	done := make(chan error, 1)
+	go func() {
+		for round := 0; round < rounds; round++ {
+			for i := 0; i < burst; i++ {
+				got, err := x.ReadPacket()
+				if err != nil {
+					done <- err
+					return
+				}
+				binary.BigEndian.PutUint32(want[54:], uint32(round*burst+i))
+				if !bytes.Equal(got, want) {
+					done <- fmt.Errorf("RX burst %d packet %d: got %x, want %x", round, i, got, want)
+					return
+				}
+			}
+			done <- nil
+		}
+	}()
+	complete := false
+	defer func() {
+		if !complete {
+			x.Close() // Interrupt the reader if a send or comparison fails.
+		}
+	}()
+	for round := 0; round < rounds; round++ {
+		for i := 0; i < burst; i++ {
+			binary.BigEndian.PutUint32(send[54:], uint32(round*burst+i))
+			if _, err := unix.Write(fd, send); err != nil {
+				t.Fatal(err)
+			}
+		}
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Fatal(err)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatalf("RX burst %d timed out", round)
+		}
+	}
+	complete = true
+	t.Logf("verified %d ordered RX frames across ring wraps", burst*rounds)
 }
