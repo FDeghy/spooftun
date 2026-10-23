@@ -45,6 +45,36 @@ Results therefore are not total host CPU or an Internet link speed. Three
 and both application endpoints share this two-vCPU host, introducing contention.
 Preliminary flooding measurements were noisy and are not evidence of improvement.
 
+## What the benchmarks establish
+
+The recorded numbers are real local echo measurements. They are not a
+maximum-capacity test, a WireGuard-over-spooftun benchmark, or proof of
+1-Gbps tunneling. The Python generator/echo service, shared two-vCPU host,
+128-datagram window and short measurement duration can constrain the result.
+Each delivered echo traverses the tunnel in both directions; the reported
+Mbps counts the echoed application payload once, not aggregate wire traffic.
+
+Reaching a rate in this harness does not establish a speed ceiling for two
+separate hosts. Likewise, passing correctness tests does not guarantee a
+specific throughput or verify hardware zero-copy.
+
+For a capacity test, use two separate Linux endpoints and a native compiled
+generator/receiver. First establish the direct path's capacity. Measure
+one-way received throughput for 30-60 seconds, then reverse direction and test
+both single-flow and aggregate traffic. Keep packet sizes and offered load
+identical between the baseline and tunnel runs. Record receiver loss/jitter,
+per-core/process CPU, softirq, CPU steal time and NIC drops.
+
+At 1400 application bytes, a 1-Gbps payload target requires about 89,300
+delivered datagrams/second. Physical link capacity must also cover the
+encapsulation and Ethernet overhead. Do not infer this target from a sender's
+offered rate or total host CPU percentage.
+
+For WireGuard layering, MTU and iperf3 instructions, see
+[WIREGUARD.md](WIREGUARD.md). In particular, compare direct WireGuard against
+WireGuard over spooftun before attributing a 170-Mbps/75%-CPU result to one
+component.
+
 ## AF_PACKET settings and next steps
 
 The default RX ring is 16 MiB, TPACKET_V3, 1 ms block retirement. Keep the

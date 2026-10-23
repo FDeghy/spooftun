@@ -92,6 +92,11 @@ about 7.3% with about 11.6% more CPU/reply. That is insufficient evidence to
 switch the general-purpose default. Use -afpacket-tx ring explicitly for bulk
 workloads and remeasure on the deployment NIC. AF_XDP remains opt-in.
 
+These measurements do not include WireGuard encryption and do not establish
+the maximum throughput between separate hosts or a 1-Gbps capability.
+See [performance methodology](PERFORMANCE.md#what-the-benchmarks-establish)
+and [WireGuard MTU/CPU troubleshooting](WIREGUARD.md).
+
 ## Reproduce
 
 ```sh

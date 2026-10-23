@@ -9,7 +9,7 @@ fake IP fragmentation.
 ## How it works
 
 ```
-                    custom IP proto (default 200), raw AF_PACKET frames
+                    custom IP proto (default 200), raw Ethernet frames
   app ──UDP──▶ client ═══════════════════════════════════════════▶ server ──UDP──▶ 127.0.0.1:<target-port>
              (-listen)                                                            (local service)
   app ◀─UDP── client ◀═══════════════════════════════════════════ server ◀─UDP── (service reply)
@@ -18,8 +18,8 @@ fake IP fragmentation.
 - The **client** binds a local UDP socket (`-listen`) that applications send to.
   Each distinct client `IP:port` is mapped to a 16-bit virtual port by the NAT
   table. Each datagram is wrapped in a raw `Ethernet + IPv4 + fake UDP/TCP`
-  frame under the custom IP protocol number and sent via `AF_PACKET`.
-- The **server** captures those frames (filtered in-kernel by BPF), unwraps
+  frame under the custom IP protocol number and sent through the selected backend.
+- The **server** receives those frames (filtered by classic BPF or XDP), unwraps
   them, and forwards the inner payload to `127.0.0.1:<target-port>`. Replies
   from the local service are wrapped back into tunnel frames and returned to the
   client, which delivers them to the originating application socket.
@@ -29,8 +29,9 @@ AF_PACKET receives frames before normal IP processing. Copies can still reach th
 ## Requirements
 
 - **Linux** (the whole program is behind a `//go:build linux` tag).
-- **Root** / `CAP_NET_RAW` + `CAP_NET_ADMIN` — required to open `AF_PACKET`
-  sockets and attach BPF filters.
+- **Root** is recommended for setup and the test scripts. AF_PACKET needs
+  `CAP_NET_RAW`; AF_XDP also needs permission to load and attach eBPF/XDP
+  programs. See [backend requirements](PACKET_BACKENDS.md#selection-and-lifecycle).
 - **Go 1.27.3** to build. Classic BPF is assembled in Go; libpcap and cgo are not required.
 
 ## Build
@@ -64,18 +65,35 @@ Applications now send UDP to `127.0.0.1:1001` on the client and reach
 > (and `-uplink-proto` / `-downlink-proto`), `-fake-tcp`, and `-fake-frag`.
 > A mismatch means one side won't recognize the other's frames.
 
+## WireGuard over spooftun
+
+For WireGuard sending to spooftun's local UDP listener, start with **WireGuard
+MTU 1420 on both peers** when the physical path MTU is 1500. Keep spooftun
+`-mtu 1500`; its setting controls the outer IPv4 packet, not the WireGuard
+interface. This budget also fits `-fake-tcp -fake-frag` on a 1500-byte path.
+
+See [WIREGUARD.md](WIREGUARD.md) for setup, padding arithmetic, smaller-path
+MTUs, and diagnosing high CPU or low iperf3 throughput. Reducing MTU alone is
+not a solution to a packet-processing bottleneck.
+
 ## Flags
 
 | Flag | Default | Applies to | Description |
 |------|---------|-----------|-------------|
 | `-mode` | `client` | both | `client` or `server`. |
+| `-backend` | `afpacket` | both | `afpacket` or `xdp`; independent of the peer's backend. |
+| `-afpacket-tx` | `sendmmsg` | AF_PACKET | `sendmmsg` or `ring` (PACKET_TX_RING). Ignored by XDP. |
+| `-ring-mb` | `16` | AF_PACKET | Receive-ring budget in MiB; does not set TX-ring or XDP UMEM size. |
+| `-block-timeout` | `1ms` | AF_PACKET | TPACKET_V3 receive-block retirement delay. |
+| `-mtu` | `1500` | both | Maximum outer IPv4 size, capped to interface MTU; does not discover path MTU. |
+| `-session-timeout` | `1m` | server | Idle session lifetime, refreshed by either direction. |
 | `-remote-ip` | *(empty)* | client (required), server (optional) | Remote tunnel endpoint IP. On the server it fixes the downlink destination; if empty the server auto-detects it per session from incoming packets. |
 | `-listen` | `127.0.0.1:1001` | client | Local UDP address applications send to. |
 | `-target-port` | `8080` | client (forward port), server (BPF narrowing) | Port the payload is delivered to on the server's loopback. On the client it is encoded into every uplink frame; on the server it is only used to narrow the BPF filter when `-proto` is 6/17. |
 | `-proto` | `200` | both | Custom IP protocol number (0–255) for both directions. |
 | `-uplink-proto` | `-1` | both | IP protocol for client→server packets. Overrides `-proto` for that direction; `-1` inherits `-proto`. |
 | `-downlink-proto` | `-1` | both | IP protocol for server→client packets. Overrides `-proto` for that direction; `-1` inherits `-proto`. |
-| `-iface` | *(auto)* | both | Network interface for `AF_PACKET`. Auto-detected from the route to `-remote-ip` if empty. |
+| `-iface` | *(auto)* | both | Physical Ethernet interface for the selected backend. Auto-detected from the route to `-remote-ip` if empty. |
 | `-src-ip` | *(auto)* | both | Force a specific source IP (spoofing). Defaults to the interface IP. |
 | `-filter-dst-ip` | *(empty)* | both | Destination IP for the BPF capture filter (TCP/UDP protos only). Use when `-src-ip` is spoofed and the on-wire destination differs from it; defaults to `-src-ip`. |
 | `-fake-tcp` | `false` | both | Use a TCP-shaped header instead of UDP for tunnel framing. Must match on both ends. |
@@ -105,7 +123,11 @@ All files are `package main` under the `//go:build linux` constraint.
 | `bpf.go` | In-kernel BPF capture filter and filter-IP resolution. |
 | `client.go` | Client data path (app → tunnel and tunnel → app). |
 | `server.go` | Server data path (tunnel → target and target → tunnel). |
-| `tx.go` | Send-only AF_PACKET socket for server replies. |
+| `packet_io.go` | Shared RX/TX interfaces and backend selection. |
+| `tx.go` | Send-only AF_PACKET sendmmsg transmitter for either endpoint. |
+| `tx_ring.go` | Dedicated TPACKET_V2 mmap transmit ring. |
+| `xdp.go` | AF_XDP sockets, UMEM ownership, fallback and resource lifecycle. |
+| `xdp_filter.go` | eBPF tunnel redirect filter; unrelated traffic passes. |
 | `offload.go` | UDP GSO/GRO helpers (scaffolding, currently disabled). |
 
 ## Notes & limitations
@@ -120,7 +142,7 @@ All files are `package main` under the `//go:build linux` constraint.
 
 ## Performance and validation
 
-RX retains a zero-copy TPACKET_V3 ring. TX batches packets already returned by
+The AF_PACKET backend uses a TPACKET_V3 mmap receive ring. TX batches packets already returned by
 UDP recvmmsg; it never waits to fill a batch. Both endpoints reuse separate
 serialization buffers per queued frame. Per-session UDP reads use 16 slots
 instead of 64 (about 24 KB vs 94 KB payload storage at MTU 1500), plus reusable
@@ -144,13 +166,16 @@ go test ./...
 go test -race ./...
 go vet ./...
 sudo bash scripts/netns-test.sh --benchmark
-go test -run '^$' -bench 'BenchmarkPacketSender|BenchmarkNat' -benchmem .
+go test -run '^$' -bench 'BenchmarkPacketSender|BenchmarkNAT' -benchmem .
 ```
 
 The namespace suite changes only temporary veth interfaces and namespaces, and
 removes its own processes/network on exit. Measurements are local one-flow echo
-results, not Internet bandwidth. See [PERFORMANCE.md](PERFORMANCE.md) for measured
-results and raw packet I/O alternatives.
+results, not Internet bandwidth or maximum tunnel capacity. Both endpoints
+and the Python applications share one 2-vCPU machine; the 128-request window
+and three-second runs can constrain results. **1-Gbps tunneling has not been
+demonstrated.** See [PERFORMANCE.md](PERFORMANCE.md) for measurement limits and
+a two-host capacity-test plan.
 
 ### Kernel processing of tunnel frames
 
@@ -201,6 +226,7 @@ whereas AF_PACKET is a tap and still needs normal-stack isolation for
 protocols 6/17.
 
 Requirements and limits:
+
 - Linux 5.9+ with AF_XDP, eBPF and bpf_link XDP support, and suitable privileges.
 - Zero-copy additionally requires native NIC/driver support. Copy fallback
   cannot provide NIC zero-copy and may perform differently.
