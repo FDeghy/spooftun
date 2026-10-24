@@ -1,0 +1,86 @@
+{
+  "final-native": {
+    "baseline": {
+      "1400": {
+        "median_mbps": 228.21469612373943,
+        "median_cpu_us": 47.306846733668344,
+        "mbps_range": [
+          212.55757576766015,
+          258.0332840453213
+        ],
+        "runs": 5
+      }
+    },
+    "final": {
+      "1400": {
+        "median_mbps": 251.99771899224697,
+        "median_cpu_us": 41.82222222222222,
+        "mbps_range": [
+          247.26234430635074,
+          261.5740390642391
+        ],
+        "runs": 5
+      }
+    }
+  },
+  "final-python": {
+    "baseline": {
+      "64": {
+        "median_mbps": 11.326,
+        "median_cpu_us": 44.436,
+        "mbps_range": [
+          9.798,
+          11.448
+        ],
+        "runs": 3
+      },
+      "512": {
+        "median_mbps": 83.229,
+        "median_cpu_us": 49.867,
+        "mbps_range": [
+          71.636,
+          85.83
+        ],
+        "runs": 3
+      },
+      "1400": {
+        "median_mbps": 201.414,
+        "median_cpu_us": 53.744,
+        "mbps_range": [
+          199.733,
+          218.551
+        ],
+        "runs": 3
+      }
+    },
+    "final": {
+      "64": {
+        "median_mbps": 11.794,
+        "median_cpu_us": 42.706,
+        "mbps_range": [
+          10.743,
+          11.826
+        ],
+        "runs": 3
+      },
+      "512": {
+        "median_mbps": 95.185,
+        "median_cpu_us": 42.597,
+        "mbps_range": [
+          93.156,
+          102.402
+        ],
+        "runs": 3
+      },
+      "1400": {
+        "median_mbps": 231.319,
+        "median_cpu_us": 46.478,
+        "mbps_range": [
+          225.795,
+          250.195
+        ],
+        "runs": 3
+      }
+    }
+  }
+}

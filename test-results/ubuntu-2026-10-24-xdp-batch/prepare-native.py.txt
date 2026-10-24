@@ -1,0 +1,12 @@
+import pathlib
+root=pathlib.Path('/root/spooftun-batch-20261024-GL21DY')
+out=root/'native-work'/'scripts'
+out.mkdir(parents=True,exist_ok=True)
+(out/'netns-test.sh').write_bytes((root/'candidate/scripts/netns-test.sh').read_bytes())
+s=(root/'candidate/scripts/bench-netns.py').read_text()
+bin=str(root/'native-echo')
+s=s.replace('[sys.executable, HERE, "--target"]',repr([bin,'--target']))
+s=s.replace('sys.executable, HERE, "--measure"',repr(bin)+', "--measure"')
+s=s.replace('for size in [64, 512, 1400]', 'for size in [1400]')
+s=s.replace('Python echo harness, one flow; not an Internet bandwidth measurement','Native Go burst echo harness, one flow; not an Internet bandwidth measurement')
+(out/'bench-netns.py').write_text(s)

@@ -98,7 +98,7 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 	defer txSender.Close()
 
 	sessions := sync.Map{}
-	forwarder := newLocalUDPForwarder(mtu)
+	forwarder := newLocalUDPDelivery(receiver, mtu)
 	defer forwarder.Close()
 
 	autoDst := false
@@ -109,7 +109,7 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 
 	for {
 		// Read a borrowed frame from the selected packet backend.
-		data, err := receiver.ReadPacket()
+		data, err := forwarder.ReadPacket()
 		if err != nil {
 			log.Fatalf("Packet receive failed: %v", err)
 		}

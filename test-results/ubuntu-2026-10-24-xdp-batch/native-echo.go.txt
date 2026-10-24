@@ -1,0 +1,147 @@
+package main
+
+import (
+	"bytes"
+	"encoding/binary"
+	"encoding/json"
+	"flag"
+	"fmt"
+	"net"
+	"os"
+	"os/exec"
+	"strconv"
+	"strings"
+	"time"
+)
+
+func check(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+func cpu(pids string, ticks float64) float64 {
+	total := float64(0)
+	for _, p := range strings.Split(pids, ",") {
+		raw, e := os.ReadFile("/proc/" + p + "/stat")
+		check(e)
+		f := strings.Fields(string(raw)[strings.LastIndex(string(raw), ")")+1:])
+		for _, i := range []int{11, 12} {
+			v, e := strconv.ParseFloat(f[i], 64)
+			check(e)
+			total += v
+		}
+	}
+	return total / ticks
+}
+func main() {
+	target := flag.Bool("target", false, "")
+	flag.Bool("measure", false, "")
+	size := flag.Int("size", 1400, "")
+	duration := flag.Float64("duration", 5, "")
+	pids := flag.String("pids", "", "")
+	flag.Parse()
+	if *target {
+		s, e := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 18080})
+		check(e)
+		check(s.SetReadBuffer(4 << 20))
+		buf := make([]byte, 65535)
+		for {
+			n, a, e := s.ReadFromUDPAddrPort(buf)
+			check(e)
+			_, e = s.WriteToUDPAddrPort(buf[:n], a)
+			check(e)
+		}
+	}
+	s, e := net.DialUDP("udp4", nil, &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 18081})
+	check(e)
+	defer s.Close()
+	check(s.SetReadBuffer(4 << 20))
+	check(s.SetWriteBuffer(4 << 20))
+	check(s.SetReadDeadline(time.Now().Add(time.Second)))
+	_, e = s.Write([]byte("warmup"))
+	check(e)
+	buf := make([]byte, 65535)
+	_, e = s.Read(buf)
+	check(e)
+	tickText, e := exec.Command("getconf", "CLK_TCK").Output()
+	check(e)
+	ticks, e := strconv.ParseFloat(strings.TrimSpace(string(tickText)), 64)
+	check(e)
+	payload := bytes.Repeat([]byte{'b'}, *size)
+	seen := make([]bool, 0, 1000000)
+	received, duplicates, late := 0, 0, 0
+	cpu0 := cpu(*pids, ticks)
+	start := time.Now()
+	finish := start.Add(time.Duration(*duration * float64(time.Second)))
+	receive := func() (uint64, bool, error) {
+		n, e := s.Read(buf)
+		if e != nil {
+			return 0, false, e
+		}
+		if n != *size || !bytes.Equal(buf[8:n], payload[8:]) {
+			panic("payload corruption")
+		}
+		seq := binary.BigEndian.Uint64(buf[:8])
+		if seq >= uint64(len(seen)) {
+			panic("unsent sequence")
+		}
+		if seen[seq] {
+			duplicates++
+			return seq, false, nil
+		}
+		seen[seq] = true
+		return seq, true, nil
+	}
+	for time.Now().Before(finish) {
+		first := len(seen)
+		for j := 0; j < 128; j++ {
+			binary.BigEndian.PutUint64(payload[:8], uint64(len(seen)))
+			_, e = s.Write(payload)
+			check(e)
+			seen = append(seen, false)
+		}
+		deadline := time.Now().Add(200 * time.Millisecond)
+		if finish.Before(deadline) {
+			deadline = finish
+		}
+		check(s.SetReadDeadline(deadline))
+		current := 0
+		for current < 128 {
+			seq, unique, e := receive()
+			if e != nil {
+				if ne, ok := e.(net.Error); ok && ne.Timeout() {
+					break
+				}
+				check(e)
+			}
+			if unique {
+				if time.Now().Before(finish) {
+					received++
+				} else {
+					late++
+				}
+				if seq >= uint64(first) {
+					current++
+				}
+			}
+		}
+	}
+	elapsed := time.Since(start).Seconds()
+	used := cpu(*pids, ticks) - cpu0
+	check(s.SetReadDeadline(time.Now().Add(250 * time.Millisecond)))
+	for {
+		_, unique, e := receive()
+		if e != nil {
+			if ne, ok := e.(net.Error); ok && ne.Timeout() {
+				break
+			}
+			check(e)
+		}
+		if unique {
+			late++
+		}
+	}
+	result := map[string]any{"method": "native Go echo, sequential 128-packet bursts", "payload_bytes": *size, "duration_seconds": elapsed, "sent_datagrams": len(seen), "received_datagrams": received, "late_replies": late, "duplicate_replies": duplicates, "unanswered_after_drain": len(seen) - received - late, "echo_payload_mbps": float64(received**size*8) / elapsed / 1e6, "tunnel_cpu_cores": used / elapsed, "tunnel_cpu_microseconds_per_delivered_datagram": used * 1e6 / float64(received)}
+	check(json.NewEncoder(os.Stdout).Encode(result))
+	fmt.Fprint(os.Stderr, "")
+}

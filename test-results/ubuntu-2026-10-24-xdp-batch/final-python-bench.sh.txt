@@ -1,0 +1,14 @@
+set -euo pipefail
+cd /root/spooftun-batch-20261024-GL21DY
+export PATH=/root/spooftun-test-20261023/toolchain/golang.org/toolchain@v0.0.1-go1.27.3.linux-amd64/bin:$PATH
+export GOPATH=/root/spooftun-test-20261023/gopath
+export GOCACHE=/root/spooftun-test-20261023/buildcache
+cd candidate
+for round in 1 2 3; do
+  order='baseline final'
+  if [ "$round" = 2 ]; then order='final baseline'; fi
+  for variant in $order; do
+    SPOOFTUN_BINARY="../$variant-bin" bash scripts/netns-test.sh --backend xdp --bench-only --bench-fake-tcp --benchmark --iterations 1 --duration 3 > "../final-python-$variant-$round.json" 2> "../final-python-$variant-$round.stderr"
+    python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(sys.argv[1], [(b["payload_bytes"],b["echo_payload_mbps"],b["tunnel_cpu_microseconds_per_delivered_datagram"],b["unanswered_after_drain"]) for r in d["results"] for b in r.get("benchmarks",[])])' "../final-python-$variant-$round.json"
+  done
+done

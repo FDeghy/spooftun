@@ -1,0 +1,332 @@
+=== RUN   TestXDPBatchOwnershipWrapAndFairness
+--- PASS: TestXDPBatchOwnershipWrapAndFairness (0.01s)
+=== RUN   TestXDPBatchPartialFillPublication
+--- PASS: TestXDPBatchPartialFillPublication (0.00s)
+=== RUN   TestXDPInvalidBatchPreservesOwnership
+--- PASS: TestXDPInvalidBatchPreservesOwnership (0.00s)
+=== RUN   TestXDPRingWrapAndCompletionOwnership
+--- PASS: TestXDPRingWrapAndCompletionOwnership (0.01s)
+=== RUN   TestXDPRXSliceLifetimeAndQueueCoverage
+--- PASS: TestXDPRXSliceLifetimeAndQueueCoverage (0.02s)
+=== RUN   TestXDPRXWaitsForFillConsumer
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-512
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-4294967295
+--- PASS: TestXDPRXWaitsForFillConsumer (0.04s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-512 (0.02s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-4294967295 (0.02s)
+=== RUN   TestXDPCloseInterruptsFillWait
+--- PASS: TestXDPCloseInterruptsFillWait (0.02s)
+=== RUN   TestXDPInvalidBatchDoesNotPublishOrConsumeFrames
+--- PASS: TestXDPInvalidBatchDoesNotPublishOrConsumeFrames (0.00s)
+=== RUN   TestXDPFallbackOnlyForUnsupportedBindOrAttach
+--- PASS: TestXDPFallbackOnlyForUnsupportedBindOrAttach (0.00s)
+=== RUN   TestXDPInstructionsAssemble
+--- PASS: TestXDPInstructionsAssemble (0.00s)
+=== RUN   TestXDPKernelFilter
+--- PASS: TestXDPKernelFilter (0.00s)
+=== RUN   TestXDPGenericCopyLifecycle
+    xdp_test.go:288: verified 8192 ordered RX frames across ring wraps
+2026/10/24 05:04:43 AF_XDP native zero-copy unavailable: bind AF_XDP queue 0: operation not supported
+--- PASS: TestXDPGenericCopyLifecycle (1.28s)
+=== RUN   TestXDPNativeCopyReceiveBursts
+    xdp_test.go:355: verified 8192 ordered RX frames across ring wraps
+--- PASS: TestXDPNativeCopyReceiveBursts (0.17s)
+=== RUN   TestXDPBatchOwnershipWrapAndFairness
+--- PASS: TestXDPBatchOwnershipWrapAndFairness (0.01s)
+=== RUN   TestXDPBatchPartialFillPublication
+--- PASS: TestXDPBatchPartialFillPublication (0.00s)
+=== RUN   TestXDPInvalidBatchPreservesOwnership
+--- PASS: TestXDPInvalidBatchPreservesOwnership (0.00s)
+=== RUN   TestXDPRingWrapAndCompletionOwnership
+--- PASS: TestXDPRingWrapAndCompletionOwnership (0.00s)
+=== RUN   TestXDPRXSliceLifetimeAndQueueCoverage
+--- PASS: TestXDPRXSliceLifetimeAndQueueCoverage (0.01s)
+=== RUN   TestXDPRXWaitsForFillConsumer
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-512
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-4294967295
+--- PASS: TestXDPRXWaitsForFillConsumer (0.04s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-512 (0.02s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-4294967295 (0.02s)
+=== RUN   TestXDPCloseInterruptsFillWait
+--- PASS: TestXDPCloseInterruptsFillWait (0.02s)
+=== RUN   TestXDPInvalidBatchDoesNotPublishOrConsumeFrames
+--- PASS: TestXDPInvalidBatchDoesNotPublishOrConsumeFrames (0.00s)
+=== RUN   TestXDPFallbackOnlyForUnsupportedBindOrAttach
+--- PASS: TestXDPFallbackOnlyForUnsupportedBindOrAttach (0.00s)
+=== RUN   TestXDPInstructionsAssemble
+--- PASS: TestXDPInstructionsAssemble (0.00s)
+=== RUN   TestXDPKernelFilter
+--- PASS: TestXDPKernelFilter (0.00s)
+=== RUN   TestXDPGenericCopyLifecycle
+    xdp_test.go:288: verified 8192 ordered RX frames across ring wraps
+2026/10/24 05:04:45 AF_XDP native zero-copy unavailable: bind AF_XDP queue 0: operation not supported
+--- PASS: TestXDPGenericCopyLifecycle (1.24s)
+=== RUN   TestXDPNativeCopyReceiveBursts
+    xdp_test.go:355: verified 8192 ordered RX frames across ring wraps
+--- PASS: TestXDPNativeCopyReceiveBursts (0.21s)
+=== RUN   TestXDPBatchOwnershipWrapAndFairness
+--- PASS: TestXDPBatchOwnershipWrapAndFairness (0.01s)
+=== RUN   TestXDPBatchPartialFillPublication
+--- PASS: TestXDPBatchPartialFillPublication (0.01s)
+=== RUN   TestXDPInvalidBatchPreservesOwnership
+--- PASS: TestXDPInvalidBatchPreservesOwnership (0.01s)
+=== RUN   TestXDPRingWrapAndCompletionOwnership
+--- PASS: TestXDPRingWrapAndCompletionOwnership (0.00s)
+=== RUN   TestXDPRXSliceLifetimeAndQueueCoverage
+--- PASS: TestXDPRXSliceLifetimeAndQueueCoverage (0.01s)
+=== RUN   TestXDPRXWaitsForFillConsumer
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-512
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-4294967295
+--- PASS: TestXDPRXWaitsForFillConsumer (0.04s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-512 (0.02s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-4294967295 (0.02s)
+=== RUN   TestXDPCloseInterruptsFillWait
+--- PASS: TestXDPCloseInterruptsFillWait (0.02s)
+=== RUN   TestXDPInvalidBatchDoesNotPublishOrConsumeFrames
+--- PASS: TestXDPInvalidBatchDoesNotPublishOrConsumeFrames (0.00s)
+=== RUN   TestXDPFallbackOnlyForUnsupportedBindOrAttach
+--- PASS: TestXDPFallbackOnlyForUnsupportedBindOrAttach (0.00s)
+=== RUN   TestXDPInstructionsAssemble
+--- PASS: TestXDPInstructionsAssemble (0.00s)
+=== RUN   TestXDPKernelFilter
+--- PASS: TestXDPKernelFilter (0.00s)
+=== RUN   TestXDPGenericCopyLifecycle
+    xdp_test.go:288: verified 8192 ordered RX frames across ring wraps
+2026/10/24 05:04:46 AF_XDP native zero-copy unavailable: bind AF_XDP queue 0: operation not supported
+--- PASS: TestXDPGenericCopyLifecycle (1.23s)
+=== RUN   TestXDPNativeCopyReceiveBursts
+    xdp_test.go:355: verified 8192 ordered RX frames across ring wraps
+--- PASS: TestXDPNativeCopyReceiveBursts (0.22s)
+=== RUN   TestXDPBatchOwnershipWrapAndFairness
+--- PASS: TestXDPBatchOwnershipWrapAndFairness (0.01s)
+=== RUN   TestXDPBatchPartialFillPublication
+--- PASS: TestXDPBatchPartialFillPublication (0.01s)
+=== RUN   TestXDPInvalidBatchPreservesOwnership
+--- PASS: TestXDPInvalidBatchPreservesOwnership (0.00s)
+=== RUN   TestXDPRingWrapAndCompletionOwnership
+--- PASS: TestXDPRingWrapAndCompletionOwnership (0.00s)
+=== RUN   TestXDPRXSliceLifetimeAndQueueCoverage
+--- PASS: TestXDPRXSliceLifetimeAndQueueCoverage (0.01s)
+=== RUN   TestXDPRXWaitsForFillConsumer
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-512
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-4294967295
+--- PASS: TestXDPRXWaitsForFillConsumer (0.04s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-512 (0.02s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-4294967295 (0.02s)
+=== RUN   TestXDPCloseInterruptsFillWait
+--- PASS: TestXDPCloseInterruptsFillWait (0.02s)
+=== RUN   TestXDPInvalidBatchDoesNotPublishOrConsumeFrames
+--- PASS: TestXDPInvalidBatchDoesNotPublishOrConsumeFrames (0.00s)
+=== RUN   TestXDPFallbackOnlyForUnsupportedBindOrAttach
+--- PASS: TestXDPFallbackOnlyForUnsupportedBindOrAttach (0.00s)
+=== RUN   TestXDPInstructionsAssemble
+--- PASS: TestXDPInstructionsAssemble (0.00s)
+=== RUN   TestXDPKernelFilter
+--- PASS: TestXDPKernelFilter (0.00s)
+=== RUN   TestXDPGenericCopyLifecycle
+    xdp_test.go:288: verified 8192 ordered RX frames across ring wraps
+2026/10/24 05:04:48 AF_XDP native zero-copy unavailable: bind AF_XDP queue 0: operation not supported
+--- PASS: TestXDPGenericCopyLifecycle (1.26s)
+=== RUN   TestXDPNativeCopyReceiveBursts
+    xdp_test.go:355: verified 8192 ordered RX frames across ring wraps
+--- PASS: TestXDPNativeCopyReceiveBursts (0.17s)
+=== RUN   TestXDPBatchOwnershipWrapAndFairness
+--- PASS: TestXDPBatchOwnershipWrapAndFairness (0.01s)
+=== RUN   TestXDPBatchPartialFillPublication
+--- PASS: TestXDPBatchPartialFillPublication (0.00s)
+=== RUN   TestXDPInvalidBatchPreservesOwnership
+--- PASS: TestXDPInvalidBatchPreservesOwnership (0.01s)
+=== RUN   TestXDPRingWrapAndCompletionOwnership
+--- PASS: TestXDPRingWrapAndCompletionOwnership (0.00s)
+=== RUN   TestXDPRXSliceLifetimeAndQueueCoverage
+--- PASS: TestXDPRXSliceLifetimeAndQueueCoverage (0.01s)
+=== RUN   TestXDPRXWaitsForFillConsumer
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-512
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-4294967295
+--- PASS: TestXDPRXWaitsForFillConsumer (0.04s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-512 (0.02s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-4294967295 (0.02s)
+=== RUN   TestXDPCloseInterruptsFillWait
+--- PASS: TestXDPCloseInterruptsFillWait (0.02s)
+=== RUN   TestXDPInvalidBatchDoesNotPublishOrConsumeFrames
+--- PASS: TestXDPInvalidBatchDoesNotPublishOrConsumeFrames (0.00s)
+=== RUN   TestXDPFallbackOnlyForUnsupportedBindOrAttach
+--- PASS: TestXDPFallbackOnlyForUnsupportedBindOrAttach (0.00s)
+=== RUN   TestXDPInstructionsAssemble
+--- PASS: TestXDPInstructionsAssemble (0.00s)
+=== RUN   TestXDPKernelFilter
+--- PASS: TestXDPKernelFilter (0.00s)
+=== RUN   TestXDPGenericCopyLifecycle
+    xdp_test.go:288: verified 8192 ordered RX frames across ring wraps
+2026/10/24 05:04:49 AF_XDP native zero-copy unavailable: bind AF_XDP queue 0: operation not supported
+--- PASS: TestXDPGenericCopyLifecycle (1.24s)
+=== RUN   TestXDPNativeCopyReceiveBursts
+    xdp_test.go:355: verified 8192 ordered RX frames across ring wraps
+--- PASS: TestXDPNativeCopyReceiveBursts (0.17s)
+=== RUN   TestXDPBatchOwnershipWrapAndFairness
+--- PASS: TestXDPBatchOwnershipWrapAndFairness (0.01s)
+=== RUN   TestXDPBatchPartialFillPublication
+--- PASS: TestXDPBatchPartialFillPublication (0.01s)
+=== RUN   TestXDPInvalidBatchPreservesOwnership
+--- PASS: TestXDPInvalidBatchPreservesOwnership (0.00s)
+=== RUN   TestXDPRingWrapAndCompletionOwnership
+--- PASS: TestXDPRingWrapAndCompletionOwnership (0.00s)
+=== RUN   TestXDPRXSliceLifetimeAndQueueCoverage
+--- PASS: TestXDPRXSliceLifetimeAndQueueCoverage (0.00s)
+=== RUN   TestXDPRXWaitsForFillConsumer
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-512
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-4294967295
+--- PASS: TestXDPRXWaitsForFillConsumer (0.04s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-512 (0.02s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-4294967295 (0.02s)
+=== RUN   TestXDPCloseInterruptsFillWait
+--- PASS: TestXDPCloseInterruptsFillWait (0.02s)
+=== RUN   TestXDPInvalidBatchDoesNotPublishOrConsumeFrames
+--- PASS: TestXDPInvalidBatchDoesNotPublishOrConsumeFrames (0.00s)
+=== RUN   TestXDPFallbackOnlyForUnsupportedBindOrAttach
+--- PASS: TestXDPFallbackOnlyForUnsupportedBindOrAttach (0.00s)
+=== RUN   TestXDPInstructionsAssemble
+--- PASS: TestXDPInstructionsAssemble (0.00s)
+=== RUN   TestXDPKernelFilter
+--- PASS: TestXDPKernelFilter (0.00s)
+=== RUN   TestXDPGenericCopyLifecycle
+    xdp_test.go:288: verified 8192 ordered RX frames across ring wraps
+2026/10/24 05:04:51 AF_XDP native zero-copy unavailable: bind AF_XDP queue 0: operation not supported
+--- PASS: TestXDPGenericCopyLifecycle (1.23s)
+=== RUN   TestXDPNativeCopyReceiveBursts
+    xdp_test.go:355: verified 8192 ordered RX frames across ring wraps
+--- PASS: TestXDPNativeCopyReceiveBursts (0.19s)
+=== RUN   TestXDPBatchOwnershipWrapAndFairness
+--- PASS: TestXDPBatchOwnershipWrapAndFairness (0.01s)
+=== RUN   TestXDPBatchPartialFillPublication
+--- PASS: TestXDPBatchPartialFillPublication (0.00s)
+=== RUN   TestXDPInvalidBatchPreservesOwnership
+--- PASS: TestXDPInvalidBatchPreservesOwnership (0.00s)
+=== RUN   TestXDPRingWrapAndCompletionOwnership
+--- PASS: TestXDPRingWrapAndCompletionOwnership (0.00s)
+=== RUN   TestXDPRXSliceLifetimeAndQueueCoverage
+--- PASS: TestXDPRXSliceLifetimeAndQueueCoverage (0.00s)
+=== RUN   TestXDPRXWaitsForFillConsumer
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-512
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-4294967295
+--- PASS: TestXDPRXWaitsForFillConsumer (0.04s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-512 (0.02s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-4294967295 (0.02s)
+=== RUN   TestXDPCloseInterruptsFillWait
+--- PASS: TestXDPCloseInterruptsFillWait (0.02s)
+=== RUN   TestXDPInvalidBatchDoesNotPublishOrConsumeFrames
+--- PASS: TestXDPInvalidBatchDoesNotPublishOrConsumeFrames (0.00s)
+=== RUN   TestXDPFallbackOnlyForUnsupportedBindOrAttach
+--- PASS: TestXDPFallbackOnlyForUnsupportedBindOrAttach (0.00s)
+=== RUN   TestXDPInstructionsAssemble
+--- PASS: TestXDPInstructionsAssemble (0.00s)
+=== RUN   TestXDPKernelFilter
+--- PASS: TestXDPKernelFilter (0.00s)
+=== RUN   TestXDPGenericCopyLifecycle
+    xdp_test.go:288: verified 8192 ordered RX frames across ring wraps
+2026/10/24 05:04:52 AF_XDP native zero-copy unavailable: bind AF_XDP queue 0: operation not supported
+--- PASS: TestXDPGenericCopyLifecycle (1.25s)
+=== RUN   TestXDPNativeCopyReceiveBursts
+    xdp_test.go:355: verified 8192 ordered RX frames across ring wraps
+--- PASS: TestXDPNativeCopyReceiveBursts (0.15s)
+=== RUN   TestXDPBatchOwnershipWrapAndFairness
+--- PASS: TestXDPBatchOwnershipWrapAndFairness (0.02s)
+=== RUN   TestXDPBatchPartialFillPublication
+--- PASS: TestXDPBatchPartialFillPublication (0.01s)
+=== RUN   TestXDPInvalidBatchPreservesOwnership
+--- PASS: TestXDPInvalidBatchPreservesOwnership (0.00s)
+=== RUN   TestXDPRingWrapAndCompletionOwnership
+--- PASS: TestXDPRingWrapAndCompletionOwnership (0.00s)
+=== RUN   TestXDPRXSliceLifetimeAndQueueCoverage
+--- PASS: TestXDPRXSliceLifetimeAndQueueCoverage (0.01s)
+=== RUN   TestXDPRXWaitsForFillConsumer
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-512
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-4294967295
+--- PASS: TestXDPRXWaitsForFillConsumer (0.04s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-512 (0.02s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-4294967295 (0.02s)
+=== RUN   TestXDPCloseInterruptsFillWait
+--- PASS: TestXDPCloseInterruptsFillWait (0.02s)
+=== RUN   TestXDPInvalidBatchDoesNotPublishOrConsumeFrames
+--- PASS: TestXDPInvalidBatchDoesNotPublishOrConsumeFrames (0.00s)
+=== RUN   TestXDPFallbackOnlyForUnsupportedBindOrAttach
+--- PASS: TestXDPFallbackOnlyForUnsupportedBindOrAttach (0.00s)
+=== RUN   TestXDPInstructionsAssemble
+--- PASS: TestXDPInstructionsAssemble (0.00s)
+=== RUN   TestXDPKernelFilter
+--- PASS: TestXDPKernelFilter (0.00s)
+=== RUN   TestXDPGenericCopyLifecycle
+    xdp_test.go:288: verified 8192 ordered RX frames across ring wraps
+2026/10/24 05:04:54 AF_XDP native zero-copy unavailable: bind AF_XDP queue 0: operation not supported
+--- PASS: TestXDPGenericCopyLifecycle (1.26s)
+=== RUN   TestXDPNativeCopyReceiveBursts
+    xdp_test.go:355: verified 8192 ordered RX frames across ring wraps
+--- PASS: TestXDPNativeCopyReceiveBursts (0.18s)
+=== RUN   TestXDPBatchOwnershipWrapAndFairness
+--- PASS: TestXDPBatchOwnershipWrapAndFairness (0.02s)
+=== RUN   TestXDPBatchPartialFillPublication
+--- PASS: TestXDPBatchPartialFillPublication (0.00s)
+=== RUN   TestXDPInvalidBatchPreservesOwnership
+--- PASS: TestXDPInvalidBatchPreservesOwnership (0.01s)
+=== RUN   TestXDPRingWrapAndCompletionOwnership
+--- PASS: TestXDPRingWrapAndCompletionOwnership (0.00s)
+=== RUN   TestXDPRXSliceLifetimeAndQueueCoverage
+--- PASS: TestXDPRXSliceLifetimeAndQueueCoverage (0.00s)
+=== RUN   TestXDPRXWaitsForFillConsumer
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-512
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-4294967295
+--- PASS: TestXDPRXWaitsForFillConsumer (0.04s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-512 (0.02s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-4294967295 (0.02s)
+=== RUN   TestXDPCloseInterruptsFillWait
+--- PASS: TestXDPCloseInterruptsFillWait (0.02s)
+=== RUN   TestXDPInvalidBatchDoesNotPublishOrConsumeFrames
+--- PASS: TestXDPInvalidBatchDoesNotPublishOrConsumeFrames (0.00s)
+=== RUN   TestXDPFallbackOnlyForUnsupportedBindOrAttach
+--- PASS: TestXDPFallbackOnlyForUnsupportedBindOrAttach (0.00s)
+=== RUN   TestXDPInstructionsAssemble
+--- PASS: TestXDPInstructionsAssemble (0.00s)
+=== RUN   TestXDPKernelFilter
+--- PASS: TestXDPKernelFilter (0.00s)
+=== RUN   TestXDPGenericCopyLifecycle
+    xdp_test.go:288: verified 8192 ordered RX frames across ring wraps
+2026/10/24 05:04:55 AF_XDP native zero-copy unavailable: bind AF_XDP queue 0: operation not supported
+--- PASS: TestXDPGenericCopyLifecycle (1.27s)
+=== RUN   TestXDPNativeCopyReceiveBursts
+    xdp_test.go:355: verified 8192 ordered RX frames across ring wraps
+--- PASS: TestXDPNativeCopyReceiveBursts (0.15s)
+=== RUN   TestXDPBatchOwnershipWrapAndFairness
+--- PASS: TestXDPBatchOwnershipWrapAndFairness (0.01s)
+=== RUN   TestXDPBatchPartialFillPublication
+--- PASS: TestXDPBatchPartialFillPublication (0.01s)
+=== RUN   TestXDPInvalidBatchPreservesOwnership
+--- PASS: TestXDPInvalidBatchPreservesOwnership (0.00s)
+=== RUN   TestXDPRingWrapAndCompletionOwnership
+--- PASS: TestXDPRingWrapAndCompletionOwnership (0.00s)
+=== RUN   TestXDPRXSliceLifetimeAndQueueCoverage
+--- PASS: TestXDPRXSliceLifetimeAndQueueCoverage (0.01s)
+=== RUN   TestXDPRXWaitsForFillConsumer
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-512
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-4294967295
+--- PASS: TestXDPRXWaitsForFillConsumer (0.05s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-512 (0.02s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-4294967295 (0.02s)
+=== RUN   TestXDPCloseInterruptsFillWait
+--- PASS: TestXDPCloseInterruptsFillWait (0.02s)
+=== RUN   TestXDPInvalidBatchDoesNotPublishOrConsumeFrames
+--- PASS: TestXDPInvalidBatchDoesNotPublishOrConsumeFrames (0.00s)
+=== RUN   TestXDPFallbackOnlyForUnsupportedBindOrAttach
+--- PASS: TestXDPFallbackOnlyForUnsupportedBindOrAttach (0.00s)
+=== RUN   TestXDPInstructionsAssemble
+--- PASS: TestXDPInstructionsAssemble (0.00s)
+=== RUN   TestXDPKernelFilter
+--- PASS: TestXDPKernelFilter (0.00s)
+=== RUN   TestXDPGenericCopyLifecycle
+    xdp_test.go:288: verified 8192 ordered RX frames across ring wraps
+2026/10/24 05:04:57 AF_XDP native zero-copy unavailable: bind AF_XDP queue 0: operation not supported
+--- PASS: TestXDPGenericCopyLifecycle (1.25s)
+=== RUN   TestXDPNativeCopyReceiveBursts
+    xdp_test.go:355: verified 8192 ordered RX frames across ring wraps
+--- PASS: TestXDPNativeCopyReceiveBursts (0.16s)
+PASS
+ok  	spooftun	16.387s

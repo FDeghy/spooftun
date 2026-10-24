@@ -152,12 +152,15 @@ wire compatibility and checksums. Per-session UDP reads use 16 slots
 instead of 64 (about 24 KB vs 94 KB payload storage at MTU 1500), plus reusable
 TX buffers.
 
-Local UDP delivery on both endpoints uses a bounded 32-slot queue (about 48 KB
+With AF_PACKET, local UDP delivery uses a bounded 32-slot queue (about 48 KB
 of payload storage at MTU 1500). It copies borrowed RX payloads before the next
-packet-ring read, then sends up to 16 already-queued datagrams without waiting
-to fill a batch. Compatible same-destination packets use UDP GSO; mixed lengths,
-empty datagrams, and unsupported GSO use sendmmsg. Payload contents and datagram
-boundaries are preserved. Local UDP receive GRO remains disabled.
+packet-ring read, then sends up to 16 already-queued datagrams. With XDP,
+receive batches contain up to 16 available frames; local delivery writes their
+borrowed payloads before the next batch read recycles those frames. This avoids
+the intermediate payload copy and channel handoff on the XDP receive path.
+Neither path waits to fill a batch. Compatible same-destination packets use UDP
+GSO; other datagrams and unsupported GSO use sendmmsg. Payload contents and
+datagram boundaries are preserved. Local UDP receive GRO remains disabled.
 
 Socket setup logs the requested and actual receive/send buffer sizes, including
 Linux's doubled accounting values, and warns if the kernel caps the request.

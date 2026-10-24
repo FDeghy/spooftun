@@ -1,0 +1,16 @@
+goos: linux
+goarch: amd64
+pkg: spooftun
+cpu: Intel(R) Xeon(R) CPU E5-2670 v2 @ 2.50GHz
+BenchmarkXDPReceiveBookkeeping/batch=false-2         	  773722	      1294 ns/op	       0 B/op	       0 allocs/op
+BenchmarkXDPReceiveBookkeeping/batch=false-2         	  950910	      1432 ns/op	       0 B/op	       0 allocs/op
+BenchmarkXDPReceiveBookkeeping/batch=false-2         	  962102	      1498 ns/op	       0 B/op	       0 allocs/op
+BenchmarkXDPReceiveBookkeeping/batch=false-2         	  752941	      1911 ns/op	       0 B/op	       0 allocs/op
+BenchmarkXDPReceiveBookkeeping/batch=false-2         	  801457	      1609 ns/op	       0 B/op	       0 allocs/op
+BenchmarkXDPReceiveBookkeeping/batch=true-2          	 2836004	       434.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkXDPReceiveBookkeeping/batch=true-2          	 3872032	       415.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkXDPReceiveBookkeeping/batch=true-2          	 3813169	       313.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkXDPReceiveBookkeeping/batch=true-2          	 3802100	       387.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkXDPReceiveBookkeeping/batch=true-2          	 3877832	       305.6 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	spooftun	17.462s

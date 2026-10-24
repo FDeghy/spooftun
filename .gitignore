@@ -2,3 +2,8 @@
 spooftun
 *.test
 /dist/
+
+# Local assistant configuration and generated knowledge-graph artifacts.
+/.claude/
+/CLAUDE.md
+/graphify-out/

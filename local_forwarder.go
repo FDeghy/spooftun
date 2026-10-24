@@ -80,22 +80,26 @@ func (f *localUDPForwarder) run() {
 				break drain // Flush immediately; never wait to fill a batch.
 			}
 		}
-		for sent := 0; sent < n; {
-			written, err := writer.WriteBatch(messages[sent:n])
-			sent += written
-			if err != nil {
-				log.Printf("Local UDP batch: %v", err)
-				// One failed session must not discard another session's data.
-				sent++
-			} else {
-				break
-			}
-		}
+		writeLocalUDPBatch(writer, messages[:n])
 		for i := 0; i < n; i++ {
 			slot := slots[i]
 			slot.message = localUDPMessage{}
 			messages[i], slots[i] = localUDPMessage{}, nil
 			f.free <- slot
+		}
+	}
+}
+
+func writeLocalUDPBatch(writer *localUDPWriter, messages []localUDPMessage) {
+	for sent := 0; sent < len(messages); {
+		written, err := writer.WriteBatch(messages[sent:])
+		sent += written
+		if err != nil {
+			log.Printf("Local UDP batch: %v", err)
+			// One failed session must not discard another session's data.
+			sent++
+		} else {
+			break
 		}
 	}
 }

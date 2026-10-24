@@ -126,7 +126,7 @@ func TestXDPRXWaitsForFillConsumer(t *testing.T) {
 			case <-time.After(time.Second):
 				t.Fatal("reader did not resume after FILL release")
 			}
-			if *q.fill.producer != p+1 || *q.fill.address(p) != 0 || x.heldAddr != xdpFrameSize {
+			if *q.fill.producer != p+1 || *q.fill.address(p) != 0 || x.heldAddrs[0] != xdpFrameSize || x.heldCount != 1 {
 				t.Fatal("RX frame was lost, duplicated, or recycled with the wrong address")
 			}
 		})
@@ -141,7 +141,7 @@ func TestXDPCloseInterruptsFillWait(t *testing.T) {
 	q := &xdpQueue{fill: fakeXDPRing(8)}
 	*q.fill.producer = xdpRingSize
 	// No mapped queues: Close must still wake a reader returning its held frame.
-	x := &xdpIO{wake: wake, held: q}
+	x := &xdpIO{wake: wake, held: q, heldCount: batchSize}
 	defer x.Close()
 	done := make(chan error, 1)
 	go func() { _, err := x.ReadPacket(); done <- err }()
@@ -433,9 +433,10 @@ func testXDPReceiveBursts(t *testing.T, x *xdpIO, fd int, frame []byte) {
 	send := bytes.Clone(frame)
 	done := make(chan error, 1)
 	go func() {
+		reader := newPacketReader(x)
 		for round := 0; round < rounds; round++ {
 			for i := 0; i < burst; i++ {
-				got, err := x.ReadPacket()
+				got, err := reader.ReadPacket()
 				if err != nil {
 					done <- err
 					return

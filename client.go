@@ -75,12 +75,12 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, upPr
 	// Downlink (packet backend -> App)
 	// Reads raw Ethernet frames, strips headers, translates VirtualPort -> ClientPort
 	go func() {
-		forwarder := newLocalUDPForwarder(mtu)
+		forwarder := newLocalUDPDelivery(receiver, mtu)
 		defer forwarder.Close()
 
 		for {
 			// Read a borrowed frame; its bytes remain valid until the next read.
-			data, err := receiver.ReadPacket()
+			data, err := forwarder.ReadPacket()
 			if err != nil {
 				log.Fatalf("Packet receive failed: %v", err)
 			}

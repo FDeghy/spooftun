@@ -176,7 +176,9 @@ type xdpIO struct {
 	rxMu, txMu sync.Mutex
 	next       int
 	held       *xdpQueue
-	heldAddr   uint64
+	heldAddrs  [batchSize]uint64
+	heldCount  int
+	heldNext   int
 	poll       []unix.PollFd
 }
 
@@ -310,18 +312,31 @@ func openXDPIO(dev *net.Interface, ids []int, proto uint8, mac net.HardwareAddr,
 // ReadPacket's slice is valid until the next ReadPacket or Close. A single
 // consumer reads every RSS queue, preserving the forwarding loop's ownership.
 func (x *xdpIO) ReadPacket() ([]byte, error) {
+	var packets [1][]byte
+	_, err := x.ReadPacketBatch(packets[:])
+	return packets[0], err
+}
+
+// ReadPacketBatch consumes only descriptors already published by the kernel.
+// All returned frames stay owned by userspace until the next receive call.
+// Ring publication and wakeups are amortized over a batch, with no batch timer.
+func (x *xdpIO) ReadPacketBatch(packets [][]byte) (int, error) {
 	x.rxMu.Lock()
 	defer x.rxMu.Unlock()
 	if x.closed.Load() {
-		return nil, os.ErrClosed
+		return 0, os.ErrClosed
+	}
+	if len(packets) == 0 {
+		return 0, nil
 	}
 	for x.held != nil {
 		if x.closed.Load() {
-			return nil, os.ErrClosed
+			return 0, os.ErrClosed
 		}
 		q := x.held
 		p := atomic.LoadUint32(q.fill.producer)
-		if p-atomic.LoadUint32(q.fill.consumer) >= xdpRingSize {
+		used := p - atomic.LoadUint32(q.fill.consumer)
+		if used >= xdpRingSize {
 			// The kernel can publish RX before releasing its cached FILL
 			// consumer (xsk_flush does this). Retain the frame until that
 			// slot is released; never overwrite a kernel-owned ring entry.
@@ -330,17 +345,23 @@ func (x *xdpIO) ReadPacket() ([]byte, error) {
 			// interrupt us even if FILL progress stops.
 			_, err := unix.Poll([]unix.PollFd{{Fd: int32(x.wake), Events: unix.POLLIN}}, 1)
 			if err != nil && err != unix.EINTR {
-				return nil, err
+				return 0, err
 			}
 			continue
 		}
-		*q.fill.address(p) = x.heldAddr
-		atomic.StoreUint32(q.fill.producer, p+1)
-		x.held = nil
+		n := min(x.heldCount-x.heldNext, int(xdpRingSize-used))
+		for i := 0; i < n; i++ {
+			*q.fill.address(p + uint32(i)) = x.heldAddrs[x.heldNext+i]
+		}
+		atomic.StoreUint32(q.fill.producer, p+uint32(n))
+		x.heldNext += n
+		if x.heldNext == x.heldCount {
+			x.held, x.heldCount, x.heldNext = nil, 0, 0
+		}
 		if atomic.LoadUint32(q.fill.flags)&unix.XDP_RING_NEED_WAKEUP != 0 {
 			_, err := unix.Poll([]unix.PollFd{{Fd: int32(q.fd), Events: unix.POLLIN}}, 0)
 			if err != nil && err != unix.EINTR {
-				return nil, err
+				return 0, err
 			}
 		}
 	}
@@ -349,32 +370,39 @@ func (x *xdpIO) ReadPacket() ([]byte, error) {
 			idx := (x.next + i) % len(x.queues)
 			q := x.queues[idx]
 			c := atomic.LoadUint32(q.rx.consumer)
-			if c == atomic.LoadUint32(q.rx.producer) {
+			available := atomic.LoadUint32(q.rx.producer) - c
+			if available == 0 {
 				continue
 			}
-			d := *q.rx.packet(c)
-			atomic.StoreUint32(q.rx.consumer, c+1)
-			// Frame start is masked because drivers may return a headroom offset.
-			base := d.Addr & ^uint64(xdpFrameSize-1)
-			if base >= xdpRingSize*xdpFrameSize || d.Options != 0 || d.Len == 0 || d.Addr+uint64(d.Len) > base+xdpFrameSize {
-				return nil, fmt.Errorf("invalid AF_XDP RX descriptor")
+			n := min(int(available), len(packets), len(x.heldAddrs))
+			for j := 0; j < n; j++ {
+				d := *q.rx.packet(c + uint32(j))
+				// Drivers may return a headroom offset; recycle the frame base.
+				base := d.Addr & ^uint64(xdpFrameSize-1)
+				if base >= xdpRingSize*xdpFrameSize || d.Options != 0 || d.Len == 0 || d.Addr+uint64(d.Len) > base+xdpFrameSize || d.Addr+uint64(d.Len) > uint64(len(q.umem)) {
+					clear(packets[:j])
+					return 0, fmt.Errorf("invalid AF_XDP RX descriptor")
+				}
+				x.heldAddrs[j] = base
+				packets[j] = q.umem[d.Addr : d.Addr+uint64(d.Len)]
 			}
 			x.held = q
-			x.heldAddr = base
+			x.heldCount = n
+			atomic.StoreUint32(q.rx.consumer, c+uint32(n))
 			x.next = (idx + 1) % len(x.queues)
-			return q.umem[d.Addr : d.Addr+uint64(d.Len)], nil
+			return n, nil
 		}
 		_, err := unix.Poll(x.poll, -1)
 		if err != nil && err != unix.EINTR {
-			return nil, err
+			return 0, err
 		}
 		for _, p := range x.poll[1:] {
 			if p.Revents&(unix.POLLERR|unix.POLLHUP|unix.POLLNVAL) != 0 {
-				return nil, fmt.Errorf("AF_XDP RX poll flags %#x", p.Revents)
+				return 0, fmt.Errorf("AF_XDP RX poll flags %#x", p.Revents)
 			}
 		}
 	}
-	return nil, os.ErrClosed
+	return 0, os.ErrClosed
 }
 
 func (q *xdpQueue) reap() error {

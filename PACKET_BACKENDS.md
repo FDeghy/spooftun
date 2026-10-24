@@ -29,8 +29,14 @@ XDP_OPTIONS reports the actual mode; startup logs include the attachment,
 copy mode, queue count, and per-queue UMEM allocation.
 
 Every discovered RX queue gets its own socket and 4 MiB UMEM. A single reader
-polls the queues, returning a slice valid until its next read. RX and TX frame
-pools are separate. TX uses queue zero and serializes writers. NEED_WAKEUP and
+polls the queues and consumes up to 16 already-published frames per batch,
+rotating queues after each batch. The forwarding loops drain the batch and
+write its borrowed payloads to local UDP before the next backend read recycles
+them. This amortizes ring updates, wakeups and locking, and avoids the receive
+payload copy and channel handoff. Sparse batches flush immediately; there is
+no batching timer. Local socket backpressure can still block reception.
+
+RX and TX frame pools are separate. TX uses the first queue and serializes writers. NEED_WAKEUP and
 completion tracking avoid reusing kernel-owned buffers. Idle receive uses
 blocking polling; this backend does not continuously busy-poll.
 

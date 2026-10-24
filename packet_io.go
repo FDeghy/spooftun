@@ -17,6 +17,48 @@ type packetReceiver interface {
 	Close() error
 }
 
+// Batch views remain valid until the next backend receive call or Close.
+// Receivers return available traffic immediately, never waiting to fill dst.
+type packetBatchReceiver interface {
+	ReadPacketBatch(dst [][]byte) (int, error)
+}
+
+// packetReader drains a borrowed batch before asking the backend for more.
+// The forwarding loops finish parsing/copying each view before advancing.
+// AF_PACKET keeps its existing one-packet lifetime and receive behavior.
+type packetReader struct {
+	receiver packetReceiver
+	batch    packetBatchReceiver
+	packets  [batchSize][]byte
+	n, next  int
+}
+
+func newPacketReader(receiver packetReceiver) *packetReader {
+	batch, _ := receiver.(packetBatchReceiver)
+	return &packetReader{receiver: receiver, batch: batch}
+}
+
+func (r *packetReader) ReadPacket() ([]byte, error) {
+	if r.batch == nil {
+		return r.receiver.ReadPacket()
+	}
+	if r.next == r.n {
+		clear(r.packets[:])
+		n, err := r.batch.ReadPacketBatch(r.packets[:])
+		if err != nil {
+			return nil, err
+		}
+		if n <= 0 || n > len(r.packets) {
+			return nil, fmt.Errorf("invalid packet receive batch size: %d", n)
+		}
+		r.n, r.next = n, 0
+	}
+	packet := r.packets[r.next]
+	r.packets[r.next] = nil
+	r.next++
+	return packet, nil
+}
+
 type packetTransmitter interface {
 	WriteBatch([][]byte) (int, error)
 	Close() error

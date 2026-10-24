@@ -220,3 +220,59 @@ combined changes; they do not isolate each change's contribution.
 
 Raw component benchmarks, CPU-profile summaries, received-count JSON and
 validation logs: [2026-10-24 local UDP results](test-results/ubuntu-2026-10-24-local-udp/).
+
+## XDP receive batching and borrowed local delivery — 2026-10-24
+
+The XDP forwarding loops now consume up to 16 already-available descriptors
+per receive call. RX-consumer and FILL-producer updates, wakeups and locking
+are amortized over that batch. Recycling still waits for actual FILL space,
+including partial publication and uint32 counter wraparound. No batching timer
+is added, and ready queues rotate after each batch.
+
+Local UDP delivery uses the batch's borrowed payloads directly with the existing
+sendmmsg/GSO writer, flushing before the next backend read can recycle them.
+This removes the intermediate payload copy, queue and worker handoff on the
+XDP receive path. AF_PACKET retains the bounded copy/queue pipeline because
+its borrowed frame expires at the next individual read. Local write pressure
+can still block the receive loop. NIC copy/zero-copy selection, wire framing,
+MTU limits and the serialized TX path are unchanged.
+
+On the same two-vCPU Ubuntu host, five paired 10-second native Go echo runs
+(1400-byte payloads, fake TCP, protocol 200, XDP native-copy, MTU 1500) measured:
+
+| Metric | Baseline `7c49ae9` | Combined optimization |
+|---|---:|---:|
+| Median received echo payload Mbps | 228.215 | 251.998 |
+| Median tunnel CPU us/delivered reply | 47.307 | 41.822 |
+| Throughput range, Mbps | 212.558–258.033 | 247.262–261.574 |
+
+That is about 10.4% higher median throughput and 11.6% less tunnel CPU per
+reply in this workload. All ten runs had zero duplicates or unanswered
+requests after the bounded drain. Run order alternated within pairs. The
+baseline varied substantially and one pair favored it, so this is evidence
+for this workload, not a universal speedup or a prediction for live WireGuard.
+
+The native generator sends sequential 128-packet bursts and validates every
+received payload and sequence number. It measures echo payload once per
+round trip, not total wire bandwidth; both tunnel endpoints and generator/echo
+share the host. CPU counts both tunnel processes, excluding generator/echo
+and host-wide softirq. WireGuard encryption and a physical inter-server path
+are absent. Native burst results are not directly comparable to the older
+Python rolling-window results.
+
+Synthetic ring-only measurements reduced the median bookkeeping time for
+16 frames from 1498 ns through the single-packet API to 387.7 ns through the
+batched reader (zero allocations for both). They exclude kernel wakeups and
+all UDP/encoding work. Receive batching alone showed only a small gain with
+the native generator and mixed Python results; the final change also removes
+the local copy/channel handoff. Raw preliminary results are retained.
+
+Race tests, all 24 namespace integration cases, kernel native/generic-copy
+receive tests, vet, Staticcheck and Linux amd64/arm64 static builds pass.
+arm64 is cross-built only; hardware zero-copy is still unverified.
+Regression tests cover borrowed-buffer reuse, empty datagrams, discarded
+batch tails, read errors, close flushing, partial FILL publication, shutdown,
+counter wraparound and queue fairness.
+
+Raw results, exact tested source hashes, native generator source and method:
+[XDP batching evidence](test-results/ubuntu-2026-10-24-xdp-batch/).
