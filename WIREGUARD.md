@@ -105,6 +105,15 @@ explicitly. Automatic interface discovery can otherwise select WireGuard's
 own interface. See README.md for AF_PACKET kernel-isolation rules, especially
 when using outer IP protocols 6 or 17.
 
+For outer protocol 17 with UDP framing, separate the wire port from WireGuard's
+real server port: use `-proto 17 -target-port 40000 -outbound-port 51820` on the
+server and `-proto 17 -target-port 40000` on the client. Omit `-fake-tcp` on both
+ends for this UDP example. Keep the client's WireGuard endpoint pointing to
+spooftun's local listener. This prevents direct delivery of the original tunnel
+packet to server WireGuard on 51820; AF_PACKET client-side kernel isolation
+and suppression of unwanted ICMP responses still apply. See the port-separation
+example in [README.md](README.md#kernel-processing-of-tunnel-frames).
+
 ## Throughput and CPU troubleshooting
 
 A result such as 170 Mbps at 75% CPU does not identify the cause by itself.

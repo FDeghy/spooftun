@@ -16,9 +16,9 @@ TARGET = ("127.0.0.1", 18080)
 LOCAL = ("127.0.0.1", 18081)
 
 
-def target():
+def target(outbound_port=0, public=False):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind(TARGET)
+    sock.bind(("0.0.0.0" if public else TARGET[0], outbound_port or TARGET[1]))
     ports = set()
     count = 0
     while True:
@@ -83,6 +83,35 @@ def probe(limit, session):
         result["active_oneway_session"] = info
     sock.close()
     return result
+
+
+def probe_duplicates(expect_duplicate):
+    """Check actual app delivery while server ingress UDP remains enabled."""
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.settimeout(0.2)
+    counts = []
+    try:
+        for i in range(4):
+            payload = b"port-remap-regression-" + str(i).encode()
+            sock.sendto(payload, LOCAL)
+            count = 0
+            while True:
+                try:
+                    data = sock.recv(65535)
+                except socket.timeout:
+                    break
+                if data != payload:
+                    raise AssertionError("unexpected reply during duplicate check")
+                count += 1
+            if count < 1 or (count > 1) != expect_duplicate:
+                raise AssertionError("expected %s delivery, received %d copies" %
+                                     ("duplicate" if expect_duplicate else "single", count))
+            counts.append(count)
+    finally:
+        sock.close()
+    return {"received_copies_per_request": counts,
+            "server_kernel_udp_enabled": True,
+            "expected_duplicate": expect_duplicate}
 
 
 def cpu_seconds(pids):
@@ -211,9 +240,14 @@ def orchestrate(args):
              (6, True, False), (6, True, True)]
     if args.bench_only or args.baseline:
         modes = [(200, args.bench_fake_tcp, False)]
+    if args.verify_port_remap:
+        modes = [(17, False, False)]
     with tempfile.TemporaryDirectory(prefix="spooftun-netns-") as work:
         echo_log = open(os.path.join(work, "echo.log"), "w+")
-        echo = run_in(args.server_ns, [sys.executable, HERE, "--target"], stdout=echo_log, stderr=echo_log)
+        echo = run_in(args.server_ns, [sys.executable, HERE, "--target",
+                      "--outbound-port", str(args.outbound_port)] +
+                      (["--public-target"] if args.verify_port_remap else []),
+                      stdout=echo_log, stderr=echo_log)
         try:
             for proto, tcp, frag in modes:
                 common = ["-iface", "tun0", "-target-port", "18080", "-proto", str(proto)]
@@ -230,7 +264,8 @@ def orchestrate(args):
                 logs = {endpoint: open(os.path.join(work, endpoint + ".log"), "w+")
                         for endpoint in ("client", "server")}
                 try:
-                    server = run_in(args.server_ns, [args.binary, "-mode", "server"] + common,
+                    server = run_in(args.server_ns, [args.binary, "-mode", "server"] + common +
+                                    (["-outbound-port", str(args.outbound_port)] if args.outbound_port else []),
                                     stdout=logs["server"], stderr=logs["server"])
                     processes.append(server)
                     client = run_in(args.client_ns, [args.binary, "-mode", "client", "-listen", "127.0.0.1:18081",
@@ -247,6 +282,10 @@ def orchestrate(args):
                     checks = {"skipped": "baseline performance run"}
                     if not args.baseline:
                         command = [sys.executable, HERE, "--probe", "--limit", str(limit)]
+                        if args.verify_port_remap:
+                            command += ["--verify-port-remap"]
+                            if not args.outbound_port:
+                                command += ["--expect-duplicate"]
                         if proto == 200 and not tcp and not frag:
                             command += ["--session"]
                         check = subprocess.run(["ip", "netns", "exec", args.client_ns] + command,
@@ -326,6 +365,10 @@ def main():
     p.add_argument("--iterations", type=int, default=1)
     p.add_argument("--block-timeout", help="override current-build ring retirement duration, e.g. 1ms or 5ms")
     p.add_argument("--target", action="store_true")
+    p.add_argument("--outbound-port", type=int, default=0, help="override server local UDP destination port")
+    p.add_argument("--public-target", action="store_true", help="bind isolated test target on all addresses")
+    p.add_argument("--verify-port-remap", action="store_true", help="check protocol-17 duplicate delivery")
+    p.add_argument("--expect-duplicate", action="store_true")
     p.add_argument("--probe", action="store_true")
     p.add_argument("--limit", type=int)
     p.add_argument("--session", action="store_true")
@@ -336,10 +379,10 @@ def main():
     if args.duration <= 0 or args.iterations < 1:
         p.error("duration and iterations must be positive")
     if args.target:
-        target()
+        target(args.outbound_port, args.public_target)
         return
     if args.probe:
-        result = probe(args.limit, args.session)
+        result = probe_duplicates(args.expect_duplicate) if args.verify_port_remap else probe(args.limit, args.session)
     elif args.measure:
         result = benchmark(args.size, args.duration, [int(n) for n in args.pids.split(",")])
     else:

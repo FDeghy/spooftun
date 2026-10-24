@@ -47,6 +47,11 @@ ip -n "$SERVER" addr add 192.0.2.2/24 dev tun0
 for ns in "$CLIENT" "$SERVER"; do
   ip -n "$ns" link set lo up
   ip -n "$ns" link set tun0 mtu 1500 up
+  # Regression mode deliberately lets Linux process server-side tunnel UDP.
+  # This affects only the disposable server namespace, never host firewall rules.
+  if [[ "$ns" == "$SERVER" && ${SPOOFTUN_TEST_SERVER_KERNEL_UDP:-0} == 1 ]]; then
+    continue
+  fi
   # AF_PACKET is a tap: it does not consume frames before the IP stack.
   # Suppress duplicate UDP delivery and TCP RSTs only inside these temporary
   # namespaces, after packet sockets have observed the tunnel frames.

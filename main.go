@@ -45,6 +45,9 @@ func main() {
 	if *targetPort < 1 || *targetPort > 65535 {
 		log.Fatal("Target port must be 1..65535")
 	}
+	if *outboundPort < 0 || *outboundPort > 65535 {
+		log.Fatal("Outbound port must be 0..65535 (0 inherits the tunnel destination port)")
+	}
 	if *ringMB < 1 || *ringMB > 1024 || *blockTimeout < time.Millisecond || *sessionTimeout <= 0 || *tunnelMTU < 68 || *tunnelMTU > 65535 {
 		log.Fatal("Invalid ring size, timeout, or MTU")
 	}

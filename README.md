@@ -10,7 +10,7 @@ fake IP fragmentation.
 
 ```
                     custom IP proto (default 200), raw Ethernet frames
-  app ──UDP──▶ client ═══════════════════════════════════════════▶ server ──UDP──▶ 127.0.0.1:<target-port>
+  app ──UDP──▶ client ═══════════════════════════════════════════▶ server ──UDP──▶ 127.0.0.1:<application-port>
              (-listen)                                                            (local service)
   app ◀─UDP── client ◀═══════════════════════════════════════════ server ◀─UDP── (service reply)
 ```
@@ -20,7 +20,8 @@ fake IP fragmentation.
   table. Each datagram is wrapped in a raw `Ethernet + IPv4 + fake UDP/TCP`
   frame under the custom IP protocol number and sent through the selected backend.
 - The **server** receives those frames (filtered by classic BPF or XDP), unwraps
-  them, and forwards the inner payload to `127.0.0.1:<target-port>`. Replies
+  them, and forwards the inner payload to `127.0.0.1:<outbound-port>` when set,
+  otherwise to the incoming tunnel destination port. Replies
   from the local service are wrapped back into tunnel frames and returned to the
   client, which delivers them to the originating application socket.
 
@@ -89,7 +90,8 @@ not a solution to a packet-processing bottleneck.
 | `-session-timeout` | `1m` | server | Idle session lifetime, refreshed by either direction. |
 | `-remote-ip` | *(empty)* | client (required), server (optional) | Remote tunnel endpoint IP. On the server it fixes the downlink destination; if empty the server auto-detects it per session from incoming packets. |
 | `-listen` | `127.0.0.1:1001` | client | Local UDP address applications send to. |
-| `-target-port` | `8080` | client (forward port), server (BPF narrowing) | Port the payload is delivered to on the server's loopback. On the client it is encoded into every uplink frame; on the server it is only used to narrow the BPF filter when `-proto` is 6/17. |
+| `-target-port` | `8080` | both | Tunnel destination port encoded by the client; server capture port for protocols 6/17. Also the local application port unless the server sets `-outbound-port`. |
+| `-outbound-port` | `0` | server | Local UDP destination port on `127.0.0.1`. Zero preserves the incoming tunnel destination port. Replies retain the original tunnel port on the wire. |
 | `-proto` | `200` | both | Custom IP protocol number (0–255) for both directions. |
 | `-uplink-proto` | `-1` | both | IP protocol for client→server packets. Overrides `-proto` for that direction; `-1` inherits `-proto`. |
 | `-downlink-proto` | `-1` | both | IP protocol for server→client packets. Overrides `-proto` for that direction; `-1` inherits `-proto`. |
@@ -212,6 +214,26 @@ For protocol 17/6, restrict rules to peer/destination addresses and the tunnel
 port and account for non-initial fake fragments. Apply firewall changes with
 out-of-band access; the program never changes host firewall rules itself.
 The test suite configures these rules only in disposable network namespaces.
+
+For protocol 17 with UDP framing, use a separate server application port to
+prevent the original tunnel UDP packet from reaching that application directly:
+
+```sh
+# Real application (for example WireGuard) listens on UDP 51820.
+# Reserve UDP 40000 for tunnel traffic; no application should listen there.
+sudo ./spooftun -mode server -proto 17 -target-port 40000 -outbound-port 51820
+sudo ./spooftun -mode client -proto 17 -target-port 40000 \
+    -remote-ip SERVER_IP -listen 127.0.0.1:1001
+```
+
+Only the server needs `-outbound-port`. The client still uses the tunnel port
+40000; server replies also use source port 40000 so capture filters match.
+Port separation prevents this server application from receiving the original
+tunnel datagram, but AF_PACKET still allows Linux to process it. An unused
+tunnel UDP port can generate ICMP port-unreachable responses. It also does not
+suppress direct UDP delivery on the client or TCP resets with protocol 6;
+retain appropriate ingress isolation. AF_XDP redirects matching packets away
+from normal kernel delivery when redirection succeeds.
 
 ## Packet backends
 

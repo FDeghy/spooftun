@@ -98,6 +98,9 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 	defer txSender.Close()
 
 	sessions := sync.Map{}
+	if *outboundPort != 0 {
+		log.Printf("Server local UDP destination: 127.0.0.1:%d (tunnel port unchanged)", *outboundPort)
+	}
 	forwarder := newLocalUDPDelivery(receiver, mtu)
 	defer forwarder.Close()
 
@@ -158,7 +161,11 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 			conn = state.conn
 		} else {
 			// NEW SESSION
-			targetAddr := fmt.Sprintf("127.0.0.1:%d", clientDstPort)
+			localPort := clientDstPort
+			if *outboundPort != 0 {
+				localPort = uint16(*outboundPort)
+			}
+			targetAddr := fmt.Sprintf("127.0.0.1:%d", localPort)
 			rAddr, err := net.ResolveUDPAddr("udp", targetAddr)
 			if err != nil {
 				log.Printf("Resolve error: %v", err)
@@ -176,7 +183,7 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 			state = &serverSession{conn: conn}
 			state.lastSeen.Store(sessionActivityTime())
 			sessions.Store(clientKey, state)
-			log.Printf("New Session: %s -> Target :%d", clientKey.String(), clientDstPort)
+			log.Printf("New Session: %s -> Target :%d (tunnel port %d)", clientKey.String(), localPort, clientDstPort)
 
 			// Create safe copies of the slices backed by the mmap ring
 			safeClientIP := make(net.IP, len(pkt.srcIP))
@@ -187,7 +194,7 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 
 			// Reply handler goroutine
 			go func(c *net.UDPConn, clientIP net.IP, clientPort uint16, clientMAC net.HardwareAddr,
-				srcServerIP net.IP, targetRAddr *net.UDPAddr, sessionKey natKey,
+				srcServerIP net.IP, tunnelPort uint16, sessionKey natKey,
 				state *serverSession) {
 				ipv4AppConn := ipv4.NewPacketConn(c)
 				msgs := prepareMsgsUDP()
@@ -255,14 +262,16 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 					state.refresh(sessionActivityTime())
 					payload := msg.Buffers[0][:msg.N]
 
-					frame, err := encoder.Encode(txBuffers[len(frames)], payload, uint16(targetRAddr.Port), clientPort, 0, 0x4000, 0, true)
+					// Client filters match the original tunnel port, not the
+					// possibly remapped local application's port.
+					frame, err := encoder.Encode(txBuffers[len(frames)], payload, tunnelPort, clientPort, 0, 0x4000, 0, true)
 					if err != nil {
 						log.Printf("Encode error: %v", err)
 						continue
 					}
 					frames = append(frames, frame)
 				}
-			}(conn, safeClientIP, clientSrcPort, safeClientMAC, srcIP, rAddr, clientKey,
+			}(conn, safeClientIP, clientSrcPort, safeClientMAC, srcIP, clientDstPort, clientKey,
 				state)
 		}
 
