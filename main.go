@@ -15,7 +15,8 @@
 //	bpf.go      in-kernel BPF capture filter
 //	client.go   client data path (app -> tunnel -> app)
 //	server.go   server data path (tunnel -> target -> tunnel)
-//	offload.go  UDP GSO/GRO helpers (scaffolding, currently disabled)
+//	offload.go  local UDP receive batch storage
+//	local_udp.go batched local UDP delivery with GSO fallback
 package main
 
 import (

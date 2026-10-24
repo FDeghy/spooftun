@@ -128,7 +128,10 @@ All files are `package main` under the `//go:build linux` constraint.
 | `tx_ring.go` | Dedicated TPACKET_V2 mmap transmit ring. |
 | `xdp.go` | AF_XDP sockets, UMEM ownership, fallback and resource lifecycle. |
 | `xdp_filter.go` | eBPF tunnel redirect filter; unrelated traffic passes. |
-| `offload.go` | UDP GSO/GRO helpers (scaffolding, currently disabled). |
+| `offload.go` | Reusable local UDP receive-batch buffers. |
+| `local_udp.go` | Local UDP sendmmsg/GSO writes, fallback, and socket-buffer verification. |
+| `local_forwarder.go` | Bounded local-delivery queue with owned packet storage. |
+| `encoder.go` | Fixed Ethernet/IPv4/UDP/TCP encoding with precomputed checksum sums. |
 
 ## Notes & limitations
 
@@ -144,9 +147,21 @@ All files are `package main` under the `//go:build linux` constraint.
 
 The AF_PACKET backend uses a TPACKET_V3 mmap receive ring. TX batches packets already returned by
 UDP recvmmsg; it never waits to fill a batch. Both endpoints reuse separate
-serialization buffers per queued frame. Per-session UDP reads use 16 slots
+packet buffers per queued frame and encode fixed headers directly, preserving
+wire compatibility and checksums. Per-session UDP reads use 16 slots
 instead of 64 (about 24 KB vs 94 KB payload storage at MTU 1500), plus reusable
-TX buffers. GRO/GSO remain disabled pending segmentation/checksum validation.
+TX buffers.
+
+Local UDP delivery on both endpoints uses a bounded 32-slot queue (about 48 KB
+of payload storage at MTU 1500). It copies borrowed RX payloads before the next
+packet-ring read, then sends up to 16 already-queued datagrams without waiting
+to fill a batch. Compatible same-destination packets use UDP GSO; mixed lengths,
+empty datagrams, and unsupported GSO use sendmmsg. Payload contents and datagram
+boundaries are preserved. Local UDP receive GRO remains disabled.
+
+Socket setup logs the requested and actual receive/send buffer sizes, including
+Linux's doubled accounting values, and warns if the kernel caps the request.
+The program does not change system-wide socket limits.
 
 - `-ring-mb 16`: RX ring budget, separate from UDP socket buffers.
 - `-block-timeout 1ms`: block retirement latency. Try 5ms for bulk traffic,

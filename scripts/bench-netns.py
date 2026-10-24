@@ -210,7 +210,7 @@ def orchestrate(args):
              (200, True, True), (17, False, False), (17, False, True),
              (6, True, False), (6, True, True)]
     if args.bench_only or args.baseline:
-        modes = modes[:1]
+        modes = [(200, args.bench_fake_tcp, False)]
     with tempfile.TemporaryDirectory(prefix="spooftun-netns-") as work:
         echo_log = open(os.path.join(work, "echo.log"), "w+")
         echo = run_in(args.server_ns, [sys.executable, HERE, "--target"], stdout=echo_log, stderr=echo_log)
@@ -278,7 +278,7 @@ def orchestrate(args):
                     entry = {"protocol": proto, "fake_tcp": tcp, "fake_frag": frag,
                              "status": "passed", "checks": checks,
                              "backend_startup": startup}
-                    if (args.benchmark or args.baseline) and proto == 200 and not tcp and not frag:
+                    if (args.benchmark or args.baseline) and proto == 200 and not frag and (not tcp or args.bench_fake_tcp):
                         entry["benchmarks"] = []
                         for size, iteration in [(size, i) for i in range(1, args.iterations + 1) for size in [64, 512, 1400]]:
                             try:
@@ -318,6 +318,7 @@ def main():
     p.add_argument("--binary")
     p.add_argument("--benchmark", action="store_true")
     p.add_argument("--bench-only", action="store_true")
+    p.add_argument("--bench-fake-tcp", action="store_true", help="use fake TCP framing for the bench-only run")
     p.add_argument("--baseline", action="store_true", help="benchmark original defaults without correctness probes or new flags")
     p.add_argument("--backend", choices=("afpacket", "xdp"), default="afpacket")
     p.add_argument("--afpacket-tx", choices=("sendmmsg", "ring"), default="sendmmsg")

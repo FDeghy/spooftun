@@ -1,0 +1,1262 @@
+=== RUN   TestTunnelEncoderMatchesSerializer
+--- PASS: TestTunnelEncoderMatchesSerializer (0.04s)
+=== RUN   TestTunnelEncoderFakeFragmentPair
+--- PASS: TestTunnelEncoderFakeFragmentPair (0.00s)
+=== RUN   TestTunnelEncoderValidationAndReuse
+--- PASS: TestTunnelEncoderValidationAndReuse (0.00s)
+=== RUN   TestTunnelEncoderUDPZeroChecksum
+--- PASS: TestTunnelEncoderUDPZeroChecksum (0.00s)
+=== RUN   TestLocalForwarderOwnsQueuedPayloads
+--- PASS: TestLocalForwarderOwnsQueuedPayloads (0.02s)
+=== RUN   TestLocalForwarderClosedSessionDoesNotDropNextSession
+2026/10/24 04:36:30 Local UDP batch: raw-control udp4 127.0.0.1:15793: use of closed network connection
+--- PASS: TestLocalForwarderClosedSessionDoesNotDropNextSession (0.00s)
+=== RUN   TestLocalUDPBatchDatagramBoundaries
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-true
+--- PASS: TestLocalUDPBatchDatagramBoundaries (0.03s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-true (0.01s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-true (0.00s)
+=== RUN   TestLocalUDPBatchMixedSocketsAndDestinations
+--- PASS: TestLocalUDPBatchMixedSocketsAndDestinations (0.02s)
+=== RUN   TestLocalUDPActualGSOSegments
+=== RUN   TestLocalUDPActualGSOSegments/[1200_1200_1200_37]
+    local_udp_test.go:145: verified 4 actual UDP_SEGMENT datagrams
+=== RUN   TestLocalUDPActualGSOSegments/[32753_32753]
+    local_udp_test.go:145: verified 2 actual UDP_SEGMENT datagrams
+=== RUN   TestLocalUDPActualGSOSegments/[1_1]
+    local_udp_test.go:145: verified 2 actual UDP_SEGMENT datagrams
+--- PASS: TestLocalUDPActualGSOSegments (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[1200_1200_1200_37] (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[32753_32753] (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[1_1] (0.00s)
+=== RUN   TestLocalUDPGSOFallback
+=== RUN   TestLocalUDPGSOFallback/invalid_argument
+=== RUN   TestLocalUDPGSOFallback/input/output_error
+=== RUN   TestLocalUDPGSOFallback/protocol_not_available
+=== RUN   TestLocalUDPGSOFallback/operation_not_supported
+--- PASS: TestLocalUDPGSOFallback (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/invalid_argument (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/input/output_error (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/protocol_not_available (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/operation_not_supported (0.00s)
+=== RUN   TestLocalUDPPartialAndClosedSocket
+--- PASS: TestLocalUDPPartialAndClosedSocket (0.00s)
+=== RUN   TestLocalUDPWriteDeadline
+--- PASS: TestLocalUDPWriteDeadline (0.00s)
+=== RUN   TestLocalUDPGSOGroupBounds
+--- PASS: TestLocalUDPGSOGroupBounds (0.00s)
+=== RUN   TestLocalUDPConfigureBuffers
+2026/10/24 04:36:30 UDP test socket buffers requested=16777216 kernel-rx=33554432 (was 1048576) kernel-tx=33554432 (was 524288)
+--- PASS: TestLocalUDPConfigureBuffers (0.00s)
+=== RUN   TestTunnelEncoderMatchesSerializer
+--- PASS: TestTunnelEncoderMatchesSerializer (0.04s)
+=== RUN   TestTunnelEncoderFakeFragmentPair
+--- PASS: TestTunnelEncoderFakeFragmentPair (0.00s)
+=== RUN   TestTunnelEncoderValidationAndReuse
+--- PASS: TestTunnelEncoderValidationAndReuse (0.00s)
+=== RUN   TestTunnelEncoderUDPZeroChecksum
+--- PASS: TestTunnelEncoderUDPZeroChecksum (0.00s)
+=== RUN   TestLocalForwarderOwnsQueuedPayloads
+--- PASS: TestLocalForwarderOwnsQueuedPayloads (0.02s)
+=== RUN   TestLocalForwarderClosedSessionDoesNotDropNextSession
+2026/10/24 04:36:30 Local UDP batch: raw-control udp4 127.0.0.1:27917: use of closed network connection
+--- PASS: TestLocalForwarderClosedSessionDoesNotDropNextSession (0.00s)
+=== RUN   TestLocalUDPBatchDatagramBoundaries
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-true
+--- PASS: TestLocalUDPBatchDatagramBoundaries (0.03s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-true (0.00s)
+=== RUN   TestLocalUDPBatchMixedSocketsAndDestinations
+--- PASS: TestLocalUDPBatchMixedSocketsAndDestinations (0.02s)
+=== RUN   TestLocalUDPActualGSOSegments
+=== RUN   TestLocalUDPActualGSOSegments/[1200_1200_1200_37]
+    local_udp_test.go:145: verified 4 actual UDP_SEGMENT datagrams
+=== RUN   TestLocalUDPActualGSOSegments/[32753_32753]
+    local_udp_test.go:145: verified 2 actual UDP_SEGMENT datagrams
+=== RUN   TestLocalUDPActualGSOSegments/[1_1]
+    local_udp_test.go:145: verified 2 actual UDP_SEGMENT datagrams
+--- PASS: TestLocalUDPActualGSOSegments (0.01s)
+    --- PASS: TestLocalUDPActualGSOSegments/[1200_1200_1200_37] (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[32753_32753] (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[1_1] (0.00s)
+=== RUN   TestLocalUDPGSOFallback
+=== RUN   TestLocalUDPGSOFallback/invalid_argument
+=== RUN   TestLocalUDPGSOFallback/input/output_error
+=== RUN   TestLocalUDPGSOFallback/protocol_not_available
+=== RUN   TestLocalUDPGSOFallback/operation_not_supported
+--- PASS: TestLocalUDPGSOFallback (0.01s)
+    --- PASS: TestLocalUDPGSOFallback/invalid_argument (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/input/output_error (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/protocol_not_available (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/operation_not_supported (0.00s)
+=== RUN   TestLocalUDPPartialAndClosedSocket
+--- PASS: TestLocalUDPPartialAndClosedSocket (0.00s)
+=== RUN   TestLocalUDPWriteDeadline
+--- PASS: TestLocalUDPWriteDeadline (0.00s)
+=== RUN   TestLocalUDPGSOGroupBounds
+--- PASS: TestLocalUDPGSOGroupBounds (0.00s)
+=== RUN   TestLocalUDPConfigureBuffers
+2026/10/24 04:36:31 UDP test socket buffers requested=16777216 kernel-rx=33554432 (was 1048576) kernel-tx=33554432 (was 524288)
+--- PASS: TestLocalUDPConfigureBuffers (0.00s)
+=== RUN   TestTunnelEncoderMatchesSerializer
+--- PASS: TestTunnelEncoderMatchesSerializer (0.08s)
+=== RUN   TestTunnelEncoderFakeFragmentPair
+--- PASS: TestTunnelEncoderFakeFragmentPair (0.00s)
+=== RUN   TestTunnelEncoderValidationAndReuse
+--- PASS: TestTunnelEncoderValidationAndReuse (0.01s)
+=== RUN   TestTunnelEncoderUDPZeroChecksum
+--- PASS: TestTunnelEncoderUDPZeroChecksum (0.00s)
+=== RUN   TestLocalForwarderOwnsQueuedPayloads
+--- PASS: TestLocalForwarderOwnsQueuedPayloads (0.02s)
+=== RUN   TestLocalForwarderClosedSessionDoesNotDropNextSession
+2026/10/24 04:36:31 Local UDP batch: raw-control udp4 127.0.0.1:55851: use of closed network connection
+--- PASS: TestLocalForwarderClosedSessionDoesNotDropNextSession (0.00s)
+=== RUN   TestLocalUDPBatchDatagramBoundaries
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-true
+--- PASS: TestLocalUDPBatchDatagramBoundaries (0.02s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-true (0.00s)
+=== RUN   TestLocalUDPBatchMixedSocketsAndDestinations
+--- PASS: TestLocalUDPBatchMixedSocketsAndDestinations (0.02s)
+=== RUN   TestLocalUDPActualGSOSegments
+=== RUN   TestLocalUDPActualGSOSegments/[1200_1200_1200_37]
+    local_udp_test.go:145: verified 4 actual UDP_SEGMENT datagrams
+=== RUN   TestLocalUDPActualGSOSegments/[32753_32753]
+    local_udp_test.go:145: verified 2 actual UDP_SEGMENT datagrams
+=== RUN   TestLocalUDPActualGSOSegments/[1_1]
+    local_udp_test.go:145: verified 2 actual UDP_SEGMENT datagrams
+--- PASS: TestLocalUDPActualGSOSegments (0.01s)
+    --- PASS: TestLocalUDPActualGSOSegments/[1200_1200_1200_37] (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[32753_32753] (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[1_1] (0.00s)
+=== RUN   TestLocalUDPGSOFallback
+=== RUN   TestLocalUDPGSOFallback/invalid_argument
+=== RUN   TestLocalUDPGSOFallback/input/output_error
+=== RUN   TestLocalUDPGSOFallback/protocol_not_available
+=== RUN   TestLocalUDPGSOFallback/operation_not_supported
+--- PASS: TestLocalUDPGSOFallback (0.01s)
+    --- PASS: TestLocalUDPGSOFallback/invalid_argument (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/input/output_error (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/protocol_not_available (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/operation_not_supported (0.00s)
+=== RUN   TestLocalUDPPartialAndClosedSocket
+--- PASS: TestLocalUDPPartialAndClosedSocket (0.00s)
+=== RUN   TestLocalUDPWriteDeadline
+--- PASS: TestLocalUDPWriteDeadline (0.00s)
+=== RUN   TestLocalUDPGSOGroupBounds
+--- PASS: TestLocalUDPGSOGroupBounds (0.00s)
+=== RUN   TestLocalUDPConfigureBuffers
+2026/10/24 04:36:31 UDP test socket buffers requested=16777216 kernel-rx=33554432 (was 1048576) kernel-tx=33554432 (was 524288)
+--- PASS: TestLocalUDPConfigureBuffers (0.00s)
+=== RUN   TestTunnelEncoderMatchesSerializer
+--- PASS: TestTunnelEncoderMatchesSerializer (0.08s)
+=== RUN   TestTunnelEncoderFakeFragmentPair
+--- PASS: TestTunnelEncoderFakeFragmentPair (0.00s)
+=== RUN   TestTunnelEncoderValidationAndReuse
+--- PASS: TestTunnelEncoderValidationAndReuse (0.01s)
+=== RUN   TestTunnelEncoderUDPZeroChecksum
+--- PASS: TestTunnelEncoderUDPZeroChecksum (0.00s)
+=== RUN   TestLocalForwarderOwnsQueuedPayloads
+--- PASS: TestLocalForwarderOwnsQueuedPayloads (0.02s)
+=== RUN   TestLocalForwarderClosedSessionDoesNotDropNextSession
+2026/10/24 04:36:31 Local UDP batch: raw-control udp4 127.0.0.1:20881: use of closed network connection
+--- PASS: TestLocalForwarderClosedSessionDoesNotDropNextSession (0.00s)
+=== RUN   TestLocalUDPBatchDatagramBoundaries
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-true
+--- PASS: TestLocalUDPBatchDatagramBoundaries (0.02s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-true (0.00s)
+=== RUN   TestLocalUDPBatchMixedSocketsAndDestinations
+--- PASS: TestLocalUDPBatchMixedSocketsAndDestinations (0.02s)
+=== RUN   TestLocalUDPActualGSOSegments
+=== RUN   TestLocalUDPActualGSOSegments/[1200_1200_1200_37]
+    local_udp_test.go:145: verified 4 actual UDP_SEGMENT datagrams
+=== RUN   TestLocalUDPActualGSOSegments/[32753_32753]
+    local_udp_test.go:145: verified 2 actual UDP_SEGMENT datagrams
+=== RUN   TestLocalUDPActualGSOSegments/[1_1]
+    local_udp_test.go:145: verified 2 actual UDP_SEGMENT datagrams
+--- PASS: TestLocalUDPActualGSOSegments (0.01s)
+    --- PASS: TestLocalUDPActualGSOSegments/[1200_1200_1200_37] (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[32753_32753] (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[1_1] (0.00s)
+=== RUN   TestLocalUDPGSOFallback
+=== RUN   TestLocalUDPGSOFallback/invalid_argument
+=== RUN   TestLocalUDPGSOFallback/input/output_error
+=== RUN   TestLocalUDPGSOFallback/protocol_not_available
+=== RUN   TestLocalUDPGSOFallback/operation_not_supported
+--- PASS: TestLocalUDPGSOFallback (0.01s)
+    --- PASS: TestLocalUDPGSOFallback/invalid_argument (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/input/output_error (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/protocol_not_available (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/operation_not_supported (0.00s)
+=== RUN   TestLocalUDPPartialAndClosedSocket
+--- PASS: TestLocalUDPPartialAndClosedSocket (0.00s)
+=== RUN   TestLocalUDPWriteDeadline
+--- PASS: TestLocalUDPWriteDeadline (0.00s)
+=== RUN   TestLocalUDPGSOGroupBounds
+--- PASS: TestLocalUDPGSOGroupBounds (0.00s)
+=== RUN   TestLocalUDPConfigureBuffers
+2026/10/24 04:36:31 UDP test socket buffers requested=16777216 kernel-rx=33554432 (was 1048576) kernel-tx=33554432 (was 524288)
+--- PASS: TestLocalUDPConfigureBuffers (0.00s)
+=== RUN   TestTunnelEncoderMatchesSerializer
+--- PASS: TestTunnelEncoderMatchesSerializer (0.08s)
+=== RUN   TestTunnelEncoderFakeFragmentPair
+--- PASS: TestTunnelEncoderFakeFragmentPair (0.00s)
+=== RUN   TestTunnelEncoderValidationAndReuse
+--- PASS: TestTunnelEncoderValidationAndReuse (0.01s)
+=== RUN   TestTunnelEncoderUDPZeroChecksum
+--- PASS: TestTunnelEncoderUDPZeroChecksum (0.00s)
+=== RUN   TestLocalForwarderOwnsQueuedPayloads
+--- PASS: TestLocalForwarderOwnsQueuedPayloads (0.02s)
+=== RUN   TestLocalForwarderClosedSessionDoesNotDropNextSession
+2026/10/24 04:36:31 Local UDP batch: raw-control udp4 127.0.0.1:19635: use of closed network connection
+--- PASS: TestLocalForwarderClosedSessionDoesNotDropNextSession (0.00s)
+=== RUN   TestLocalUDPBatchDatagramBoundaries
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-true
+--- PASS: TestLocalUDPBatchDatagramBoundaries (0.02s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-true (0.00s)
+=== RUN   TestLocalUDPBatchMixedSocketsAndDestinations
+--- PASS: TestLocalUDPBatchMixedSocketsAndDestinations (0.02s)
+=== RUN   TestLocalUDPActualGSOSegments
+=== RUN   TestLocalUDPActualGSOSegments/[1200_1200_1200_37]
+    local_udp_test.go:145: verified 4 actual UDP_SEGMENT datagrams
+=== RUN   TestLocalUDPActualGSOSegments/[32753_32753]
+    local_udp_test.go:145: verified 2 actual UDP_SEGMENT datagrams
+=== RUN   TestLocalUDPActualGSOSegments/[1_1]
+    local_udp_test.go:145: verified 2 actual UDP_SEGMENT datagrams
+--- PASS: TestLocalUDPActualGSOSegments (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[1200_1200_1200_37] (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[32753_32753] (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[1_1] (0.00s)
+=== RUN   TestLocalUDPGSOFallback
+=== RUN   TestLocalUDPGSOFallback/invalid_argument
+=== RUN   TestLocalUDPGSOFallback/input/output_error
+=== RUN   TestLocalUDPGSOFallback/protocol_not_available
+=== RUN   TestLocalUDPGSOFallback/operation_not_supported
+--- PASS: TestLocalUDPGSOFallback (0.01s)
+    --- PASS: TestLocalUDPGSOFallback/invalid_argument (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/input/output_error (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/protocol_not_available (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/operation_not_supported (0.00s)
+=== RUN   TestLocalUDPPartialAndClosedSocket
+--- PASS: TestLocalUDPPartialAndClosedSocket (0.00s)
+=== RUN   TestLocalUDPWriteDeadline
+--- PASS: TestLocalUDPWriteDeadline (0.00s)
+=== RUN   TestLocalUDPGSOGroupBounds
+--- PASS: TestLocalUDPGSOGroupBounds (0.00s)
+=== RUN   TestLocalUDPConfigureBuffers
+2026/10/24 04:36:31 UDP test socket buffers requested=16777216 kernel-rx=33554432 (was 1048576) kernel-tx=33554432 (was 524288)
+--- PASS: TestLocalUDPConfigureBuffers (0.00s)
+=== RUN   TestTunnelEncoderMatchesSerializer
+--- PASS: TestTunnelEncoderMatchesSerializer (0.09s)
+=== RUN   TestTunnelEncoderFakeFragmentPair
+--- PASS: TestTunnelEncoderFakeFragmentPair (0.00s)
+=== RUN   TestTunnelEncoderValidationAndReuse
+--- PASS: TestTunnelEncoderValidationAndReuse (0.01s)
+=== RUN   TestTunnelEncoderUDPZeroChecksum
+--- PASS: TestTunnelEncoderUDPZeroChecksum (0.00s)
+=== RUN   TestLocalForwarderOwnsQueuedPayloads
+--- PASS: TestLocalForwarderOwnsQueuedPayloads (0.02s)
+=== RUN   TestLocalForwarderClosedSessionDoesNotDropNextSession
+2026/10/24 04:36:31 Local UDP batch: raw-control udp4 127.0.0.1:58533: use of closed network connection
+--- PASS: TestLocalForwarderClosedSessionDoesNotDropNextSession (0.00s)
+=== RUN   TestLocalUDPBatchDatagramBoundaries
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-true
+--- PASS: TestLocalUDPBatchDatagramBoundaries (0.02s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-true (0.00s)
+=== RUN   TestLocalUDPBatchMixedSocketsAndDestinations
+--- PASS: TestLocalUDPBatchMixedSocketsAndDestinations (0.02s)
+=== RUN   TestLocalUDPActualGSOSegments
+=== RUN   TestLocalUDPActualGSOSegments/[1200_1200_1200_37]
+    local_udp_test.go:145: verified 4 actual UDP_SEGMENT datagrams
+=== RUN   TestLocalUDPActualGSOSegments/[32753_32753]
+    local_udp_test.go:145: verified 2 actual UDP_SEGMENT datagrams
+=== RUN   TestLocalUDPActualGSOSegments/[1_1]
+    local_udp_test.go:145: verified 2 actual UDP_SEGMENT datagrams
+--- PASS: TestLocalUDPActualGSOSegments (0.01s)
+    --- PASS: TestLocalUDPActualGSOSegments/[1200_1200_1200_37] (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[32753_32753] (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[1_1] (0.00s)
+=== RUN   TestLocalUDPGSOFallback
+=== RUN   TestLocalUDPGSOFallback/invalid_argument
+=== RUN   TestLocalUDPGSOFallback/input/output_error
+=== RUN   TestLocalUDPGSOFallback/protocol_not_available
+=== RUN   TestLocalUDPGSOFallback/operation_not_supported
+--- PASS: TestLocalUDPGSOFallback (0.01s)
+    --- PASS: TestLocalUDPGSOFallback/invalid_argument (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/input/output_error (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/protocol_not_available (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/operation_not_supported (0.00s)
+=== RUN   TestLocalUDPPartialAndClosedSocket
+--- PASS: TestLocalUDPPartialAndClosedSocket (0.00s)
+=== RUN   TestLocalUDPWriteDeadline
+--- PASS: TestLocalUDPWriteDeadline (0.00s)
+=== RUN   TestLocalUDPGSOGroupBounds
+--- PASS: TestLocalUDPGSOGroupBounds (0.00s)
+=== RUN   TestLocalUDPConfigureBuffers
+2026/10/24 04:36:31 UDP test socket buffers requested=16777216 kernel-rx=33554432 (was 1048576) kernel-tx=33554432 (was 524288)
+--- PASS: TestLocalUDPConfigureBuffers (0.00s)
+=== RUN   TestTunnelEncoderMatchesSerializer
+--- PASS: TestTunnelEncoderMatchesSerializer (0.08s)
+=== RUN   TestTunnelEncoderFakeFragmentPair
+--- PASS: TestTunnelEncoderFakeFragmentPair (0.00s)
+=== RUN   TestTunnelEncoderValidationAndReuse
+--- PASS: TestTunnelEncoderValidationAndReuse (0.01s)
+=== RUN   TestTunnelEncoderUDPZeroChecksum
+--- PASS: TestTunnelEncoderUDPZeroChecksum (0.00s)
+=== RUN   TestLocalForwarderOwnsQueuedPayloads
+--- PASS: TestLocalForwarderOwnsQueuedPayloads (0.02s)
+=== RUN   TestLocalForwarderClosedSessionDoesNotDropNextSession
+2026/10/24 04:36:31 Local UDP batch: raw-control udp4 127.0.0.1:16564: use of closed network connection
+--- PASS: TestLocalForwarderClosedSessionDoesNotDropNextSession (0.00s)
+=== RUN   TestLocalUDPBatchDatagramBoundaries
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-true
+--- PASS: TestLocalUDPBatchDatagramBoundaries (0.02s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-true (0.00s)
+=== RUN   TestLocalUDPBatchMixedSocketsAndDestinations
+--- PASS: TestLocalUDPBatchMixedSocketsAndDestinations (0.02s)
+=== RUN   TestLocalUDPActualGSOSegments
+=== RUN   TestLocalUDPActualGSOSegments/[1200_1200_1200_37]
+    local_udp_test.go:145: verified 4 actual UDP_SEGMENT datagrams
+=== RUN   TestLocalUDPActualGSOSegments/[32753_32753]
+    local_udp_test.go:145: verified 2 actual UDP_SEGMENT datagrams
+=== RUN   TestLocalUDPActualGSOSegments/[1_1]
+    local_udp_test.go:145: verified 2 actual UDP_SEGMENT datagrams
+--- PASS: TestLocalUDPActualGSOSegments (0.01s)
+    --- PASS: TestLocalUDPActualGSOSegments/[1200_1200_1200_37] (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[32753_32753] (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[1_1] (0.00s)
+=== RUN   TestLocalUDPGSOFallback
+=== RUN   TestLocalUDPGSOFallback/invalid_argument
+=== RUN   TestLocalUDPGSOFallback/input/output_error
+=== RUN   TestLocalUDPGSOFallback/protocol_not_available
+=== RUN   TestLocalUDPGSOFallback/operation_not_supported
+--- PASS: TestLocalUDPGSOFallback (0.01s)
+    --- PASS: TestLocalUDPGSOFallback/invalid_argument (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/input/output_error (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/protocol_not_available (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/operation_not_supported (0.00s)
+=== RUN   TestLocalUDPPartialAndClosedSocket
+--- PASS: TestLocalUDPPartialAndClosedSocket (0.00s)
+=== RUN   TestLocalUDPWriteDeadline
+--- PASS: TestLocalUDPWriteDeadline (0.00s)
+=== RUN   TestLocalUDPGSOGroupBounds
+--- PASS: TestLocalUDPGSOGroupBounds (0.00s)
+=== RUN   TestLocalUDPConfigureBuffers
+2026/10/24 04:36:31 UDP test socket buffers requested=16777216 kernel-rx=33554432 (was 1048576) kernel-tx=33554432 (was 524288)
+--- PASS: TestLocalUDPConfigureBuffers (0.00s)
+=== RUN   TestTunnelEncoderMatchesSerializer
+--- PASS: TestTunnelEncoderMatchesSerializer (0.11s)
+=== RUN   TestTunnelEncoderFakeFragmentPair
+--- PASS: TestTunnelEncoderFakeFragmentPair (0.00s)
+=== RUN   TestTunnelEncoderValidationAndReuse
+--- PASS: TestTunnelEncoderValidationAndReuse (0.01s)
+=== RUN   TestTunnelEncoderUDPZeroChecksum
+--- PASS: TestTunnelEncoderUDPZeroChecksum (0.00s)
+=== RUN   TestLocalForwarderOwnsQueuedPayloads
+--- PASS: TestLocalForwarderOwnsQueuedPayloads (0.03s)
+=== RUN   TestLocalForwarderClosedSessionDoesNotDropNextSession
+2026/10/24 04:36:32 Local UDP batch: raw-control udp4 127.0.0.1:44996: use of closed network connection
+--- PASS: TestLocalForwarderClosedSessionDoesNotDropNextSession (0.00s)
+=== RUN   TestLocalUDPBatchDatagramBoundaries
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-true
+--- PASS: TestLocalUDPBatchDatagramBoundaries (0.03s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-false (0.01s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-true (0.00s)
+=== RUN   TestLocalUDPBatchMixedSocketsAndDestinations
+--- PASS: TestLocalUDPBatchMixedSocketsAndDestinations (0.02s)
+=== RUN   TestLocalUDPActualGSOSegments
+=== RUN   TestLocalUDPActualGSOSegments/[1200_1200_1200_37]
+    local_udp_test.go:145: verified 4 actual UDP_SEGMENT datagrams
+=== RUN   TestLocalUDPActualGSOSegments/[32753_32753]
+    local_udp_test.go:145: verified 2 actual UDP_SEGMENT datagrams
+=== RUN   TestLocalUDPActualGSOSegments/[1_1]
+    local_udp_test.go:145: verified 2 actual UDP_SEGMENT datagrams
+--- PASS: TestLocalUDPActualGSOSegments (0.01s)
+    --- PASS: TestLocalUDPActualGSOSegments/[1200_1200_1200_37] (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[32753_32753] (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[1_1] (0.00s)
+=== RUN   TestLocalUDPGSOFallback
+=== RUN   TestLocalUDPGSOFallback/invalid_argument
+=== RUN   TestLocalUDPGSOFallback/input/output_error
+=== RUN   TestLocalUDPGSOFallback/protocol_not_available
+=== RUN   TestLocalUDPGSOFallback/operation_not_supported
+--- PASS: TestLocalUDPGSOFallback (0.01s)
+    --- PASS: TestLocalUDPGSOFallback/invalid_argument (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/input/output_error (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/protocol_not_available (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/operation_not_supported (0.00s)
+=== RUN   TestLocalUDPPartialAndClosedSocket
+--- PASS: TestLocalUDPPartialAndClosedSocket (0.00s)
+=== RUN   TestLocalUDPWriteDeadline
+--- PASS: TestLocalUDPWriteDeadline (0.00s)
+=== RUN   TestLocalUDPGSOGroupBounds
+--- PASS: TestLocalUDPGSOGroupBounds (0.00s)
+=== RUN   TestLocalUDPConfigureBuffers
+2026/10/24 04:36:32 UDP test socket buffers requested=16777216 kernel-rx=33554432 (was 1048576) kernel-tx=33554432 (was 524288)
+--- PASS: TestLocalUDPConfigureBuffers (0.00s)
+=== RUN   TestTunnelEncoderMatchesSerializer
+--- PASS: TestTunnelEncoderMatchesSerializer (0.06s)
+=== RUN   TestTunnelEncoderFakeFragmentPair
+--- PASS: TestTunnelEncoderFakeFragmentPair (0.00s)
+=== RUN   TestTunnelEncoderValidationAndReuse
+--- PASS: TestTunnelEncoderValidationAndReuse (0.00s)
+=== RUN   TestTunnelEncoderUDPZeroChecksum
+--- PASS: TestTunnelEncoderUDPZeroChecksum (0.00s)
+=== RUN   TestLocalForwarderOwnsQueuedPayloads
+--- PASS: TestLocalForwarderOwnsQueuedPayloads (0.02s)
+=== RUN   TestLocalForwarderClosedSessionDoesNotDropNextSession
+2026/10/24 04:36:32 Local UDP batch: raw-control udp4 127.0.0.1:47289: use of closed network connection
+--- PASS: TestLocalForwarderClosedSessionDoesNotDropNextSession (0.00s)
+=== RUN   TestLocalUDPBatchDatagramBoundaries
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-true
+--- PASS: TestLocalUDPBatchDatagramBoundaries (0.01s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-true (0.00s)
+=== RUN   TestLocalUDPBatchMixedSocketsAndDestinations
+--- PASS: TestLocalUDPBatchMixedSocketsAndDestinations (0.01s)
+=== RUN   TestLocalUDPActualGSOSegments
+=== RUN   TestLocalUDPActualGSOSegments/[1200_1200_1200_37]
+    local_udp_test.go:145: verified 4 actual UDP_SEGMENT datagrams
+=== RUN   TestLocalUDPActualGSOSegments/[32753_32753]
+    local_udp_test.go:145: verified 2 actual UDP_SEGMENT datagrams
+=== RUN   TestLocalUDPActualGSOSegments/[1_1]
+    local_udp_test.go:145: verified 2 actual UDP_SEGMENT datagrams
+--- PASS: TestLocalUDPActualGSOSegments (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[1200_1200_1200_37] (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[32753_32753] (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[1_1] (0.00s)
+=== RUN   TestLocalUDPGSOFallback
+=== RUN   TestLocalUDPGSOFallback/invalid_argument
+=== RUN   TestLocalUDPGSOFallback/input/output_error
+=== RUN   TestLocalUDPGSOFallback/protocol_not_available
+=== RUN   TestLocalUDPGSOFallback/operation_not_supported
+--- PASS: TestLocalUDPGSOFallback (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/invalid_argument (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/input/output_error (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/protocol_not_available (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/operation_not_supported (0.00s)
+=== RUN   TestLocalUDPPartialAndClosedSocket
+--- PASS: TestLocalUDPPartialAndClosedSocket (0.00s)
+=== RUN   TestLocalUDPWriteDeadline
+--- PASS: TestLocalUDPWriteDeadline (0.00s)
+=== RUN   TestLocalUDPGSOGroupBounds
+--- PASS: TestLocalUDPGSOGroupBounds (0.00s)
+=== RUN   TestLocalUDPConfigureBuffers
+2026/10/24 04:36:32 UDP test socket buffers requested=16777216 kernel-rx=33554432 (was 1048576) kernel-tx=33554432 (was 524288)
+--- PASS: TestLocalUDPConfigureBuffers (0.00s)
+=== RUN   TestTunnelEncoderMatchesSerializer
+--- PASS: TestTunnelEncoderMatchesSerializer (0.06s)
+=== RUN   TestTunnelEncoderFakeFragmentPair
+--- PASS: TestTunnelEncoderFakeFragmentPair (0.00s)
+=== RUN   TestTunnelEncoderValidationAndReuse
+--- PASS: TestTunnelEncoderValidationAndReuse (0.00s)
+=== RUN   TestTunnelEncoderUDPZeroChecksum
+--- PASS: TestTunnelEncoderUDPZeroChecksum (0.00s)
+=== RUN   TestLocalForwarderOwnsQueuedPayloads
+--- PASS: TestLocalForwarderOwnsQueuedPayloads (0.02s)
+=== RUN   TestLocalForwarderClosedSessionDoesNotDropNextSession
+2026/10/24 04:36:32 Local UDP batch: raw-control udp4 127.0.0.1:48859: use of closed network connection
+--- PASS: TestLocalForwarderClosedSessionDoesNotDropNextSession (0.00s)
+=== RUN   TestLocalUDPBatchDatagramBoundaries
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-true
+--- PASS: TestLocalUDPBatchDatagramBoundaries (0.02s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-true (0.00s)
+=== RUN   TestLocalUDPBatchMixedSocketsAndDestinations
+--- PASS: TestLocalUDPBatchMixedSocketsAndDestinations (0.02s)
+=== RUN   TestLocalUDPActualGSOSegments
+=== RUN   TestLocalUDPActualGSOSegments/[1200_1200_1200_37]
+    local_udp_test.go:145: verified 4 actual UDP_SEGMENT datagrams
+=== RUN   TestLocalUDPActualGSOSegments/[32753_32753]
+    local_udp_test.go:145: verified 2 actual UDP_SEGMENT datagrams
+=== RUN   TestLocalUDPActualGSOSegments/[1_1]
+    local_udp_test.go:145: verified 2 actual UDP_SEGMENT datagrams
+--- PASS: TestLocalUDPActualGSOSegments (0.01s)
+    --- PASS: TestLocalUDPActualGSOSegments/[1200_1200_1200_37] (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[32753_32753] (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[1_1] (0.00s)
+=== RUN   TestLocalUDPGSOFallback
+=== RUN   TestLocalUDPGSOFallback/invalid_argument
+=== RUN   TestLocalUDPGSOFallback/input/output_error
+=== RUN   TestLocalUDPGSOFallback/protocol_not_available
+=== RUN   TestLocalUDPGSOFallback/operation_not_supported
+--- PASS: TestLocalUDPGSOFallback (0.01s)
+    --- PASS: TestLocalUDPGSOFallback/invalid_argument (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/input/output_error (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/protocol_not_available (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/operation_not_supported (0.00s)
+=== RUN   TestLocalUDPPartialAndClosedSocket
+--- PASS: TestLocalUDPPartialAndClosedSocket (0.00s)
+=== RUN   TestLocalUDPWriteDeadline
+--- PASS: TestLocalUDPWriteDeadline (0.00s)
+=== RUN   TestLocalUDPGSOGroupBounds
+--- PASS: TestLocalUDPGSOGroupBounds (0.00s)
+=== RUN   TestLocalUDPConfigureBuffers
+2026/10/24 04:36:32 UDP test socket buffers requested=16777216 kernel-rx=33554432 (was 1048576) kernel-tx=33554432 (was 524288)
+--- PASS: TestLocalUDPConfigureBuffers (0.00s)
+=== RUN   TestTunnelEncoderMatchesSerializer
+--- PASS: TestTunnelEncoderMatchesSerializer (0.07s)
+=== RUN   TestTunnelEncoderFakeFragmentPair
+--- PASS: TestTunnelEncoderFakeFragmentPair (0.00s)
+=== RUN   TestTunnelEncoderValidationAndReuse
+--- PASS: TestTunnelEncoderValidationAndReuse (0.01s)
+=== RUN   TestTunnelEncoderUDPZeroChecksum
+--- PASS: TestTunnelEncoderUDPZeroChecksum (0.00s)
+=== RUN   TestLocalForwarderOwnsQueuedPayloads
+--- PASS: TestLocalForwarderOwnsQueuedPayloads (0.01s)
+=== RUN   TestLocalForwarderClosedSessionDoesNotDropNextSession
+2026/10/24 04:36:32 Local UDP batch: raw-control udp4 127.0.0.1:33612: use of closed network connection
+--- PASS: TestLocalForwarderClosedSessionDoesNotDropNextSession (0.00s)
+=== RUN   TestLocalUDPBatchDatagramBoundaries
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-true
+--- PASS: TestLocalUDPBatchDatagramBoundaries (0.01s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-true (0.00s)
+=== RUN   TestLocalUDPBatchMixedSocketsAndDestinations
+--- PASS: TestLocalUDPBatchMixedSocketsAndDestinations (0.01s)
+=== RUN   TestLocalUDPActualGSOSegments
+=== RUN   TestLocalUDPActualGSOSegments/[1200_1200_1200_37]
+    local_udp_test.go:145: verified 4 actual UDP_SEGMENT datagrams
+=== RUN   TestLocalUDPActualGSOSegments/[32753_32753]
+    local_udp_test.go:145: verified 2 actual UDP_SEGMENT datagrams
+=== RUN   TestLocalUDPActualGSOSegments/[1_1]
+    local_udp_test.go:145: verified 2 actual UDP_SEGMENT datagrams
+--- PASS: TestLocalUDPActualGSOSegments (0.01s)
+    --- PASS: TestLocalUDPActualGSOSegments/[1200_1200_1200_37] (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[32753_32753] (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[1_1] (0.00s)
+=== RUN   TestLocalUDPGSOFallback
+=== RUN   TestLocalUDPGSOFallback/invalid_argument
+=== RUN   TestLocalUDPGSOFallback/input/output_error
+=== RUN   TestLocalUDPGSOFallback/protocol_not_available
+=== RUN   TestLocalUDPGSOFallback/operation_not_supported
+--- PASS: TestLocalUDPGSOFallback (0.01s)
+    --- PASS: TestLocalUDPGSOFallback/invalid_argument (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/input/output_error (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/protocol_not_available (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/operation_not_supported (0.00s)
+=== RUN   TestLocalUDPPartialAndClosedSocket
+--- PASS: TestLocalUDPPartialAndClosedSocket (0.00s)
+=== RUN   TestLocalUDPWriteDeadline
+--- PASS: TestLocalUDPWriteDeadline (0.00s)
+=== RUN   TestLocalUDPGSOGroupBounds
+--- PASS: TestLocalUDPGSOGroupBounds (0.00s)
+=== RUN   TestLocalUDPConfigureBuffers
+2026/10/24 04:36:32 UDP test socket buffers requested=16777216 kernel-rx=33554432 (was 1048576) kernel-tx=33554432 (was 524288)
+--- PASS: TestLocalUDPConfigureBuffers (0.00s)
+=== RUN   TestTunnelEncoderMatchesSerializer
+--- PASS: TestTunnelEncoderMatchesSerializer (0.04s)
+=== RUN   TestTunnelEncoderFakeFragmentPair
+--- PASS: TestTunnelEncoderFakeFragmentPair (0.00s)
+=== RUN   TestTunnelEncoderValidationAndReuse
+--- PASS: TestTunnelEncoderValidationAndReuse (0.00s)
+=== RUN   TestTunnelEncoderUDPZeroChecksum
+--- PASS: TestTunnelEncoderUDPZeroChecksum (0.00s)
+=== RUN   TestLocalForwarderOwnsQueuedPayloads
+--- PASS: TestLocalForwarderOwnsQueuedPayloads (0.02s)
+=== RUN   TestLocalForwarderClosedSessionDoesNotDropNextSession
+2026/10/24 04:36:32 Local UDP batch: raw-control udp4 127.0.0.1:13120: use of closed network connection
+--- PASS: TestLocalForwarderClosedSessionDoesNotDropNextSession (0.00s)
+=== RUN   TestLocalUDPBatchDatagramBoundaries
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-true
+--- PASS: TestLocalUDPBatchDatagramBoundaries (0.02s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-true (0.00s)
+=== RUN   TestLocalUDPBatchMixedSocketsAndDestinations
+--- PASS: TestLocalUDPBatchMixedSocketsAndDestinations (0.02s)
+=== RUN   TestLocalUDPActualGSOSegments
+=== RUN   TestLocalUDPActualGSOSegments/[1200_1200_1200_37]
+    local_udp_test.go:145: verified 4 actual UDP_SEGMENT datagrams
+=== RUN   TestLocalUDPActualGSOSegments/[32753_32753]
+    local_udp_test.go:145: verified 2 actual UDP_SEGMENT datagrams
+=== RUN   TestLocalUDPActualGSOSegments/[1_1]
+    local_udp_test.go:145: verified 2 actual UDP_SEGMENT datagrams
+--- PASS: TestLocalUDPActualGSOSegments (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[1200_1200_1200_37] (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[32753_32753] (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[1_1] (0.00s)
+=== RUN   TestLocalUDPGSOFallback
+=== RUN   TestLocalUDPGSOFallback/invalid_argument
+=== RUN   TestLocalUDPGSOFallback/input/output_error
+=== RUN   TestLocalUDPGSOFallback/protocol_not_available
+=== RUN   TestLocalUDPGSOFallback/operation_not_supported
+--- PASS: TestLocalUDPGSOFallback (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/invalid_argument (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/input/output_error (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/protocol_not_available (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/operation_not_supported (0.00s)
+=== RUN   TestLocalUDPPartialAndClosedSocket
+--- PASS: TestLocalUDPPartialAndClosedSocket (0.00s)
+=== RUN   TestLocalUDPWriteDeadline
+--- PASS: TestLocalUDPWriteDeadline (0.00s)
+=== RUN   TestLocalUDPGSOGroupBounds
+--- PASS: TestLocalUDPGSOGroupBounds (0.00s)
+=== RUN   TestLocalUDPConfigureBuffers
+2026/10/24 04:36:32 UDP test socket buffers requested=16777216 kernel-rx=33554432 (was 1048576) kernel-tx=33554432 (was 524288)
+--- PASS: TestLocalUDPConfigureBuffers (0.00s)
+=== RUN   TestTunnelEncoderMatchesSerializer
+--- PASS: TestTunnelEncoderMatchesSerializer (0.04s)
+=== RUN   TestTunnelEncoderFakeFragmentPair
+--- PASS: TestTunnelEncoderFakeFragmentPair (0.00s)
+=== RUN   TestTunnelEncoderValidationAndReuse
+--- PASS: TestTunnelEncoderValidationAndReuse (0.01s)
+=== RUN   TestTunnelEncoderUDPZeroChecksum
+--- PASS: TestTunnelEncoderUDPZeroChecksum (0.00s)
+=== RUN   TestLocalForwarderOwnsQueuedPayloads
+--- PASS: TestLocalForwarderOwnsQueuedPayloads (0.02s)
+=== RUN   TestLocalForwarderClosedSessionDoesNotDropNextSession
+2026/10/24 04:36:32 Local UDP batch: raw-control udp4 127.0.0.1:20879: use of closed network connection
+--- PASS: TestLocalForwarderClosedSessionDoesNotDropNextSession (0.00s)
+=== RUN   TestLocalUDPBatchDatagramBoundaries
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-true
+--- PASS: TestLocalUDPBatchDatagramBoundaries (0.02s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-true (0.00s)
+=== RUN   TestLocalUDPBatchMixedSocketsAndDestinations
+--- PASS: TestLocalUDPBatchMixedSocketsAndDestinations (0.02s)
+=== RUN   TestLocalUDPActualGSOSegments
+=== RUN   TestLocalUDPActualGSOSegments/[1200_1200_1200_37]
+    local_udp_test.go:145: verified 4 actual UDP_SEGMENT datagrams
+=== RUN   TestLocalUDPActualGSOSegments/[32753_32753]
+    local_udp_test.go:145: verified 2 actual UDP_SEGMENT datagrams
+=== RUN   TestLocalUDPActualGSOSegments/[1_1]
+    local_udp_test.go:145: verified 2 actual UDP_SEGMENT datagrams
+--- PASS: TestLocalUDPActualGSOSegments (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[1200_1200_1200_37] (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[32753_32753] (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[1_1] (0.00s)
+=== RUN   TestLocalUDPGSOFallback
+=== RUN   TestLocalUDPGSOFallback/invalid_argument
+=== RUN   TestLocalUDPGSOFallback/input/output_error
+=== RUN   TestLocalUDPGSOFallback/protocol_not_available
+=== RUN   TestLocalUDPGSOFallback/operation_not_supported
+--- PASS: TestLocalUDPGSOFallback (0.01s)
+    --- PASS: TestLocalUDPGSOFallback/invalid_argument (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/input/output_error (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/protocol_not_available (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/operation_not_supported (0.00s)
+=== RUN   TestLocalUDPPartialAndClosedSocket
+--- PASS: TestLocalUDPPartialAndClosedSocket (0.00s)
+=== RUN   TestLocalUDPWriteDeadline
+--- PASS: TestLocalUDPWriteDeadline (0.00s)
+=== RUN   TestLocalUDPGSOGroupBounds
+--- PASS: TestLocalUDPGSOGroupBounds (0.00s)
+=== RUN   TestLocalUDPConfigureBuffers
+2026/10/24 04:36:32 UDP test socket buffers requested=16777216 kernel-rx=33554432 (was 1048576) kernel-tx=33554432 (was 524288)
+--- PASS: TestLocalUDPConfigureBuffers (0.00s)
+=== RUN   TestTunnelEncoderMatchesSerializer
+--- PASS: TestTunnelEncoderMatchesSerializer (0.05s)
+=== RUN   TestTunnelEncoderFakeFragmentPair
+--- PASS: TestTunnelEncoderFakeFragmentPair (0.00s)
+=== RUN   TestTunnelEncoderValidationAndReuse
+--- PASS: TestTunnelEncoderValidationAndReuse (0.00s)
+=== RUN   TestTunnelEncoderUDPZeroChecksum
+--- PASS: TestTunnelEncoderUDPZeroChecksum (0.00s)
+=== RUN   TestLocalForwarderOwnsQueuedPayloads
+--- PASS: TestLocalForwarderOwnsQueuedPayloads (0.02s)
+=== RUN   TestLocalForwarderClosedSessionDoesNotDropNextSession
+2026/10/24 04:36:32 Local UDP batch: raw-control udp4 127.0.0.1:26929: use of closed network connection
+--- PASS: TestLocalForwarderClosedSessionDoesNotDropNextSession (0.00s)
+=== RUN   TestLocalUDPBatchDatagramBoundaries
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-true
+--- PASS: TestLocalUDPBatchDatagramBoundaries (0.02s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-true (0.00s)
+=== RUN   TestLocalUDPBatchMixedSocketsAndDestinations
+--- PASS: TestLocalUDPBatchMixedSocketsAndDestinations (0.02s)
+=== RUN   TestLocalUDPActualGSOSegments
+=== RUN   TestLocalUDPActualGSOSegments/[1200_1200_1200_37]
+    local_udp_test.go:145: verified 4 actual UDP_SEGMENT datagrams
+=== RUN   TestLocalUDPActualGSOSegments/[32753_32753]
+    local_udp_test.go:145: verified 2 actual UDP_SEGMENT datagrams
+=== RUN   TestLocalUDPActualGSOSegments/[1_1]
+    local_udp_test.go:145: verified 2 actual UDP_SEGMENT datagrams
+--- PASS: TestLocalUDPActualGSOSegments (0.01s)
+    --- PASS: TestLocalUDPActualGSOSegments/[1200_1200_1200_37] (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[32753_32753] (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[1_1] (0.00s)
+=== RUN   TestLocalUDPGSOFallback
+=== RUN   TestLocalUDPGSOFallback/invalid_argument
+=== RUN   TestLocalUDPGSOFallback/input/output_error
+=== RUN   TestLocalUDPGSOFallback/protocol_not_available
+=== RUN   TestLocalUDPGSOFallback/operation_not_supported
+--- PASS: TestLocalUDPGSOFallback (0.01s)
+    --- PASS: TestLocalUDPGSOFallback/invalid_argument (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/input/output_error (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/protocol_not_available (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/operation_not_supported (0.00s)
+=== RUN   TestLocalUDPPartialAndClosedSocket
+--- PASS: TestLocalUDPPartialAndClosedSocket (0.00s)
+=== RUN   TestLocalUDPWriteDeadline
+--- PASS: TestLocalUDPWriteDeadline (0.00s)
+=== RUN   TestLocalUDPGSOGroupBounds
+--- PASS: TestLocalUDPGSOGroupBounds (0.00s)
+=== RUN   TestLocalUDPConfigureBuffers
+2026/10/24 04:36:33 UDP test socket buffers requested=16777216 kernel-rx=33554432 (was 1048576) kernel-tx=33554432 (was 524288)
+--- PASS: TestLocalUDPConfigureBuffers (0.00s)
+=== RUN   TestTunnelEncoderMatchesSerializer
+--- PASS: TestTunnelEncoderMatchesSerializer (0.06s)
+=== RUN   TestTunnelEncoderFakeFragmentPair
+--- PASS: TestTunnelEncoderFakeFragmentPair (0.00s)
+=== RUN   TestTunnelEncoderValidationAndReuse
+--- PASS: TestTunnelEncoderValidationAndReuse (0.01s)
+=== RUN   TestTunnelEncoderUDPZeroChecksum
+--- PASS: TestTunnelEncoderUDPZeroChecksum (0.00s)
+=== RUN   TestLocalForwarderOwnsQueuedPayloads
+--- PASS: TestLocalForwarderOwnsQueuedPayloads (0.02s)
+=== RUN   TestLocalForwarderClosedSessionDoesNotDropNextSession
+2026/10/24 04:36:33 Local UDP batch: raw-control udp4 127.0.0.1:17635: use of closed network connection
+--- PASS: TestLocalForwarderClosedSessionDoesNotDropNextSession (0.00s)
+=== RUN   TestLocalUDPBatchDatagramBoundaries
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-true
+--- PASS: TestLocalUDPBatchDatagramBoundaries (0.02s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-true (0.00s)
+=== RUN   TestLocalUDPBatchMixedSocketsAndDestinations
+--- PASS: TestLocalUDPBatchMixedSocketsAndDestinations (0.02s)
+=== RUN   TestLocalUDPActualGSOSegments
+=== RUN   TestLocalUDPActualGSOSegments/[1200_1200_1200_37]
+    local_udp_test.go:145: verified 4 actual UDP_SEGMENT datagrams
+=== RUN   TestLocalUDPActualGSOSegments/[32753_32753]
+    local_udp_test.go:145: verified 2 actual UDP_SEGMENT datagrams
+=== RUN   TestLocalUDPActualGSOSegments/[1_1]
+    local_udp_test.go:145: verified 2 actual UDP_SEGMENT datagrams
+--- PASS: TestLocalUDPActualGSOSegments (0.01s)
+    --- PASS: TestLocalUDPActualGSOSegments/[1200_1200_1200_37] (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[32753_32753] (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[1_1] (0.00s)
+=== RUN   TestLocalUDPGSOFallback
+=== RUN   TestLocalUDPGSOFallback/invalid_argument
+=== RUN   TestLocalUDPGSOFallback/input/output_error
+=== RUN   TestLocalUDPGSOFallback/protocol_not_available
+=== RUN   TestLocalUDPGSOFallback/operation_not_supported
+--- PASS: TestLocalUDPGSOFallback (0.01s)
+    --- PASS: TestLocalUDPGSOFallback/invalid_argument (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/input/output_error (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/protocol_not_available (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/operation_not_supported (0.00s)
+=== RUN   TestLocalUDPPartialAndClosedSocket
+--- PASS: TestLocalUDPPartialAndClosedSocket (0.00s)
+=== RUN   TestLocalUDPWriteDeadline
+--- PASS: TestLocalUDPWriteDeadline (0.00s)
+=== RUN   TestLocalUDPGSOGroupBounds
+--- PASS: TestLocalUDPGSOGroupBounds (0.00s)
+=== RUN   TestLocalUDPConfigureBuffers
+2026/10/24 04:36:33 UDP test socket buffers requested=16777216 kernel-rx=33554432 (was 1048576) kernel-tx=33554432 (was 524288)
+--- PASS: TestLocalUDPConfigureBuffers (0.00s)
+=== RUN   TestTunnelEncoderMatchesSerializer
+--- PASS: TestTunnelEncoderMatchesSerializer (0.07s)
+=== RUN   TestTunnelEncoderFakeFragmentPair
+--- PASS: TestTunnelEncoderFakeFragmentPair (0.00s)
+=== RUN   TestTunnelEncoderValidationAndReuse
+--- PASS: TestTunnelEncoderValidationAndReuse (0.01s)
+=== RUN   TestTunnelEncoderUDPZeroChecksum
+--- PASS: TestTunnelEncoderUDPZeroChecksum (0.00s)
+=== RUN   TestLocalForwarderOwnsQueuedPayloads
+--- PASS: TestLocalForwarderOwnsQueuedPayloads (0.02s)
+=== RUN   TestLocalForwarderClosedSessionDoesNotDropNextSession
+2026/10/24 04:36:33 Local UDP batch: raw-control udp4 127.0.0.1:50748: use of closed network connection
+--- PASS: TestLocalForwarderClosedSessionDoesNotDropNextSession (0.00s)
+=== RUN   TestLocalUDPBatchDatagramBoundaries
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-true
+--- PASS: TestLocalUDPBatchDatagramBoundaries (0.03s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-false (0.01s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-true (0.00s)
+=== RUN   TestLocalUDPBatchMixedSocketsAndDestinations
+--- PASS: TestLocalUDPBatchMixedSocketsAndDestinations (0.02s)
+=== RUN   TestLocalUDPActualGSOSegments
+=== RUN   TestLocalUDPActualGSOSegments/[1200_1200_1200_37]
+    local_udp_test.go:145: verified 4 actual UDP_SEGMENT datagrams
+=== RUN   TestLocalUDPActualGSOSegments/[32753_32753]
+    local_udp_test.go:145: verified 2 actual UDP_SEGMENT datagrams
+=== RUN   TestLocalUDPActualGSOSegments/[1_1]
+    local_udp_test.go:145: verified 2 actual UDP_SEGMENT datagrams
+--- PASS: TestLocalUDPActualGSOSegments (0.01s)
+    --- PASS: TestLocalUDPActualGSOSegments/[1200_1200_1200_37] (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[32753_32753] (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[1_1] (0.00s)
+=== RUN   TestLocalUDPGSOFallback
+=== RUN   TestLocalUDPGSOFallback/invalid_argument
+=== RUN   TestLocalUDPGSOFallback/input/output_error
+=== RUN   TestLocalUDPGSOFallback/protocol_not_available
+=== RUN   TestLocalUDPGSOFallback/operation_not_supported
+--- PASS: TestLocalUDPGSOFallback (0.01s)
+    --- PASS: TestLocalUDPGSOFallback/invalid_argument (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/input/output_error (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/protocol_not_available (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/operation_not_supported (0.00s)
+=== RUN   TestLocalUDPPartialAndClosedSocket
+--- PASS: TestLocalUDPPartialAndClosedSocket (0.00s)
+=== RUN   TestLocalUDPWriteDeadline
+--- PASS: TestLocalUDPWriteDeadline (0.00s)
+=== RUN   TestLocalUDPGSOGroupBounds
+--- PASS: TestLocalUDPGSOGroupBounds (0.00s)
+=== RUN   TestLocalUDPConfigureBuffers
+2026/10/24 04:36:33 UDP test socket buffers requested=16777216 kernel-rx=33554432 (was 1048576) kernel-tx=33554432 (was 524288)
+--- PASS: TestLocalUDPConfigureBuffers (0.00s)
+=== RUN   TestTunnelEncoderMatchesSerializer
+--- PASS: TestTunnelEncoderMatchesSerializer (0.08s)
+=== RUN   TestTunnelEncoderFakeFragmentPair
+--- PASS: TestTunnelEncoderFakeFragmentPair (0.00s)
+=== RUN   TestTunnelEncoderValidationAndReuse
+--- PASS: TestTunnelEncoderValidationAndReuse (0.01s)
+=== RUN   TestTunnelEncoderUDPZeroChecksum
+--- PASS: TestTunnelEncoderUDPZeroChecksum (0.00s)
+=== RUN   TestLocalForwarderOwnsQueuedPayloads
+--- PASS: TestLocalForwarderOwnsQueuedPayloads (0.02s)
+=== RUN   TestLocalForwarderClosedSessionDoesNotDropNextSession
+2026/10/24 04:36:33 Local UDP batch: raw-control udp4 127.0.0.1:41207: use of closed network connection
+--- PASS: TestLocalForwarderClosedSessionDoesNotDropNextSession (0.00s)
+=== RUN   TestLocalUDPBatchDatagramBoundaries
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-true
+--- PASS: TestLocalUDPBatchDatagramBoundaries (0.02s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-true (0.00s)
+=== RUN   TestLocalUDPBatchMixedSocketsAndDestinations
+--- PASS: TestLocalUDPBatchMixedSocketsAndDestinations (0.02s)
+=== RUN   TestLocalUDPActualGSOSegments
+=== RUN   TestLocalUDPActualGSOSegments/[1200_1200_1200_37]
+    local_udp_test.go:145: verified 4 actual UDP_SEGMENT datagrams
+=== RUN   TestLocalUDPActualGSOSegments/[32753_32753]
+    local_udp_test.go:145: verified 2 actual UDP_SEGMENT datagrams
+=== RUN   TestLocalUDPActualGSOSegments/[1_1]
+    local_udp_test.go:145: verified 2 actual UDP_SEGMENT datagrams
+--- PASS: TestLocalUDPActualGSOSegments (0.01s)
+    --- PASS: TestLocalUDPActualGSOSegments/[1200_1200_1200_37] (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[32753_32753] (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[1_1] (0.00s)
+=== RUN   TestLocalUDPGSOFallback
+=== RUN   TestLocalUDPGSOFallback/invalid_argument
+=== RUN   TestLocalUDPGSOFallback/input/output_error
+=== RUN   TestLocalUDPGSOFallback/protocol_not_available
+=== RUN   TestLocalUDPGSOFallback/operation_not_supported
+--- PASS: TestLocalUDPGSOFallback (0.01s)
+    --- PASS: TestLocalUDPGSOFallback/invalid_argument (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/input/output_error (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/protocol_not_available (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/operation_not_supported (0.00s)
+=== RUN   TestLocalUDPPartialAndClosedSocket
+--- PASS: TestLocalUDPPartialAndClosedSocket (0.00s)
+=== RUN   TestLocalUDPWriteDeadline
+--- PASS: TestLocalUDPWriteDeadline (0.00s)
+=== RUN   TestLocalUDPGSOGroupBounds
+--- PASS: TestLocalUDPGSOGroupBounds (0.00s)
+=== RUN   TestLocalUDPConfigureBuffers
+2026/10/24 04:36:33 UDP test socket buffers requested=16777216 kernel-rx=33554432 (was 1048576) kernel-tx=33554432 (was 524288)
+--- PASS: TestLocalUDPConfigureBuffers (0.00s)
+=== RUN   TestTunnelEncoderMatchesSerializer
+--- PASS: TestTunnelEncoderMatchesSerializer (0.08s)
+=== RUN   TestTunnelEncoderFakeFragmentPair
+--- PASS: TestTunnelEncoderFakeFragmentPair (0.00s)
+=== RUN   TestTunnelEncoderValidationAndReuse
+--- PASS: TestTunnelEncoderValidationAndReuse (0.01s)
+=== RUN   TestTunnelEncoderUDPZeroChecksum
+--- PASS: TestTunnelEncoderUDPZeroChecksum (0.00s)
+=== RUN   TestLocalForwarderOwnsQueuedPayloads
+--- PASS: TestLocalForwarderOwnsQueuedPayloads (0.03s)
+=== RUN   TestLocalForwarderClosedSessionDoesNotDropNextSession
+2026/10/24 04:36:33 Local UDP batch: raw-control udp4 127.0.0.1:16786: use of closed network connection
+--- PASS: TestLocalForwarderClosedSessionDoesNotDropNextSession (0.00s)
+=== RUN   TestLocalUDPBatchDatagramBoundaries
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-true
+--- PASS: TestLocalUDPBatchDatagramBoundaries (0.03s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-true (0.01s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-true (0.00s)
+=== RUN   TestLocalUDPBatchMixedSocketsAndDestinations
+--- PASS: TestLocalUDPBatchMixedSocketsAndDestinations (0.02s)
+=== RUN   TestLocalUDPActualGSOSegments
+=== RUN   TestLocalUDPActualGSOSegments/[1200_1200_1200_37]
+    local_udp_test.go:145: verified 4 actual UDP_SEGMENT datagrams
+=== RUN   TestLocalUDPActualGSOSegments/[32753_32753]
+    local_udp_test.go:145: verified 2 actual UDP_SEGMENT datagrams
+=== RUN   TestLocalUDPActualGSOSegments/[1_1]
+    local_udp_test.go:145: verified 2 actual UDP_SEGMENT datagrams
+--- PASS: TestLocalUDPActualGSOSegments (0.01s)
+    --- PASS: TestLocalUDPActualGSOSegments/[1200_1200_1200_37] (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[32753_32753] (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[1_1] (0.00s)
+=== RUN   TestLocalUDPGSOFallback
+=== RUN   TestLocalUDPGSOFallback/invalid_argument
+=== RUN   TestLocalUDPGSOFallback/input/output_error
+=== RUN   TestLocalUDPGSOFallback/protocol_not_available
+=== RUN   TestLocalUDPGSOFallback/operation_not_supported
+--- PASS: TestLocalUDPGSOFallback (0.01s)
+    --- PASS: TestLocalUDPGSOFallback/invalid_argument (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/input/output_error (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/protocol_not_available (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/operation_not_supported (0.00s)
+=== RUN   TestLocalUDPPartialAndClosedSocket
+--- PASS: TestLocalUDPPartialAndClosedSocket (0.00s)
+=== RUN   TestLocalUDPWriteDeadline
+--- PASS: TestLocalUDPWriteDeadline (0.00s)
+=== RUN   TestLocalUDPGSOGroupBounds
+--- PASS: TestLocalUDPGSOGroupBounds (0.00s)
+=== RUN   TestLocalUDPConfigureBuffers
+2026/10/24 04:36:33 UDP test socket buffers requested=16777216 kernel-rx=33554432 (was 1048576) kernel-tx=33554432 (was 524288)
+--- PASS: TestLocalUDPConfigureBuffers (0.00s)
+=== RUN   TestTunnelEncoderMatchesSerializer
+--- PASS: TestTunnelEncoderMatchesSerializer (0.08s)
+=== RUN   TestTunnelEncoderFakeFragmentPair
+--- PASS: TestTunnelEncoderFakeFragmentPair (0.00s)
+=== RUN   TestTunnelEncoderValidationAndReuse
+--- PASS: TestTunnelEncoderValidationAndReuse (0.01s)
+=== RUN   TestTunnelEncoderUDPZeroChecksum
+--- PASS: TestTunnelEncoderUDPZeroChecksum (0.00s)
+=== RUN   TestLocalForwarderOwnsQueuedPayloads
+--- PASS: TestLocalForwarderOwnsQueuedPayloads (0.02s)
+=== RUN   TestLocalForwarderClosedSessionDoesNotDropNextSession
+2026/10/24 04:36:33 Local UDP batch: raw-control udp4 127.0.0.1:45410: use of closed network connection
+--- PASS: TestLocalForwarderClosedSessionDoesNotDropNextSession (0.00s)
+=== RUN   TestLocalUDPBatchDatagramBoundaries
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-true
+--- PASS: TestLocalUDPBatchDatagramBoundaries (0.02s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-true (0.00s)
+=== RUN   TestLocalUDPBatchMixedSocketsAndDestinations
+--- PASS: TestLocalUDPBatchMixedSocketsAndDestinations (0.02s)
+=== RUN   TestLocalUDPActualGSOSegments
+=== RUN   TestLocalUDPActualGSOSegments/[1200_1200_1200_37]
+    local_udp_test.go:145: verified 4 actual UDP_SEGMENT datagrams
+=== RUN   TestLocalUDPActualGSOSegments/[32753_32753]
+    local_udp_test.go:145: verified 2 actual UDP_SEGMENT datagrams
+=== RUN   TestLocalUDPActualGSOSegments/[1_1]
+    local_udp_test.go:145: verified 2 actual UDP_SEGMENT datagrams
+--- PASS: TestLocalUDPActualGSOSegments (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[1200_1200_1200_37] (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[32753_32753] (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[1_1] (0.00s)
+=== RUN   TestLocalUDPGSOFallback
+=== RUN   TestLocalUDPGSOFallback/invalid_argument
+=== RUN   TestLocalUDPGSOFallback/input/output_error
+=== RUN   TestLocalUDPGSOFallback/protocol_not_available
+=== RUN   TestLocalUDPGSOFallback/operation_not_supported
+--- PASS: TestLocalUDPGSOFallback (0.01s)
+    --- PASS: TestLocalUDPGSOFallback/invalid_argument (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/input/output_error (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/protocol_not_available (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/operation_not_supported (0.00s)
+=== RUN   TestLocalUDPPartialAndClosedSocket
+--- PASS: TestLocalUDPPartialAndClosedSocket (0.00s)
+=== RUN   TestLocalUDPWriteDeadline
+--- PASS: TestLocalUDPWriteDeadline (0.00s)
+=== RUN   TestLocalUDPGSOGroupBounds
+--- PASS: TestLocalUDPGSOGroupBounds (0.00s)
+=== RUN   TestLocalUDPConfigureBuffers
+2026/10/24 04:36:33 UDP test socket buffers requested=16777216 kernel-rx=33554432 (was 1048576) kernel-tx=33554432 (was 524288)
+--- PASS: TestLocalUDPConfigureBuffers (0.00s)
+=== RUN   TestTunnelEncoderMatchesSerializer
+--- PASS: TestTunnelEncoderMatchesSerializer (0.04s)
+=== RUN   TestTunnelEncoderFakeFragmentPair
+--- PASS: TestTunnelEncoderFakeFragmentPair (0.00s)
+=== RUN   TestTunnelEncoderValidationAndReuse
+--- PASS: TestTunnelEncoderValidationAndReuse (0.00s)
+=== RUN   TestTunnelEncoderUDPZeroChecksum
+--- PASS: TestTunnelEncoderUDPZeroChecksum (0.00s)
+=== RUN   TestLocalForwarderOwnsQueuedPayloads
+--- PASS: TestLocalForwarderOwnsQueuedPayloads (0.02s)
+=== RUN   TestLocalForwarderClosedSessionDoesNotDropNextSession
+2026/10/24 04:36:34 Local UDP batch: raw-control udp4 127.0.0.1:42958: use of closed network connection
+--- PASS: TestLocalForwarderClosedSessionDoesNotDropNextSession (0.00s)
+=== RUN   TestLocalUDPBatchDatagramBoundaries
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-true
+--- PASS: TestLocalUDPBatchDatagramBoundaries (0.01s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-true (0.00s)
+=== RUN   TestLocalUDPBatchMixedSocketsAndDestinations
+--- PASS: TestLocalUDPBatchMixedSocketsAndDestinations (0.01s)
+=== RUN   TestLocalUDPActualGSOSegments
+=== RUN   TestLocalUDPActualGSOSegments/[1200_1200_1200_37]
+    local_udp_test.go:145: verified 4 actual UDP_SEGMENT datagrams
+=== RUN   TestLocalUDPActualGSOSegments/[32753_32753]
+    local_udp_test.go:145: verified 2 actual UDP_SEGMENT datagrams
+=== RUN   TestLocalUDPActualGSOSegments/[1_1]
+    local_udp_test.go:145: verified 2 actual UDP_SEGMENT datagrams
+--- PASS: TestLocalUDPActualGSOSegments (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[1200_1200_1200_37] (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[32753_32753] (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[1_1] (0.00s)
+=== RUN   TestLocalUDPGSOFallback
+=== RUN   TestLocalUDPGSOFallback/invalid_argument
+=== RUN   TestLocalUDPGSOFallback/input/output_error
+=== RUN   TestLocalUDPGSOFallback/protocol_not_available
+=== RUN   TestLocalUDPGSOFallback/operation_not_supported
+--- PASS: TestLocalUDPGSOFallback (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/invalid_argument (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/input/output_error (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/protocol_not_available (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/operation_not_supported (0.00s)
+=== RUN   TestLocalUDPPartialAndClosedSocket
+--- PASS: TestLocalUDPPartialAndClosedSocket (0.00s)
+=== RUN   TestLocalUDPWriteDeadline
+--- PASS: TestLocalUDPWriteDeadline (0.00s)
+=== RUN   TestLocalUDPGSOGroupBounds
+--- PASS: TestLocalUDPGSOGroupBounds (0.00s)
+=== RUN   TestLocalUDPConfigureBuffers
+2026/10/24 04:36:34 UDP test socket buffers requested=16777216 kernel-rx=33554432 (was 1048576) kernel-tx=33554432 (was 524288)
+--- PASS: TestLocalUDPConfigureBuffers (0.00s)
+PASS
+ok  	spooftun	4.352s

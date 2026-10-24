@@ -1,0 +1,12 @@
+goos: linux
+goarch: amd64
+pkg: spooftun
+cpu: Intel(R) Xeon(R) CPU E5-2670 v2 @ 2.50GHz
+BenchmarkLocalForwarderDelivered/size=64/pipeline=false-2         	      20	    307103 ns/op	   3.33 MB/s	       9 B/op	       0 allocs/op
+BenchmarkLocalForwarderDelivered/size=64/pipeline=true-2          	      20	    188406 ns/op	   5.44 MB/s	     478 B/op	       0 allocs/op
+BenchmarkLocalForwarderDelivered/size=512/pipeline=false-2        	      20	    374466 ns/op	  21.88 MB/s	      28 B/op	       0 allocs/op
+BenchmarkLocalForwarderDelivered/size=512/pipeline=true-2         	      20	    371256 ns/op	  22.07 MB/s	     502 B/op	       0 allocs/op
+BenchmarkLocalForwarderDelivered/size=1400/pipeline=false-2       	      20	    468008 ns/op	  47.86 MB/s	      76 B/op	       0 allocs/op
+BenchmarkLocalForwarderDelivered/size=1400/pipeline=true-2        	      20	    365631 ns/op	  61.26 MB/s	      76 B/op	       0 allocs/op
+PASS
+ok  	spooftun	1.119s

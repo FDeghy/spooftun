@@ -1,0 +1,69 @@
+goos: linux
+goarch: amd64
+pkg: spooftun
+cpu: Intel(R) Xeon(R) CPU E5-2670 v2 @ 2.50GHz
+BenchmarkTunnelEncoding/size=64/tcp=false/direct=false-2         	  861885	       388.3 ns/op	 164.82 MB/s	      24 B/op	       1 allocs/op
+BenchmarkTunnelEncoding/size=64/tcp=false/direct=false-2         	 1123900	       313.8 ns/op	 203.97 MB/s	      24 B/op	       1 allocs/op
+BenchmarkTunnelEncoding/size=64/tcp=false/direct=false-2         	 1000000	       452.6 ns/op	 141.41 MB/s	      24 B/op	       1 allocs/op
+BenchmarkTunnelEncoding/size=64/tcp=false/direct=true-2          	 6039879	        72.63 ns/op	 881.20 MB/s	       0 B/op	       0 allocs/op
+BenchmarkTunnelEncoding/size=64/tcp=false/direct=true-2          	 5506051	        61.17 ns/op	1046.26 MB/s	       0 B/op	       0 allocs/op
+BenchmarkTunnelEncoding/size=64/tcp=false/direct=true-2          	 5954892	        59.56 ns/op	1074.63 MB/s	       0 B/op	       0 allocs/op
+BenchmarkTunnelEncoding/size=64/tcp=true/direct=false-2          	 1056544	       345.2 ns/op	 185.42 MB/s	      24 B/op	       1 allocs/op
+BenchmarkTunnelEncoding/size=64/tcp=true/direct=false-2          	  658390	       557.8 ns/op	 114.74 MB/s	      24 B/op	       1 allocs/op
+BenchmarkTunnelEncoding/size=64/tcp=true/direct=false-2          	 1000000	       639.1 ns/op	 100.14 MB/s	      24 B/op	       1 allocs/op
+BenchmarkTunnelEncoding/size=64/tcp=true/direct=true-2           	 5057018	        59.63 ns/op	1073.22 MB/s	       0 B/op	       0 allocs/op
+BenchmarkTunnelEncoding/size=64/tcp=true/direct=true-2           	 6249991	        60.64 ns/op	1055.33 MB/s	       0 B/op	       0 allocs/op
+BenchmarkTunnelEncoding/size=64/tcp=true/direct=true-2           	 4423946	       102.7 ns/op	 623.33 MB/s	       0 B/op	       0 allocs/op
+BenchmarkTunnelEncoding/size=512/tcp=false/direct=false-2        	  674000	       536.6 ns/op	 954.09 MB/s	      24 B/op	       1 allocs/op
+BenchmarkTunnelEncoding/size=512/tcp=false/direct=false-2        	  656906	       537.0 ns/op	 953.40 MB/s	      24 B/op	       1 allocs/op
+BenchmarkTunnelEncoding/size=512/tcp=false/direct=false-2        	  668754	       673.0 ns/op	 760.80 MB/s	      24 B/op	       1 allocs/op
+BenchmarkTunnelEncoding/size=512/tcp=false/direct=true-2         	  635983	       498.4 ns/op	1027.34 MB/s	       0 B/op	       0 allocs/op
+BenchmarkTunnelEncoding/size=512/tcp=false/direct=true-2         	 1322388	       366.3 ns/op	1397.80 MB/s	       0 B/op	       0 allocs/op
+BenchmarkTunnelEncoding/size=512/tcp=false/direct=true-2         	 1319150	       269.5 ns/op	1899.63 MB/s	       0 B/op	       0 allocs/op
+BenchmarkTunnelEncoding/size=512/tcp=true/direct=false-2         	  656908	       546.9 ns/op	 936.18 MB/s	      24 B/op	       1 allocs/op
+BenchmarkTunnelEncoding/size=512/tcp=true/direct=false-2         	  614712	       799.6 ns/op	 640.31 MB/s	      24 B/op	       1 allocs/op
+BenchmarkTunnelEncoding/size=512/tcp=true/direct=false-2         	  571432	       973.1 ns/op	 526.17 MB/s	      24 B/op	       1 allocs/op
+BenchmarkTunnelEncoding/size=512/tcp=true/direct=true-2          	  633153	       600.0 ns/op	 853.37 MB/s	       0 B/op	       0 allocs/op
+BenchmarkTunnelEncoding/size=512/tcp=true/direct=true-2          	  625092	       487.7 ns/op	1049.92 MB/s	       0 B/op	       0 allocs/op
+BenchmarkTunnelEncoding/size=512/tcp=true/direct=true-2          	 1035069	       478.4 ns/op	1070.33 MB/s	       0 B/op	       0 allocs/op
+BenchmarkTunnelEncoding/size=1400/tcp=false/direct=false-2       	  373298	      1284 ns/op	1090.35 MB/s	      24 B/op	       1 allocs/op
+BenchmarkTunnelEncoding/size=1400/tcp=false/direct=false-2       	  369555	      1009 ns/op	1388.13 MB/s	      24 B/op	       1 allocs/op
+BenchmarkTunnelEncoding/size=1400/tcp=false/direct=false-2       	  210963	      1762 ns/op	 794.74 MB/s	      24 B/op	       1 allocs/op
+BenchmarkTunnelEncoding/size=1400/tcp=false/direct=true-2        	  271910	      1369 ns/op	1022.62 MB/s	       0 B/op	       0 allocs/op
+BenchmarkTunnelEncoding/size=1400/tcp=false/direct=true-2        	  278864	      1305 ns/op	1072.75 MB/s	       0 B/op	       0 allocs/op
+BenchmarkTunnelEncoding/size=1400/tcp=false/direct=true-2        	  512898	       918.8 ns/op	1523.65 MB/s	       0 B/op	       0 allocs/op
+BenchmarkTunnelEncoding/size=1400/tcp=true/direct=false-2        	  365701	      1438 ns/op	 973.74 MB/s	      24 B/op	       1 allocs/op
+BenchmarkTunnelEncoding/size=1400/tcp=true/direct=false-2        	  265836	      2067 ns/op	 677.32 MB/s	      24 B/op	       1 allocs/op
+BenchmarkTunnelEncoding/size=1400/tcp=true/direct=false-2        	  166118	      1875 ns/op	 746.81 MB/s	      24 B/op	       1 allocs/op
+BenchmarkTunnelEncoding/size=1400/tcp=true/direct=true-2         	  505170	       875.4 ns/op	1599.23 MB/s	       0 B/op	       0 allocs/op
+BenchmarkTunnelEncoding/size=1400/tcp=true/direct=true-2         	  501800	       937.6 ns/op	1493.20 MB/s	       0 B/op	       0 allocs/op
+BenchmarkTunnelEncoding/size=1400/tcp=true/direct=true-2         	  477748	       665.7 ns/op	2103.20 MB/s	       0 B/op	       0 allocs/op
+BenchmarkLocalUDPWriter/64/write-2                               	    4026	     92655 ns/op	  11.05 MB/s	       0 B/op	       0 allocs/op
+BenchmarkLocalUDPWriter/64/write-2                               	    4348	    110289 ns/op	   9.28 MB/s	       0 B/op	       0 allocs/op
+BenchmarkLocalUDPWriter/64/write-2                               	    3630	    125542 ns/op	   8.16 MB/s	       0 B/op	       0 allocs/op
+BenchmarkLocalUDPWriter/64/sendmmsg-2                            	    4970	     75274 ns/op	  13.60 MB/s	       0 B/op	       0 allocs/op
+BenchmarkLocalUDPWriter/64/sendmmsg-2                            	    4933	     89375 ns/op	  11.46 MB/s	       0 B/op	       0 allocs/op
+BenchmarkLocalUDPWriter/64/sendmmsg-2                            	    5162	     75045 ns/op	  13.65 MB/s	       0 B/op	       0 allocs/op
+BenchmarkLocalUDPWriter/64/gso-2                                 	    9127	     35573 ns/op	  28.79 MB/s	       0 B/op	       0 allocs/op
+BenchmarkLocalUDPWriter/64/gso-2                                 	    9990	     40748 ns/op	  25.13 MB/s	       0 B/op	       0 allocs/op
+BenchmarkLocalUDPWriter/64/gso-2                                 	   10000	     40981 ns/op	  24.99 MB/s	       0 B/op	       0 allocs/op
+BenchmarkLocalUDPWriter/512/write-2                              	    2940	    129028 ns/op	  63.49 MB/s	       0 B/op	       0 allocs/op
+BenchmarkLocalUDPWriter/512/write-2                              	    2655	    117799 ns/op	  69.54 MB/s	       0 B/op	       0 allocs/op
+BenchmarkLocalUDPWriter/512/write-2                              	    3403	    107628 ns/op	  76.11 MB/s	       0 B/op	       0 allocs/op
+BenchmarkLocalUDPWriter/512/sendmmsg-2                           	    3888	     87272 ns/op	  93.87 MB/s	       0 B/op	       0 allocs/op
+BenchmarkLocalUDPWriter/512/sendmmsg-2                           	    5655	     92318 ns/op	  88.74 MB/s	       0 B/op	       0 allocs/op
+BenchmarkLocalUDPWriter/512/sendmmsg-2                           	    4936	    104085 ns/op	  78.71 MB/s	       0 B/op	       0 allocs/op
+BenchmarkLocalUDPWriter/512/gso-2                                	   10000	     37378 ns/op	 219.17 MB/s	       0 B/op	       0 allocs/op
+BenchmarkLocalUDPWriter/512/gso-2                                	    5325	     58150 ns/op	 140.88 MB/s	       0 B/op	       0 allocs/op
+BenchmarkLocalUDPWriter/512/gso-2                                	   10000	     33060 ns/op	 247.79 MB/s	       0 B/op	       0 allocs/op
+BenchmarkLocalUDPWriter/1400/write-2                             	    3093	    158221 ns/op	 141.57 MB/s	       0 B/op	       0 allocs/op
+BenchmarkLocalUDPWriter/1400/write-2                             	    3372	    121380 ns/op	 184.55 MB/s	       0 B/op	       0 allocs/op
+BenchmarkLocalUDPWriter/1400/write-2                             	    2752	    116685 ns/op	 191.97 MB/s	       0 B/op	       0 allocs/op
+BenchmarkLocalUDPWriter/1400/sendmmsg-2                          	    4416	     89919 ns/op	 249.11 MB/s	       0 B/op	       0 allocs/op
+BenchmarkLocalUDPWriter/1400/sendmmsg-2                          	    4578	     87709 ns/op	 255.39 MB/s	       0 B/op	       0 allocs/op
+BenchmarkLocalUDPWriter/1400/sendmmsg-2                          	    4581	    118114 ns/op	 189.65 MB/s	       0 B/op	       0 allocs/op
+BenchmarkLocalUDPWriter/1400/gso-2                               	    7984	     46834 ns/op	 478.29 MB/s	       0 B/op	       0 allocs/op
+BenchmarkLocalUDPWriter/1400/gso-2                               	    6904	     46652 ns/op	 480.15 MB/s	       0 B/op	       0 allocs/op
+BenchmarkLocalUDPWriter/1400/gso-2                               	   10000	     43415 ns/op	 515.95 MB/s	       0 B/op	       0 allocs/op
+PASS
+ok  	spooftun	31.695s

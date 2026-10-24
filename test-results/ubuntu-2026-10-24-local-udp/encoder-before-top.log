@@ -1,0 +1,21 @@
+File: spooftun.test
+Build ID: 89165470af96715656e19a77c8ba5e090552b8c5
+Type: cpu
+Time: 2026-10-24 04:35:54 +0330
+Duration: 3.70s, Total samples = 3700ms (  100%)
+Showing nodes accounting for 3390ms, 91.62% of 3700ms total
+Dropped 28 nodes (cum <= 18.50ms)
+Showing top 12 nodes out of 45
+      flat  flat%   sum%        cum   cum%
+    2450ms 66.22% 66.22%     2460ms 66.49%  github.com/gopacket/gopacket.ComputeChecksum (inline)
+     240ms  6.49% 72.70%      240ms  6.49%  runtime.memmove
+     100ms  2.70% 75.41%      230ms  6.22%  github.com/gopacket/gopacket/layers.(*IPv4).SerializeTo
+      90ms  2.43% 77.84%       90ms  2.43%  github.com/gopacket/gopacket.(*serializeBuffer).Bytes
+      90ms  2.43% 80.27%     3460ms 93.51%  github.com/gopacket/gopacket.SerializeLayers
+      80ms  2.16% 82.43%       80ms  2.16%  github.com/gopacket/gopacket.(*serializeBuffer).PrependBytes
+      70ms  1.89% 84.32%       90ms  2.43%  github.com/gopacket/gopacket/layers.(*IPv4).pseudoheaderChecksum
+      70ms  1.89% 86.22%      120ms  3.24%  runtime.mallocgcSmallScanNoHeaderSC3
+      60ms  1.62% 87.84%     2740ms 74.05%  github.com/gopacket/gopacket/layers.(*TCP).SerializeTo
+      60ms  1.62% 89.46%       60ms  1.62%  github.com/gopacket/gopacket/layers.(*TCP).flagsAndOffset (inline)
+      40ms  1.08% 90.54%       40ms  1.08%  github.com/gopacket/gopacket.(*serializeBuffer).PushLayer
+      40ms  1.08% 91.62%      270ms  7.30%  github.com/gopacket/gopacket.Payload.SerializeTo

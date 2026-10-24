@@ -1,0 +1,7 @@
+goos: linux
+goarch: amd64
+pkg: spooftun
+cpu: Intel(R) Xeon(R) CPU E5-2670 v2 @ 2.50GHz
+BenchmarkTunnelEncoding/size=1400/tcp=true/direct=true-2         	 3059044	       797.8 ns/op	1754.76 MB/s	       0 B/op	       0 allocs/op
+PASS
+ok  	spooftun	3.257s

@@ -5,9 +5,8 @@ package main
 import (
 	"log"
 	"net"
+	"net/netip"
 
-	"github.com/gopacket/gopacket"
-	"github.com/gopacket/gopacket/layers"
 	"golang.org/x/net/ipv4"
 	"golang.org/x/sys/unix"
 )
@@ -68,24 +67,7 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, upPr
 	}
 	defer appConn.Close()
 
-	appConn.SetReadBuffer(socketBufSize)
-	appConn.SetWriteBuffer(socketBufSize)
-
-	// Probe for GSO/GRO support on the app-facing UDP socket
-	// txOffload, rxOffload := supportsUDPOffload(appConn)
-	txOffload := false
-	rxOffload := false
-	if rxOffload {
-		if err := enableUDPGRO(appConn); err != nil {
-			log.Printf("Warning: Failed to enable UDP_GRO: %v", err)
-			rxOffload = false
-		} else {
-			log.Printf("UDP GRO enabled on app socket")
-		}
-	}
-	if txOffload {
-		log.Printf("UDP GSO available on app socket")
-	}
+	configureLocalUDP(appConn, "client app")
 
 	nat := newNatTable()
 	go nat.Cleanup()
@@ -93,9 +75,8 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, upPr
 	// Downlink (packet backend -> App)
 	// Reads raw Ethernet frames, strips headers, translates VirtualPort -> ClientPort
 	go func() {
-		// Reusable UDPAddr to avoid per-packet heap allocation.
-		// IP is assigned from sess.clientIP per packet, so no preallocation needed.
-		writeAddr := &net.UDPAddr{}
+		forwarder := newLocalUDPForwarder(mtu)
+		defer forwarder.Close()
 
 		for {
 			// Read a borrowed frame; its bytes remain valid until the next read.
@@ -128,10 +109,8 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, upPr
 				continue
 			}
 
-			writeAddr.IP = sess.clientIP
-			writeAddr.Port = sess.clientPort
-			if _, err := appConn.WriteToUDP(payload, writeAddr); err != nil {
-				log.Printf("WriteToUDP error in downlink (no coalesce): %v", err)
+			if addr, ok := netip.AddrFromSlice(sess.clientIP); ok {
+				forwarder.Send(appConn, netip.AddrPortFrom(addr.Unmap(), uint16(sess.clientPort)), payload)
 			}
 		}
 	}()
@@ -140,13 +119,15 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, upPr
 	// Reads UDP from App, translates ClientPort -> VirtualPort, wraps in Ethernet + IP + Proto, sends raw
 	// recvmmsg batches application datagrams; GRO remains disabled.
 	ipv4AppConn := ipv4.NewPacketConn(appConn)
-	msgs := prepareMsgsUDP(rxOffload)
+	msgs := prepareMsgsUDP()
 
-	// Reusable serialize buffer
-	var serializeBuf gopacket.SerializeBuffer
-	txBuffers := make([]gopacket.SerializeBuffer, batchSize*2)
+	txBuffers := make([][]byte, batchSize*2)
 	for i := range txBuffers {
-		txBuffers[i] = gopacket.NewSerializeBufferExpectedSize(64, mtu)
+		txBuffers[i] = make([]byte, max(60, mtu+14))
+	}
+	encoder, err := newTunnelEncoder(srcMAC, dstMAC, srcIP, serverIP, upProto, *fakeTCP, tcpFlagByte)
+	if err != nil {
+		log.Fatal(err)
 	}
 	frames := make([][]byte, 0, batchSize*2)
 	flush := func() {
@@ -158,87 +139,23 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, upPr
 		}
 	}
 	defer flush()
-	opts := gopacket.SerializeOptions{FixLengths: true, ComputeChecksums: true}
-
-	// Pre-build headers (will modify SrcPort for each packet)
-	var ipId uint16 = 1
-
-	ipFlags := layers.IPv4DontFragment
+	ipId := uint16(1)
+	ipFlags := uint16(0x4000) // Don't Fragment.
 	if *fakeFrag {
-		ipFlags = layers.IPv4MoreFragments
-	}
-
-	ethHeader := &layers.Ethernet{
-		SrcMAC:       srcMAC,
-		DstMAC:       dstMAC,
-		EthernetType: layers.EthernetTypeIPv4,
-	}
-	ipHeader := &layers.IPv4{
-		Version:    4,
-		IHL:        5,
-		Id:         ipId,
-		TTL:        64,
-		Protocol:   layers.IPProtocol(upProto),
-		SrcIP:      srcIP,
-		DstIP:      serverIP,
-		Flags:      ipFlags,
-		FragOffset: 0,
-	}
-	// Transport header — either UDP or TCP based on -fake-tcp. Both share the
-	// same first 4 bytes (src/dst port), so the rest of the tunnel logic is
-	// identical.
-	var udpHeader *layers.UDP
-	var tcpHeader *layers.TCP
-	if *fakeTCP {
-		tcpHeader = newFakeTCPHeader(dstPort, tcpFlagByte)
-		tcpHeader.SetNetworkLayerForChecksum(ipHeader)
-	} else {
-		udpHeader = &layers.UDP{DstPort: layers.UDPPort(dstPort)}
-		udpHeader.SetNetworkLayerForChecksum(ipHeader)
+		ipFlags = 0x2000 // More Fragments.
 	}
 	hdrLen := transportHeaderLen()
-
-	// Fake frag IP header
-	ipHeaderFrag := &layers.IPv4{
-		Version:    4,
-		IHL:        5,
-		Id:         ipId,
-		TTL:        64,
-		Protocol:   layers.IPProtocol(upProto),
-		SrcIP:      srcIP,
-		DstIP:      serverIP,
-		Flags:      0,
-		FragOffset: 0,
-	}
+	fakeTail := [1]byte{'0'}
 
 	n := 0
 	readPos := 0
 	for {
 		if readPos >= n {
 			flush()
-			if rxOffload {
-				// With GRO: read into fewer slots, then split coalesced messages
-				readAt := len(msgs) - ((batchSize + udpSegmentMaxDatagrams - 1) / udpSegmentMaxDatagrams)
-				if readAt < 0 {
-					readAt = 0
-				}
-				resetOOB(msgs[readAt:])
-				n, err = ipv4AppConn.ReadBatch(msgs[readAt:], 0)
-				if n == 0 || err != nil {
-					log.Printf("Read UDP error: %v", err)
-					continue
-				}
-				n, err = splitCoalescedMessages(msgs, readAt, n)
-				if err != nil {
-					log.Printf("GRO split error: %v", err)
-					continue
-				}
-			} else {
-				n, err = ipv4AppConn.ReadBatch(msgs, 0)
-				if n == 0 || err != nil {
-					log.Printf("Read UDP error: %v", err)
-					continue
-				}
+			n, err = ipv4AppConn.ReadBatch(msgs, 0)
+			if n == 0 || err != nil {
+				log.Printf("Read UDP error: %v", err)
+				continue
 			}
 			readPos = 0
 		}
@@ -256,45 +173,23 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, upPr
 			continue
 		}
 
-		serializeBuf = txBuffers[len(frames)]
-		// Build packet with Ethernet header
-		ipHeader.Id = ipId
-		var transport gopacket.SerializableLayer
-		if *fakeTCP {
-			tcpHeader.SrcPort = layers.TCPPort(vPort)
-			transport = tcpHeader
-		} else {
-			udpHeader.SrcPort = layers.UDPPort(vPort)
-			transport = udpHeader
-		}
-
 		if *fakeFrag {
 			data = padData(data, 8, hdrLen)
 		}
-
-		if err := gopacket.SerializeLayers(serializeBuf, opts, ethHeader, ipHeader, transport, gopacket.Payload(data)); err != nil {
-			log.Printf("Serialize error: %v", err)
+		frame, err := encoder.Encode(txBuffers[len(frames)], data, vPort, dstPort, ipId, ipFlags, 0, true)
+		if err != nil {
+			log.Printf("Encode error: %v", err)
 			continue
 		}
-
-		// Send via AF_PACKET (bypasses kernel IP stack)
-		frames = append(frames, serializeBuf.Bytes())
-
-		// fake frag
+		frames = append(frames, frame)
 		if *fakeFrag {
-			serializeBuf = txBuffers[len(frames)]
-			ipHeaderFrag.Id = ipId
-			// Offset of the fake fragment in 8-byte units: after the real
-			// transport header + padded data.
-			ipHeaderFrag.FragOffset = uint16((len(data) + hdrLen) / 8)
-
-			if err := gopacket.SerializeLayers(serializeBuf, opts, ethHeader, ipHeaderFrag, gopacket.Payload([]byte("0"))); err != nil {
-				log.Printf("Serialize error: %v", err)
+			offset := uint16((len(data) + hdrLen) / 8)
+			frame, err = encoder.Encode(txBuffers[len(frames)], fakeTail[:], 0, 0, ipId, 0, offset, false)
+			if err != nil {
+				log.Printf("Encode error: %v", err)
 				continue
 			}
-
-			// Send via AF_PACKET (bypasses kernel IP stack)
-			frames = append(frames, serializeBuf.Bytes())
+			frames = append(frames, frame)
 		}
 
 		ipId = (ipId + 1) % 65000

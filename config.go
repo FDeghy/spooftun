@@ -10,15 +10,11 @@ import (
 
 // High-throughput tuning constants for AF_PACKET
 const (
-	batchSize      = 16                         // Messages per batch read/write (for UDP side)
-	socketBufSize  = 1 << 24                    // 16MB socket buffer
-	packetBufSize  = 1500                       // MTU size
-	udpPayloadSize = packetBufSize - 20 - 8 - 8 // 1464 bytes: fits after IP+UDP headers + fake-frag padding
+	batchSize     = 16      // Messages per batch read/write (for UDP side)
+	socketBufSize = 1 << 24 // 16MB socket buffer
 
 	// GSO/GRO constants
-	sizeOfGSOData          = 2     // uint16 size for UDP_SEGMENT value
-	udpSegmentMaxDatagrams = 64    // kernel hard limit
-	maxUDPGSOPayload       = 65535 // max payload size for a single GSO sendmsg
+	udpSegmentMaxDatagrams = 64 // kernel hard limit
 	coarseTimeInterval     = 100 * time.Millisecond
 )
 

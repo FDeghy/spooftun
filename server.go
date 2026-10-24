@@ -6,12 +6,11 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/netip"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/gopacket/gopacket"
-	"github.com/gopacket/gopacket/layers"
 	"golang.org/x/net/ipv4"
 	"golang.org/x/sys/unix"
 )
@@ -99,6 +98,8 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 	defer txSender.Close()
 
 	sessions := sync.Map{}
+	forwarder := newLocalUDPForwarder(mtu)
+	defer forwarder.Close()
 
 	autoDst := false
 	if *tunnelIP == "" {
@@ -170,24 +171,12 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 				continue
 			}
 
-			conn.SetReadBuffer(socketBufSize)
-			conn.SetWriteBuffer(socketBufSize)
-
-			// Probe for GSO/GRO support on this session socket
-			// sessTxOffload, sessRxOffload := supportsUDPOffload(conn)
-			sessTxOffload := false
-			sessRxOffload := false
-			if sessRxOffload {
-				if err := enableUDPGRO(conn); err != nil {
-					log.Printf("Warning: Failed to enable UDP_GRO on session socket: %v", err)
-					sessRxOffload = false
-				}
-			}
+			configureLocalUDP(conn, "server target")
 
 			state = &serverSession{conn: conn}
 			state.lastSeen.Store(sessionActivityTime())
 			sessions.Store(clientKey, state)
-			log.Printf("New Session: %s -> Target :%d (GSO=%v GRO=%v)", clientKey.String(), clientDstPort, sessTxOffload, sessRxOffload)
+			log.Printf("New Session: %s -> Target :%d", clientKey.String(), clientDstPort)
 
 			// Create safe copies of the slices backed by the mmap ring
 			safeClientIP := make(net.IP, len(pkt.srcIP))
@@ -199,19 +188,18 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 			// Reply handler goroutine
 			go func(c *net.UDPConn, clientIP net.IP, clientPort uint16, clientMAC net.HardwareAddr,
 				srcServerIP net.IP, targetRAddr *net.UDPAddr, sessionKey natKey,
-				txOff, rxOff bool, state *serverSession) {
+				state *serverSession) {
 				ipv4AppConn := ipv4.NewPacketConn(c)
-				msgs := prepareMsgsUDP(rxOff)
+				msgs := prepareMsgsUDP()
 				defer c.Close()
 				defer sessions.CompareAndDelete(sessionKey, state)
 				defer state.lastSeen.Store(retiredSessionTime)
 
 				// Use shared txSender from outer scope (concurrent writes are safe)
 
-				var sBuf gopacket.SerializeBuffer
-				txBuffers := make([]gopacket.SerializeBuffer, batchSize)
+				txBuffers := make([][]byte, batchSize)
 				for i := range txBuffers {
-					txBuffers[i] = gopacket.NewSerializeBufferExpectedSize(64, mtu)
+					txBuffers[i] = make([]byte, max(60, mtu+14))
 				}
 				frames := make([][]byte, 0, batchSize)
 				flush := func() {
@@ -223,41 +211,16 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 					}
 				}
 				defer flush()
-				sOpts := gopacket.SerializeOptions{FixLengths: true, ComputeChecksums: true}
 
 				dstClientIP := net.ParseIP(*tunnelIP)
 				if autoDst {
 					dstClientIP = clientIP
 				}
 
-				// Reply headers
-				rEthHeader := &layers.Ethernet{
-					SrcMAC:       srcMAC,
-					DstMAC:       clientMAC,
-					EthernetType: layers.EthernetTypeIPv4,
-				}
-				rIpFlags := layers.IPv4DontFragment
-				// if *fakeFrag {
-				// 	rIpFlags = layers.IPv4MoreFragments
-				// }
-				rIpHeader := &layers.IPv4{
-					Version:  4,
-					IHL:      5,
-					TTL:      64,
-					Protocol: layers.IPProtocol(dnProto),
-					SrcIP:    srcServerIP,
-					DstIP:    dstClientIP,
-					Flags:    rIpFlags,
-				}
-				// Reply transport header (UDP or TCP), src port set per-packet.
-				var rUdpHeader *layers.UDP
-				var rTcpHeader *layers.TCP
-				if *fakeTCP {
-					rTcpHeader = newFakeTCPHeader(clientPort, tcpFlagByte)
-					rTcpHeader.SetNetworkLayerForChecksum(rIpHeader)
-				} else {
-					rUdpHeader = &layers.UDP{DstPort: layers.UDPPort(clientPort)}
-					rUdpHeader.SetNetworkLayerForChecksum(rIpHeader)
+				encoder, err := newTunnelEncoder(srcMAC, clientMAC, srcServerIP, dstClientIP, dnProto, *fakeTCP, tcpFlagByte)
+				if err != nil {
+					log.Printf("Create reply encoder: %v", err)
+					return
 				}
 
 				var errRead error
@@ -271,16 +234,7 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 				for {
 					if readPos >= n {
 						flush()
-						readAt := 0
-						if rxOff {
-							// With GRO: read into fewer slots, then split
-							readAt = len(msgs) - ((batchSize + udpSegmentMaxDatagrams - 1) / udpSegmentMaxDatagrams)
-							if readAt < 0 {
-								readAt = 0
-							}
-							resetOOB(msgs[readAt:])
-						}
-						n, errRead = ipv4AppConn.ReadBatch(msgs[readAt:], 0)
+						n, errRead = ipv4AppConn.ReadBatch(msgs, 0)
 						if n == 0 || errRead != nil {
 							if ne, ok := errRead.(net.Error); ok && ne.Timeout() && !state.expireIdle(time.Now().UnixNano(), *sessionTimeout) {
 								if err := ipv4AppConn.SetReadDeadline(state.idleDeadline(*sessionTimeout)); err != nil {
@@ -290,13 +244,7 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 							}
 							return
 						}
-						if rxOff {
-							n, errRead = splitCoalescedMessages(msgs, readAt, n)
-							if errRead != nil {
-								log.Printf("GRO split error in session %s: %v", sessionKey.String(), errRead)
-								return
-							}
-						}
+
 						readPos = 0
 					}
 					msg := &msgs[readPos]
@@ -307,29 +255,17 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 					state.refresh(sessionActivityTime())
 					payload := msg.Buffers[0][:msg.N]
 
-					sBuf = txBuffers[len(frames)]
-					var transport gopacket.SerializableLayer
-					if *fakeTCP {
-						rTcpHeader.SrcPort = layers.TCPPort(targetRAddr.Port)
-						transport = rTcpHeader
-					} else {
-						rUdpHeader.SrcPort = layers.UDPPort(targetRAddr.Port)
-						transport = rUdpHeader
-					}
-
-					if err := gopacket.SerializeLayers(sBuf, sOpts, rEthHeader, rIpHeader, transport, gopacket.Payload(payload)); err != nil {
-						log.Printf("Serialize error: %v", err)
+					frame, err := encoder.Encode(txBuffers[len(frames)], payload, uint16(targetRAddr.Port), clientPort, 0, 0x4000, 0, true)
+					if err != nil {
+						log.Printf("Encode error: %v", err)
 						continue
 					}
-
-					frames = append(frames, sBuf.Bytes())
+					frames = append(frames, frame)
 				}
 			}(conn, safeClientIP, clientSrcPort, safeClientMAC, srcIP, rAddr, clientKey,
-				sessTxOffload, sessRxOffload, state)
+				state)
 		}
 
-		if _, err := conn.Write(payload); err != nil {
-			log.Printf("conn.Write error in Server AF_PACKET downlink: %v", err)
-		}
+		forwarder.Send(conn, netip.AddrPort{}, payload)
 	}
 }

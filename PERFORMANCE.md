@@ -90,7 +90,9 @@ can defeat configured QoS and is not a universal throughput improvement.
 PACKET_TX_RING and AF_XDP are implemented as selectable backends. See
 [PACKET_BACKENDS.md](PACKET_BACKENDS.md) for the current measurements, fallback
 behavior and retained sendmmsg default. The remaining larger optimizations
-are flow-sharded receive fanout and profiling the encoder/local UDP boundary.
+include flow-sharded receive fanout and removing remaining receive-address
+allocations. The encoder/local UDP boundary has been optimized separately;
+see the 2026-10-24 results below.
 
 Primary references:
 - [Linux PACKET_MMAP](https://docs.kernel.org/networking/packet_mmap.html)
@@ -148,3 +150,73 @@ host. These runs were sequential rather than randomized; treat close differences
 as scheduler noise rather than a universal batch-size rule.
 
 Raw test evidence: [Ubuntu results](test-results/ubuntu-2026-10-23/).
+
+## Local UDP and encoding changes — 2026-10-24
+
+The client and server now use a specialized fixed-header encoder. Static
+Ethernet/IPv4/transport fields and checksum sums are prepared once per direction;
+each packet copies its payload and updates lengths, ports, flags and checksums.
+Differential tests compare exact bytes against gopacket for UDP, fake TCP,
+custom protocol numbers, fragmentation, empty/odd-length payloads and padding.
+Encoder microbenchmarks compare equally reused buffers, not repeated setup.
+
+Both raw receive loops hand owned payload copies to a bounded local UDP writer:
+32 slots per endpoint, at most 16 messages per write batch, no batching timer.
+Only already-available messages are grouped. Consecutive compatible datagrams
+use scatter/gather UDP_SEGMENT, without a concatenation buffer. Other datagrams
+use sendmmsg; unsupported GSO retries the unchanged batch and disables GSO for
+that writer. Empty datagrams, a shorter final GSO segment, mixed destinations,
+partial sends, cached socket closure and Go poller deadlines are tested.
+
+This pipeline adds one payload copy and a goroutine/channel boundary to local
+delivery. Its benefit must be measured against those costs. UDP GRO remains
+disabled, and there is no additional congestion controller or wire protocol.
+Socket-buffer setup now reports actual kernel sizes and silent caps; it does
+not modify host sysctls or force privileged buffer increases.
+
+Reproduce the component measurements on Linux:
+
+```sh
+go test -race ./...
+go test -run '^$' -bench 'Benchmark(TunnelEncoding|LocalUDPWriter|LocalForwarderDelivered)$' -benchmem -count 3
+go test -run '^$' -bench 'BenchmarkTunnelEncoding/size=1400/tcp=true/direct=false$' -benchtime 2s -cpuprofile encoder-before.cpu
+go test -run '^$' -bench 'BenchmarkTunnelEncoding/size=1400/tcp=true/direct=true$' -benchtime 2s -cpuprofile encoder-after.cpu
+go tool pprof -top encoder-before.cpu
+go tool pprof -top encoder-after.cpu
+sudo bash scripts/netns-test.sh --backend xdp --bench-only --bench-fake-tcp --benchmark --iterations 3
+```
+
+The UDP writer microbenchmark measures offered-send wall time while a Go
+receiver drains concurrently. Its reported MB/s is not independently verified
+delivered throughput. Use the integration checks and received echo counts for
+correctness and delivery evidence. Full-tunnel numbers remain bounded Python
+echo measurements on the shared two-vCPU host, excluding WireGuard encryption
+and host-wide softirq CPU; they do not establish 1-Gbps capacity.
+
+`BenchmarkLocalForwarderDelivered` separately compares individual connected UDP
+writes against the complete copy/queue/GSO pipeline. A native Go receiver
+checks every sequence number and payload and acknowledges each 16-datagram
+window before the sender continues. It verifies delivered bytes on loopback;
+the acknowledgement channel and shared CPUs constrain its absolute rate.
+
+For the complete tunnel, median of three 3-second XDP native-copy runs per
+payload, protocol 200, MTU 1500, before versus after:
+
+| Framing | Payload bytes | Before Mbps | After Mbps | Before CPU us/reply | After CPU us/reply |
+|---|---:|---:|---:|---:|---:|
+| UDP | 64 | 10.554 | 10.828 | 50.603 | 45.232 |
+| UDP | 512 | 76.514 | 81.061 | 56.910 | 49.516 |
+| UDP | 1400 | 179.511 | 205.422 | 65.718 | 53.610 |
+| Fake TCP | 64 | 9.910 | 10.651 | 54.234 | 47.423 |
+| Fake TCP | 512 | 82.506 | 83.694 | 53.945 | 49.226 |
+| Fake TCP | 1400 | 212.131 | 220.151 | 56.136 | 49.008 |
+
+Every run had zero unanswered requests after the bounded drain. UDP ran
+before/after; fake TCP reversed that order. Runs are sequential, not randomized,
+so small throughput differences can reflect scheduling noise. CPU per reply
+decreased in every measured case. The baseline is commit `6205bed`, built with
+the same toolchain/dependencies as the candidate. These results compare the
+combined changes; they do not isolate each change's contribution.
+
+Raw component benchmarks, CPU-profile summaries, received-count JSON and
+validation logs: [2026-10-24 local UDP results](test-results/ubuntu-2026-10-24-local-udp/).
