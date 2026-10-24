@@ -37,6 +37,7 @@ type natSession struct {
 	clientPort int
 	lastSeen   int64 // Unix nano timestamp - atomic access friendly
 	forwardKey natKey
+	noiseSent  bool // Owned by the single client uplink loop; reset on a new session.
 }
 
 var errNATExhausted = errors.New("NAT virtual port space exhausted")

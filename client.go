@@ -87,7 +87,7 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, upPr
 
 			// Parse Ethernet + IPv4 header (fixed-offset, no gopacket dispatch).
 			pkt, ok := parseEthIPv4(data)
-			if !ok {
+			if !ok || isNoisePacket(pkt, *fakeTCP) {
 				continue
 			}
 
@@ -121,7 +121,18 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, upPr
 	ipv4AppConn := ipv4.NewPacketConn(appConn)
 	msgs := prepareMsgsUDP()
 
-	txBuffers := make([][]byte, batchSize*2)
+	noiseSender, err := newPacketNoise(*noise)
+	if err != nil {
+		log.Fatalf("Initialize noise: %v", err)
+	}
+	framesPerDatagram := 1
+	if *fakeFrag {
+		framesPerDatagram++
+	}
+	if noiseSender != nil {
+		framesPerDatagram++
+	}
+	txBuffers := make([][]byte, batchSize*framesPerDatagram)
 	for i := range txBuffers {
 		txBuffers[i] = make([]byte, max(60, mtu+14))
 	}
@@ -129,10 +140,11 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, upPr
 	if err != nil {
 		log.Fatal(err)
 	}
-	frames := make([][]byte, 0, batchSize*2)
+	frames := make([][]byte, 0, len(txBuffers))
+	var pendingNoise noiseBatch
 	flush := func() {
 		if len(frames) > 0 {
-			if _, err := txSender.WriteBatch(frames); err != nil {
+			if _, err := pendingNoise.WriteBatch(txSender, frames); err != nil {
 				log.Printf("TX batch: %v", err)
 			}
 			frames = frames[:0]
@@ -175,6 +187,19 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, upPr
 
 		if *fakeFrag {
 			data = padData(data, 8, hdrLen)
+		}
+		var noiseSession *natSession
+		if noiseSender != nil {
+			noiseSession = nat.reverse[vPort].Load()
+		}
+		if noiseSession != nil && !noiseSession.noiseSent {
+			frame, err := noiseSender.Encode(encoder, txBuffers[len(frames)], vPort, dstPort)
+			if err != nil {
+				log.Printf("Noise encode error: %v", err)
+				continue
+			}
+			pendingNoise.queued(len(frames), &noiseSession.noiseSent)
+			frames = append(frames, frame)
 		}
 		frame, err := encoder.Encode(txBuffers[len(frames)], data, vPort, dstPort, ipId, ipFlags, 0, true)
 		if err != nil {

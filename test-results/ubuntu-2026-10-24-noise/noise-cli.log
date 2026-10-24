@@ -1,0 +1,4 @@
+unsupported noise configuration rejected: ['-mode', 'server', '-proto', '200']
+unsupported noise configuration rejected: ['-mode', 'server', '-proto', '17', '-fake-tcp']
+unsupported noise configuration rejected: ['-mode', 'client', '-remote-ip', '192.0.2.2', '-proto', '17', '-uplink-proto', '200']
+unsupported noise configuration rejected: ['-mode', 'server', '-proto', '17', '-downlink-proto', '200']

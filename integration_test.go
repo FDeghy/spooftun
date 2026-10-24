@@ -113,3 +113,43 @@ func TestServerOutboundPortIntegration(t *testing.T) {
 		})
 	}
 }
+
+func TestNoiseIntegration(t *testing.T) {
+	if os.Getenv("SPOOFTUN_NETNS_TEST") != "1" {
+		t.Skip("set SPOOFTUN_NETNS_TEST=1 to enable isolated Linux network tests")
+	}
+	for _, tc := range []struct{ backend, tx, side string }{
+		{"afpacket", "sendmmsg", "both"}, {"afpacket", "ring", "both"},
+		{"xdp", "sendmmsg", "both"}, {"afpacket", "sendmmsg", "client"},
+		{"afpacket", "sendmmsg", "server"},
+	} {
+		t.Run(tc.backend+"/"+tc.tx+"/"+tc.side, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+			defer cancel()
+			cmd := exec.CommandContext(ctx, "bash", "scripts/netns-test.sh", "--backend", tc.backend,
+				"--afpacket-tx", tc.tx, "--noise", "--noise-side", tc.side, "--outbound-port", "18082")
+			cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+			cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM) }
+			cmd.WaitDelay = 10 * time.Second
+			output, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("noise integration: %v\n%s", err, output)
+			}
+			var result struct {
+				Status  string `json:"status"`
+				Results []struct {
+					Status string `json:"status"`
+				} `json:"results"`
+			}
+			if err := json.Unmarshal(output, &result); err != nil || result.Status != "passed" || len(result.Results) != 2 {
+				t.Fatalf("invalid noise evidence: %v\n%s", err, output)
+			}
+			for _, mode := range result.Results {
+				if mode.Status != "passed" {
+					t.Fatalf("noise framing failed: %s", output)
+				}
+			}
+			t.Log(string(output))
+		})
+	}
+}

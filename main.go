@@ -100,6 +100,13 @@ func main() {
 	if *downProto >= 0 {
 		dnProto = uint8(*downProto)
 	}
+	outgoingProto := upProto
+	if *mode == "server" {
+		outgoingProto = dnProto
+	}
+	if *noise && (*fakeTCP || outgoingProto != 17) {
+		log.Fatal("-noise requires UDP framing and outgoing IP protocol 17")
+	}
 
 	if *mode == "client" {
 		if serverIP == nil {

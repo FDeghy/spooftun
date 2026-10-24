@@ -63,6 +63,7 @@ var (
 	fakeFrag       = flag.Bool("fake-frag", false, "Use fake frag only for *client uplink, must be enabled in *server to receiving fake frag packets")
 	filterDstIP    = flag.String("filter-dst-ip", "", "Destination IP for BPF capture filter (TCP/UDP proto). Use when -src-ip is spoofed and the on-wire dst IP differs. Defaults to -src-ip.")
 	fakeTCP        = flag.Bool("fake-tcp", false, "Use a TCP-shaped header instead of UDP for tunnel framing. Must match on both ends.")
+	noise          = flag.Bool("noise", false, "Send noise once per flow before its first datagram (UDP framing, outgoing protocol 17 only)")
 	tcpFlags       = flag.String("tcp-flags", "0x18", "TCP flag byte (hex or decimal) used with -fake-tcp. Examples: 0x18=PSH+ACK, 0x10=ACK, 0x02=SYN.")
 )
 

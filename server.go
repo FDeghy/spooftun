@@ -119,7 +119,7 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 
 		// Parse Ethernet + IPv4 (fixed-offset, no gopacket dispatch).
 		pkt, ok := parseEthIPv4(data)
-		if !ok {
+		if !ok || isNoisePacket(pkt, *fakeTCP) {
 			continue
 		}
 
@@ -204,14 +204,25 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 
 				// Use shared txSender from outer scope (concurrent writes are safe)
 
-				txBuffers := make([][]byte, batchSize)
+				noiseSender, err := newPacketNoise(*noise)
+				if err != nil {
+					log.Printf("Initialize reply noise: %v", err)
+					return
+				}
+				framesPerDatagram := 1
+				if noiseSender != nil {
+					framesPerDatagram++
+				}
+				noiseSent := false
+				txBuffers := make([][]byte, batchSize*framesPerDatagram)
 				for i := range txBuffers {
 					txBuffers[i] = make([]byte, max(60, mtu+14))
 				}
-				frames := make([][]byte, 0, batchSize)
+				frames := make([][]byte, 0, len(txBuffers))
+				var pendingNoise noiseBatch
 				flush := func() {
 					if len(frames) > 0 {
-						if _, err := txSender.WriteBatch(frames); err != nil {
+						if _, err := pendingNoise.WriteBatch(txSender, frames); err != nil {
 							log.Printf("TX batch: %v", err)
 						}
 						frames = frames[:0]
@@ -261,6 +272,15 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 					}
 					state.refresh(sessionActivityTime())
 					payload := msg.Buffers[0][:msg.N]
+					if noiseSender != nil && !noiseSent {
+						frame, err := noiseSender.Encode(encoder, txBuffers[len(frames)], tunnelPort, clientPort)
+						if err != nil {
+							log.Printf("Noise encode error: %v", err)
+							continue
+						}
+						pendingNoise.queued(len(frames), &noiseSent)
+						frames = append(frames, frame)
+					}
 
 					// Client filters match the original tunnel port, not the
 					// possibly remapped local application's port.

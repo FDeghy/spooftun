@@ -120,6 +120,25 @@ func BenchmarkNATGetSession(b *testing.B) {
 	}
 }
 
+func TestNATNoiseStateResetsOnSessionReplacement(t *testing.T) {
+	n := newNatTable()
+	ip := net.IPv4(192, 0, 2, 1)
+	port, err := n.GetOrCreateVirtualPort(ip, 1234)
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := n.reverse[port].Load()
+	old.noiseSent = true
+	n.expireSession(port, old, atomic.LoadInt64(&old.lastSeen))
+	if _, err := n.GetOrCreateVirtualPort(ip, 1234); err != nil {
+		t.Fatal(err)
+	}
+	replacement := n.reverse[port].Load()
+	if replacement == nil || replacement == old || replacement.noiseSent {
+		t.Fatal("replacement flow retained the old noise state")
+	}
+}
+
 func BenchmarkNATExistingFlow(b *testing.B) {
 	n := newNatTable()
 	ip := net.IPv4(192, 0, 2, 1)

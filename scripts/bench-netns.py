@@ -14,6 +14,7 @@ import time
 HERE = os.path.abspath(__file__)
 TARGET = ("127.0.0.1", 18080)
 LOCAL = ("127.0.0.1", 18081)
+NOISE_MAGIC = b"STNOISE\x01"
 
 
 def target(outbound_port=0, public=False):
@@ -41,7 +42,58 @@ def exchange(sock, data):
         raise AssertionError("datagram mismatch: sent %d, received %d" % (len(data), len(got)))
 
 
-def probe(limit, session):
+def verify_noise_capture(capture, side):
+    counts = {direction: {"noise": 0, "data": 0} for direction in ("client", "server")}
+    pending = {direction: None for direction in counts}
+    flows = {direction: set() for direction in counts}
+    while True:
+        try:
+            frame = capture.recv(65535)
+        except BlockingIOError:
+            break
+        if len(frame) < 42 or frame[12:14] != b"\x08\x00" or frame[23] != 17:
+            continue
+        if struct.unpack("!H", frame[20:22])[0] & 0x1fff:
+            continue  # The non-initial fake-fragment tail has no UDP header.
+        source = frame[26:30]
+        direction = "client" if source == bytes([192, 0, 2, 1]) else "server"
+        if source not in (bytes([192, 0, 2, 1]), bytes([192, 0, 2, 2])):
+            continue
+        total = struct.unpack("!H", frame[16:18])[0]
+        body = frame[14 + (frame[14] & 15) * 4:14 + total]
+        if len(body) < 8:
+            raise AssertionError("truncated captured UDP frame")
+        ports = body[:4]
+        noise = (len(body) == 40 and body[4:8] == b"\x00\x28\x00\x00" and
+                 body[8:16] == NOISE_MAGIC)
+        expected = side in ("both", direction)
+        if noise:
+            if not expected or pending[direction] is not None or ports in flows[direction]:
+                raise AssertionError("unexpected or repeated noise packet")
+            pending[direction] = ports
+            counts[direction]["noise"] += 1
+        else:
+            if expected and ports not in flows[direction] and pending[direction] != ports:
+                raise AssertionError("first data was not preceded by same-flow noise")
+            pending[direction] = None
+            flows[direction].add(ports)
+            counts[direction]["data"] += 1
+    for direction, count in counts.items():
+        if pending[direction] is not None or count["data"] == 0:
+            raise AssertionError("incomplete noise/data capture: %r pending=%r" % (counts, pending))
+        if side in ("both", direction) and count["noise"] != len(flows[direction]):
+            raise AssertionError("noise count does not match flow count")
+        count["flows"] = len(flows[direction])
+    return counts
+
+
+def probe(limit, session, noise_side=None, capture_noise=False):
+    capture = None
+    if capture_noise:
+        # ETH_P_ALL receives outgoing taps as well as incoming IPv4 frames.
+        capture = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(3))
+        capture.bind(("tun0", 0))
+        capture.setblocking(False)
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.settimeout(1.0)
     # Wait for ARP resolution and both receive loops to be ready.
@@ -68,6 +120,13 @@ def probe(limit, session):
             raise AssertionError("oversized %d-byte datagram returned %d bytes" % (size, len(got)))
     sock.settimeout(1.0)
     exchange(sock, b"after-oversize")
+    if noise_side:
+        # Marker-like application data has a normal nonzero UDP checksum.
+        exchange(sock, NOISE_MAGIC + bytes(24))
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as second:
+            second.settimeout(1)
+            exchange(second, b"second-flow-first")
+            exchange(second, b"second-flow-next")
     result = {"accepted_sizes": sizes, "oversized_dropped": [limit + 1, 4096, 65507]}
     if session:
         end = time.monotonic() + 3.2
@@ -82,6 +141,11 @@ def probe(limit, session):
             raise AssertionError("active one-way session changed source port or lost data: %r" % info)
         result["active_oneway_session"] = info
     sock.close()
+    if capture is not None:
+        result["noise_wire_order"] = verify_noise_capture(capture, noise_side)
+        capture.close()
+    elif noise_side:
+        result["noise_delivery"] = "application payloads preserved; wire capture covered by AF_PACKET runs"
     return result
 
 
@@ -242,6 +306,8 @@ def orchestrate(args):
         modes = [(200, args.bench_fake_tcp, False)]
     if args.verify_port_remap:
         modes = [(17, False, False)]
+    if args.noise:
+        modes = [(17, False, False), (17, False, True)]
     with tempfile.TemporaryDirectory(prefix="spooftun-netns-") as work:
         echo_log = open(os.path.join(work, "echo.log"), "w+")
         echo = run_in(args.server_ns, [sys.executable, HERE, "--target",
@@ -265,11 +331,13 @@ def orchestrate(args):
                         for endpoint in ("client", "server")}
                 try:
                     server = run_in(args.server_ns, [args.binary, "-mode", "server"] + common +
-                                    (["-outbound-port", str(args.outbound_port)] if args.outbound_port else []),
+                                    (["-outbound-port", str(args.outbound_port)] if args.outbound_port else []) +
+                                    (["-noise"] if args.noise and args.noise_side in ("both", "server") else []),
                                     stdout=logs["server"], stderr=logs["server"])
                     processes.append(server)
                     client = run_in(args.client_ns, [args.binary, "-mode", "client", "-listen", "127.0.0.1:18081",
-                                    "-remote-ip", "192.0.2.2"] + common,
+                                    "-remote-ip", "192.0.2.2"] + common +
+                                    (["-noise"] if args.noise and args.noise_side in ("both", "client") else []),
                                     stdout=logs["client"], stderr=logs["client"])
                     processes.append(client)
                     for _ in range(10):
@@ -282,6 +350,8 @@ def orchestrate(args):
                     checks = {"skipped": "baseline performance run"}
                     if not args.baseline:
                         command = [sys.executable, HERE, "--probe", "--limit", str(limit)]
+                        if args.noise:
+                            command += ["--noise", "--noise-side", args.noise_side, "--backend", args.backend]
                         if args.verify_port_remap:
                             command += ["--verify-port-remap"]
                             if not args.outbound_port:
@@ -369,6 +439,8 @@ def main():
     p.add_argument("--public-target", action="store_true", help="bind isolated test target on all addresses")
     p.add_argument("--verify-port-remap", action="store_true", help="check protocol-17 duplicate delivery")
     p.add_argument("--expect-duplicate", action="store_true")
+    p.add_argument("--noise", action="store_true", help="test protocol-17 noise before real data")
+    p.add_argument("--noise-side", choices=("both", "client", "server"), default="both")
     p.add_argument("--probe", action="store_true")
     p.add_argument("--limit", type=int)
     p.add_argument("--session", action="store_true")
@@ -382,7 +454,9 @@ def main():
         target(args.outbound_port, args.public_target)
         return
     if args.probe:
-        result = probe_duplicates(args.expect_duplicate) if args.verify_port_remap else probe(args.limit, args.session)
+        result = probe_duplicates(args.expect_duplicate) if args.verify_port_remap else probe(
+            args.limit, args.session, args.noise_side if args.noise else None,
+            args.noise and args.backend != "xdp")
     elif args.measure:
         result = benchmark(args.size, args.duration, [int(n) for n in args.pids.split(",")])
     else:
