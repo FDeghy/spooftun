@@ -4,13 +4,14 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/binary"
 	"errors"
 	"testing"
 )
 
 func TestNoiseFramingAndPayloadCollision(t *testing.T) {
-	n, err := newPacketNoise(true)
+	n, err := newPacketNoise(true, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,11 +76,11 @@ func TestNoiseFramingAndPayloadCollision(t *testing.T) {
 }
 
 func TestNoiseModeAndTruncation(t *testing.T) {
-	n, err := newPacketNoise(false)
+	n, err := newPacketNoise(false, nil)
 	if err != nil || n != nil {
 		t.Fatal("disabled noise initialized")
 	}
-	n, err = newPacketNoise(true)
+	n, err = newPacketNoise(true, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,6 +137,82 @@ func TestNoiseOnceStateTracksAcceptedFrames(t *testing.T) {
 			if mark.sent != nil {
 				t.Fatal("noise batch retained a session")
 			}
+		}
+	}
+}
+
+func TestNoiseBase64Content(t *testing.T) {
+	want := []byte{0, 255, 'h', 'e', 'l', 'l', 'o'}
+	for _, encoded := range []string{base64.StdEncoding.EncodeToString(want), base64.RawStdEncoding.EncodeToString(want)} {
+		content, err := decodeNoisePayload(" \n" + encoded + "\t")
+		if err != nil || !bytes.Equal(content, want) {
+			t.Fatalf("Base64 decode: %x %v", content, err)
+		}
+	}
+	for _, encoded := range []string{"%%%", "a", "AA===", "-_8="} {
+		if _, err := decodeNoisePayload(encoded); err == nil {
+			t.Fatalf("invalid standard Base64 accepted: %q", encoded)
+		}
+	}
+	if content, err := decodeNoisePayload(""); err != nil || content != nil {
+		t.Fatal("empty setting must select random noise")
+	}
+	if _, err := decodeNoisePayload(base64.StdEncoding.EncodeToString(make([]byte, 65500))); err == nil {
+		t.Fatal("oversized Base64 content accepted")
+	}
+}
+
+func TestNoiseCustomContentWireAndMTU(t *testing.T) {
+	e, _ := newTunnelEncoder(encoderSrcMAC, encoderDstMAC, encoderSrcIP, encoderDstIP, 17, false, 0)
+	for _, size := range []int{0, 1, 24, 1464} {
+		content := bytes.Repeat([]byte{0xff}, size)
+		if size == 0 {
+			content = make([]byte, 0)
+		}
+		want := bytes.Clone(content)
+		if err := validateNoisePayload(content, 1500); err != nil {
+			t.Fatal(err)
+		}
+		n, err := newPacketNoise(true, content)
+		if err != nil {
+			t.Fatal(err)
+		}
+		clear(content) // Sender must own its configured content.
+		storage := make([]byte, 1514)
+		frame, err := n.Encode(e, storage, 12345, 40000)
+		if err != nil {
+			t.Fatal(err)
+		}
+		p, ok := parseEthIPv4(frame)
+		if !ok || !isNoisePacket(p, false) {
+			t.Fatalf("custom noise not recognized at size %d", size)
+		}
+		_, _, payload, ok := parseFakeTransport(p.payload, false)
+		if !ok || !bytes.Equal(payload[len(noiseMagic):], want) || len(payload) != len(noiseMagic)+size {
+			t.Fatalf("custom content changed at size %d", size)
+		}
+		if encoderFoldChecksum(encoderChecksumSum(frame[14:34], 0)) != 0 {
+			t.Fatal("invalid custom noise IP checksum")
+		}
+		real, err := e.Encode(make([]byte, 1514), payload, 12345, 40000, 0, 0x4000, 0, true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		realPacket, _ := parseEthIPv4(real)
+		if isNoisePacket(realPacket, false) {
+			t.Fatal("identical real app content was classified as noise")
+		}
+		if allocs := testing.AllocsPerRun(100, func() {
+			if _, err := n.Encode(e, storage, 12345, 40000); err != nil {
+				panic(err)
+			}
+		}); allocs != 0 {
+			t.Fatalf("custom encoding allocated %g objects", allocs)
+		}
+	}
+	for _, tc := range []struct{ size, mtu int }{{1465, 1500}, {33, 68}} {
+		if err := validateNoisePayload(make([]byte, tc.size), tc.mtu); err == nil {
+			t.Fatalf("oversized noise accepted: %v", tc)
 		}
 	}
 }

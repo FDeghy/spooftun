@@ -30,6 +30,14 @@ import (
 
 func main() {
 	flag.Parse()
+	if *noisePayload != "" && !*noise {
+		log.Fatal("-noise-payload requires -noise")
+	}
+	var payloadErr error
+	noiseContent, payloadErr = decodeNoisePayload(*noisePayload)
+	if payloadErr != nil {
+		log.Fatalf("Invalid -noise-payload: %v", payloadErr)
+	}
 	if *backend != "afpacket" && *backend != "xdp" {
 		log.Fatal("Invalid -backend: use afpacket or xdp")
 	}

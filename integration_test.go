@@ -118,16 +118,25 @@ func TestNoiseIntegration(t *testing.T) {
 	if os.Getenv("SPOOFTUN_NETNS_TEST") != "1" {
 		t.Skip("set SPOOFTUN_NETNS_TEST=1 to enable isolated Linux network tests")
 	}
-	for _, tc := range []struct{ backend, tx, side string }{
-		{"afpacket", "sendmmsg", "both"}, {"afpacket", "ring", "both"},
-		{"xdp", "sendmmsg", "both"}, {"afpacket", "sendmmsg", "client"},
-		{"afpacket", "sendmmsg", "server"},
+	for _, tc := range []struct{ backend, tx, side, payload string }{
+		{"afpacket", "sendmmsg", "both", ""}, {"afpacket", "ring", "both", ""},
+		{"xdp", "sendmmsg", "both", ""}, {"afpacket", "sendmmsg", "client", ""},
+		{"afpacket", "sendmmsg", "server", ""},
+		{"afpacket", "sendmmsg", "client", "AP9oZWxsbw=="},
+		{"xdp", "sendmmsg", "both", "AP9oZWxsbw"},
 	} {
-		t.Run(tc.backend+"/"+tc.tx+"/"+tc.side, func(t *testing.T) {
+		name := tc.backend + "/" + tc.tx + "/" + tc.side
+		if tc.payload != "" {
+			name += "/base64"
+		}
+		t.Run(name, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 			defer cancel()
 			cmd := exec.CommandContext(ctx, "bash", "scripts/netns-test.sh", "--backend", tc.backend,
 				"--afpacket-tx", tc.tx, "--noise", "--noise-side", tc.side, "--outbound-port", "18082")
+			if tc.payload != "" {
+				cmd.Args = append(cmd.Args, "--noise-payload", tc.payload)
+			}
 			cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 			cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM) }
 			cmd.WaitDelay = 10 * time.Second

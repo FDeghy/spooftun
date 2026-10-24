@@ -71,6 +71,11 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 	}
 	maxReply := payloadLimit(mtu, *fakeTCP, false)
 	maxUplink := payloadLimit(mtu, *fakeTCP, *fakeFrag)
+	if *noise {
+		if err := validateNoisePayload(noiseContent, mtu); err != nil {
+			log.Fatal(err)
+		}
+	}
 	// Get interface info
 	srcMAC, ifaceIP, err := getInterfaceInfo(iface)
 	if err != nil {
@@ -204,7 +209,7 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 
 				// Use shared txSender from outer scope (concurrent writes are safe)
 
-				noiseSender, err := newPacketNoise(*noise)
+				noiseSender, err := newPacketNoise(*noise, noiseContent)
 				if err != nil {
 					log.Printf("Initialize reply noise: %v", err)
 					return

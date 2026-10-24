@@ -1,0 +1,5 @@
+requires-noise rejected before packet I/O
+invalid-base64 rejected before packet I/O
+mtu-1500 rejected before packet I/O
+mtu-68 rejected before packet I/O
+global-limit rejected before packet I/O

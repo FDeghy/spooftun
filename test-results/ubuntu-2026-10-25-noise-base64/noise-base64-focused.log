@@ -1,0 +1,82 @@
+=== RUN   TestNoiseBase64Content
+--- PASS: TestNoiseBase64Content (0.01s)
+=== RUN   TestNoiseCustomContentWireAndMTU
+--- PASS: TestNoiseCustomContentWireAndMTU (0.01s)
+=== RUN   TestNoiseBase64Content
+--- PASS: TestNoiseBase64Content (0.01s)
+=== RUN   TestNoiseCustomContentWireAndMTU
+--- PASS: TestNoiseCustomContentWireAndMTU (0.01s)
+=== RUN   TestNoiseBase64Content
+--- PASS: TestNoiseBase64Content (0.01s)
+=== RUN   TestNoiseCustomContentWireAndMTU
+--- PASS: TestNoiseCustomContentWireAndMTU (0.01s)
+=== RUN   TestNoiseBase64Content
+--- PASS: TestNoiseBase64Content (0.02s)
+=== RUN   TestNoiseCustomContentWireAndMTU
+--- PASS: TestNoiseCustomContentWireAndMTU (0.01s)
+=== RUN   TestNoiseBase64Content
+--- PASS: TestNoiseBase64Content (0.01s)
+=== RUN   TestNoiseCustomContentWireAndMTU
+--- PASS: TestNoiseCustomContentWireAndMTU (0.01s)
+=== RUN   TestNoiseBase64Content
+--- PASS: TestNoiseBase64Content (0.01s)
+=== RUN   TestNoiseCustomContentWireAndMTU
+--- PASS: TestNoiseCustomContentWireAndMTU (0.01s)
+=== RUN   TestNoiseBase64Content
+--- PASS: TestNoiseBase64Content (0.01s)
+=== RUN   TestNoiseCustomContentWireAndMTU
+--- PASS: TestNoiseCustomContentWireAndMTU (0.01s)
+=== RUN   TestNoiseBase64Content
+--- PASS: TestNoiseBase64Content (0.01s)
+=== RUN   TestNoiseCustomContentWireAndMTU
+--- PASS: TestNoiseCustomContentWireAndMTU (0.01s)
+=== RUN   TestNoiseBase64Content
+--- PASS: TestNoiseBase64Content (0.00s)
+=== RUN   TestNoiseCustomContentWireAndMTU
+--- PASS: TestNoiseCustomContentWireAndMTU (0.00s)
+=== RUN   TestNoiseBase64Content
+--- PASS: TestNoiseBase64Content (0.00s)
+=== RUN   TestNoiseCustomContentWireAndMTU
+--- PASS: TestNoiseCustomContentWireAndMTU (0.00s)
+=== RUN   TestNoiseBase64Content
+--- PASS: TestNoiseBase64Content (0.00s)
+=== RUN   TestNoiseCustomContentWireAndMTU
+--- PASS: TestNoiseCustomContentWireAndMTU (0.00s)
+=== RUN   TestNoiseBase64Content
+--- PASS: TestNoiseBase64Content (0.01s)
+=== RUN   TestNoiseCustomContentWireAndMTU
+--- PASS: TestNoiseCustomContentWireAndMTU (0.01s)
+=== RUN   TestNoiseBase64Content
+--- PASS: TestNoiseBase64Content (0.01s)
+=== RUN   TestNoiseCustomContentWireAndMTU
+--- PASS: TestNoiseCustomContentWireAndMTU (0.01s)
+=== RUN   TestNoiseBase64Content
+--- PASS: TestNoiseBase64Content (0.01s)
+=== RUN   TestNoiseCustomContentWireAndMTU
+--- PASS: TestNoiseCustomContentWireAndMTU (0.01s)
+=== RUN   TestNoiseBase64Content
+--- PASS: TestNoiseBase64Content (0.01s)
+=== RUN   TestNoiseCustomContentWireAndMTU
+--- PASS: TestNoiseCustomContentWireAndMTU (0.01s)
+=== RUN   TestNoiseBase64Content
+--- PASS: TestNoiseBase64Content (0.01s)
+=== RUN   TestNoiseCustomContentWireAndMTU
+--- PASS: TestNoiseCustomContentWireAndMTU (0.01s)
+=== RUN   TestNoiseBase64Content
+--- PASS: TestNoiseBase64Content (0.01s)
+=== RUN   TestNoiseCustomContentWireAndMTU
+--- PASS: TestNoiseCustomContentWireAndMTU (0.01s)
+=== RUN   TestNoiseBase64Content
+--- PASS: TestNoiseBase64Content (0.01s)
+=== RUN   TestNoiseCustomContentWireAndMTU
+--- PASS: TestNoiseCustomContentWireAndMTU (0.01s)
+=== RUN   TestNoiseBase64Content
+--- PASS: TestNoiseBase64Content (0.01s)
+=== RUN   TestNoiseCustomContentWireAndMTU
+--- PASS: TestNoiseCustomContentWireAndMTU (0.01s)
+=== RUN   TestNoiseBase64Content
+--- PASS: TestNoiseBase64Content (0.01s)
+=== RUN   TestNoiseCustomContentWireAndMTU
+--- PASS: TestNoiseCustomContentWireAndMTU (0.01s)
+PASS
+ok  	spooftun	1.769s

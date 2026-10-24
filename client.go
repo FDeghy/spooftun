@@ -22,6 +22,11 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, upPr
 		log.Fatal(err)
 	}
 	maxPayload := payloadLimit(mtu, *fakeTCP, *fakeFrag)
+	if *noise {
+		if err := validateNoisePayload(noiseContent, mtu); err != nil {
+			log.Fatal(err)
+		}
+	}
 	// Get interface info
 	srcMAC, ifaceIP, err := getInterfaceInfo(iface)
 	if err != nil {
@@ -121,7 +126,7 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, upPr
 	ipv4AppConn := ipv4.NewPacketConn(appConn)
 	msgs := prepareMsgsUDP()
 
-	noiseSender, err := newPacketNoise(*noise)
+	noiseSender, err := newPacketNoise(*noise, noiseContent)
 	if err != nil {
 		log.Fatalf("Initialize noise: %v", err)
 	}

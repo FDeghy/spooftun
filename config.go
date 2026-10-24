@@ -64,8 +64,12 @@ var (
 	filterDstIP    = flag.String("filter-dst-ip", "", "Destination IP for BPF capture filter (TCP/UDP proto). Use when -src-ip is spoofed and the on-wire dst IP differs. Defaults to -src-ip.")
 	fakeTCP        = flag.Bool("fake-tcp", false, "Use a TCP-shaped header instead of UDP for tunnel framing. Must match on both ends.")
 	noise          = flag.Bool("noise", false, "Send noise once per flow before its first datagram (UDP framing, outgoing protocol 17 only)")
+	noisePayload   = flag.String("noise-payload", "", "Base64 noise content after the internal marker (empty uses random content; requires -noise)")
 	tcpFlags       = flag.String("tcp-flags", "0x18", "TCP flag byte (hex or decimal) used with -fake-tcp. Examples: 0x18=PSH+ACK, 0x10=ACK, 0x02=SYN.")
 )
 
 // tcpFlagByte is parsed from -tcp-flags at startup.
 var tcpFlagByte uint8
+
+// Decoded once at startup and read-only for all flow senders. Nil selects random.
+var noiseContent []byte

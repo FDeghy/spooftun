@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Isolated correctness and bounded echo benchmark harness; stdlib only."""
 import argparse
+import base64
 import json
 import os
 import select
@@ -42,7 +43,7 @@ def exchange(sock, data):
         raise AssertionError("datagram mismatch: sent %d, received %d" % (len(data), len(got)))
 
 
-def verify_noise_capture(capture, side):
+def verify_noise_capture(capture, side, content=None):
     counts = {direction: {"noise": 0, "data": 0} for direction in ("client", "server")}
     pending = {direction: None for direction in counts}
     flows = {direction: set() for direction in counts}
@@ -64,10 +65,12 @@ def verify_noise_capture(capture, side):
         if len(body) < 8:
             raise AssertionError("truncated captured UDP frame")
         ports = body[:4]
-        noise = (len(body) == 40 and body[4:8] == b"\x00\x28\x00\x00" and
+        noise = (len(body) >= 16 and struct.unpack("!H", body[4:6])[0] == len(body) and body[6:8] == b"\x00\x00" and
                  body[8:16] == NOISE_MAGIC)
         expected = side in ("both", direction)
         if noise:
+            if content is not None and body[16:] != content:
+                raise AssertionError("decoded custom noise content changed on the wire")
             if not expected or pending[direction] is not None or ports in flows[direction]:
                 raise AssertionError("unexpected or repeated noise packet")
             pending[direction] = ports
@@ -87,7 +90,8 @@ def verify_noise_capture(capture, side):
     return counts
 
 
-def probe(limit, session, noise_side=None, capture_noise=False):
+def probe(limit, session, noise_side=None, capture_noise=False, noise_payload=""):
+    content = base64.b64decode(noise_payload + "=" * (-len(noise_payload) % 4)) if noise_payload else None
     capture = None
     if capture_noise:
         # ETH_P_ALL receives outgoing taps as well as incoming IPv4 frames.
@@ -122,7 +126,9 @@ def probe(limit, session, noise_side=None, capture_noise=False):
     exchange(sock, b"after-oversize")
     if noise_side:
         # Marker-like application data has a normal nonzero UDP checksum.
-        exchange(sock, NOISE_MAGIC + bytes(24))
+        marker_data = NOISE_MAGIC + (content if content is not None else bytes(24))
+        if len(marker_data) <= limit:
+            exchange(sock, marker_data)
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as second:
             second.settimeout(1)
             exchange(second, b"second-flow-first")
@@ -142,7 +148,7 @@ def probe(limit, session, noise_side=None, capture_noise=False):
         result["active_oneway_session"] = info
     sock.close()
     if capture is not None:
-        result["noise_wire_order"] = verify_noise_capture(capture, noise_side)
+        result["noise_wire_order"] = verify_noise_capture(capture, noise_side, content)
         capture.close()
     elif noise_side:
         result["noise_delivery"] = "application payloads preserved; wire capture covered by AF_PACKET runs"
@@ -316,6 +322,7 @@ def orchestrate(args):
                       stdout=echo_log, stderr=echo_log)
         try:
             for proto, tcp, frag in modes:
+                noise_options = ["-noise"] + (["-noise-payload", args.noise_payload] if args.noise_payload else [])
                 common = ["-iface", "tun0", "-target-port", "18080", "-proto", str(proto)]
                 if not args.baseline:
                     common += ["-session-timeout", "1s", "-backend", args.backend,
@@ -332,12 +339,12 @@ def orchestrate(args):
                 try:
                     server = run_in(args.server_ns, [args.binary, "-mode", "server"] + common +
                                     (["-outbound-port", str(args.outbound_port)] if args.outbound_port else []) +
-                                    (["-noise"] if args.noise and args.noise_side in ("both", "server") else []),
+                                    (noise_options if args.noise and args.noise_side in ("both", "server") else []),
                                     stdout=logs["server"], stderr=logs["server"])
                     processes.append(server)
                     client = run_in(args.client_ns, [args.binary, "-mode", "client", "-listen", "127.0.0.1:18081",
                                     "-remote-ip", "192.0.2.2"] + common +
-                                    (["-noise"] if args.noise and args.noise_side in ("both", "client") else []),
+                                    (noise_options if args.noise and args.noise_side in ("both", "client") else []),
                                     stdout=logs["client"], stderr=logs["client"])
                     processes.append(client)
                     for _ in range(10):
@@ -352,6 +359,8 @@ def orchestrate(args):
                         command = [sys.executable, HERE, "--probe", "--limit", str(limit)]
                         if args.noise:
                             command += ["--noise", "--noise-side", args.noise_side, "--backend", args.backend]
+                            if args.noise_payload:
+                                command += ["--noise-payload", args.noise_payload]
                         if args.verify_port_remap:
                             command += ["--verify-port-remap"]
                             if not args.outbound_port:
@@ -441,6 +450,7 @@ def main():
     p.add_argument("--expect-duplicate", action="store_true")
     p.add_argument("--noise", action="store_true", help="test protocol-17 noise before real data")
     p.add_argument("--noise-side", choices=("both", "client", "server"), default="both")
+    p.add_argument("--noise-payload", default="", help="Base64 content for noise sender tests")
     p.add_argument("--probe", action="store_true")
     p.add_argument("--limit", type=int)
     p.add_argument("--session", action="store_true")
@@ -456,7 +466,7 @@ def main():
     if args.probe:
         result = probe_duplicates(args.expect_duplicate) if args.verify_port_remap else probe(
             args.limit, args.session, args.noise_side if args.noise else None,
-            args.noise and args.backend != "xdp")
+            args.noise and args.backend != "xdp", args.noise_payload)
     elif args.measure:
         result = benchmark(args.size, args.duration, [int(n) for n in args.pids.split(",")])
     else:

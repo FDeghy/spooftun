@@ -92,7 +92,8 @@ not a solution to a packet-processing bottleneck.
 | `-listen` | `127.0.0.1:1001` | client | Local UDP address applications send to. |
 | `-target-port` | `8080` | both | Tunnel destination port encoded by the client; server capture port for protocols 6/17. Also the local application port unless the server sets `-outbound-port`. |
 | `-outbound-port` | `0` | server | Local UDP destination port on `127.0.0.1`. Zero preserves the incoming tunnel destination port. Replies retain the original tunnel port on the wire. |
-| `-noise` | `false` | both | Send one marked 32-byte noise payload before the first outgoing datagram of each flow. Requires UDP framing and outgoing protocol 17. |
+| `-noise` | `false` | both | Send one marked noise packet before the first outgoing datagram of each flow. Requires UDP framing and outgoing protocol 17. |
+| `-noise-payload` | *(empty)* | noise sender | Standard Base64 content, padded or unpadded. Decoded bytes follow the internal 8-byte marker. Empty uses the default random content. Requires `-noise`. |
 | `-proto` | `200` | both | Custom IP protocol number (0–255) for both directions. |
 | `-uplink-proto` | `-1` | both | IP protocol for client→server packets. Overrides `-proto` for that direction; `-1` inherits `-proto`. |
 | `-downlink-proto` | `-1` | both | IP protocol for server→client packets. Overrides `-proto` for that direction; `-1` inherits `-proto`. |
@@ -159,18 +160,37 @@ sudo ./spooftun -mode client -proto 17 -target-port 40000 -remote-ip SERVER_IP -
 
 The first datagram of each flow is preceded by one standalone UDP noise
 datagram with the same source/destination addresses and ports. Later datagrams
-in that session send no more noise. Its 32-byte payload contains a version
-marker and 24 pseudorandom bytes. The sender queues noise before real data in
-the same transmit batch; network delivery can still lose or reorder packets.
+in that session send no more noise. By default its 32-byte UDP payload contains
+an 8-byte version marker and 24 pseudorandom bytes. The sender queues noise
+before real data in the same transmit batch; network delivery can still lose
+or reorder packets.
 With `-fake-frag`, noise precedes the first datagram's real first fragment, not its final fake tail.
 No traffic is generated while idle. Mixed directional protocol configurations
 are supported when the enabled endpoint's outgoing protocol is 17.
 Client noise state follows its NAT session; server noise precedes the first
 reply of each server session. A new session after expiry can send noise again.
 
-Upgrade **both peers** before enabling noise. Updated receivers discard the
-marked packets before NAT/session activity, padding removal or local delivery,
-even if they do not enable `-noise` themselves. Real-data framing and MTU limits
+To supply noise content as Base64:
+
+```sh
+# aGVsbG8= decodes to the five bytes "hello".
+sudo ./spooftun -mode client -proto 17 -target-port 40000 -remote-ip SERVER_IP \
+    -noise -noise-payload 'aGVsbG8='
+```
+
+The resulting UDP payload is the 8-byte internal marker followed by `hello`.
+The marker is retained so the peer can discard noise without knowing your
+chosen content. Content may contain arbitrary binary bytes. Standard padded
+and unpadded Base64 are supported; malformed input is rejected. The decoded
+content plus marker must fit `min(-mtu, interface MTU) - 28` bytes, so at MTU
+1500 the custom content limit is **1464 bytes**. It is checked before opening
+packet sockets. This limit also applies with fake fragmentation, because the
+noise packet itself is unfragmented.
+
+Upgrade **both peers** before enabling noise or custom-length noise content.
+Updated receivers discard the marked packets before NAT/session activity,
+padding removal or local delivery, even if they do not enable `-noise`
+themselves. Real-data framing and MTU limits
 are unchanged. Noise uses the legal IPv4 UDP zero-checksum form plus its marker;
 real tunnel data always carries a nonzero UDP checksum, so an application's
 identical payload is preserved. See [RFC 768](https://www.rfc-editor.org/rfc/rfc768).
@@ -178,12 +198,14 @@ identical payload is preserved. See [RFC 768](https://www.rfc-editor.org/rfc/rfc
 For AF_PACKET, retain the [ingress isolation rules](#kernel-processing-of-tunnel-frames)
 on both endpoints: userspace discarding cannot prevent Linux from directly
 delivering a matching noise UDP packet to an application. Separate server
-`-outbound-port` and tunnel ports as shown above. Noise adds one packet and a
-74-byte Ethernet frame (before FCS/preamble/link overhead) per enabled flow,
-increasing packet-processing and bandwidth costs. It is disabled by default.
+`-outbound-port` and tunnel ports as shown above. Default noise adds one packet
+and a 74-byte Ethernet frame (before FCS/preamble/link overhead) per enabled flow;
+custom content changes the frame length. Noise increases packet-processing
+and bandwidth costs and is disabled by default.
 
 Wire-order and application-delivery checks are recorded in the
-[noise validation results](test-results/ubuntu-2026-10-24-noise/).
+[noise validation results](test-results/ubuntu-2026-10-24-noise/) and
+[Base64 content validation results](test-results/ubuntu-2026-10-25-noise-base64/).
 
 ## Performance and validation
 
