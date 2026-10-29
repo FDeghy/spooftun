@@ -2,6 +2,7 @@
 spooftun
 *.test
 /dist/
+__pycache__/
 
 # Local assistant configuration and generated knowledge-graph artifacts.
 /.claude/

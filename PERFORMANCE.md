@@ -1,5 +1,9 @@
 # Packet-path changes and validation
 
+The optional TC eBPF backend now bypasses userspace forwarding for fixed peers.
+Its real WireGuard results and equal-throughput CPU comparisons are documented
+in [TC_BACKEND.md](TC_BACKEND.md#measurements-on-the-two-vcpu-test-server).
+
 For the latest native UDP and actual WireGuard capacity tests, see
 [the 2026-10-29 results](#udp-receive-and-capacity-tests--2026-10-29).
 The earlier sections retain their original echo-test methodology and results.
@@ -399,10 +403,9 @@ The external projects suggest two distinct directions:
   It moves a small header-adjacent region rather than copying the whole payload.
   Its published benchmark uses a newer CPU and is marked for retesting.
   A separate kernel rewrite backend is the most promising architectural
-  experiment for WireGuard; it is **not implemented here**. Current AF_XDP
-  still sends packets through userspace. Spoofed return mapping, arbitrary
-  flags, checksums/offloads, noise and fragmentation need explicit compatibility
-  design before such a backend can replace the present path.
+  experiment for WireGuard. The subsequent [TC backend](TC_BACKEND.md) now
+  implements a fixed-peer version with spoofing and custom flags; noise and
+  fragmentation remain unsupported. AF_XDP still sends packets through userspace.
 
 ### Reproduction and validation
 

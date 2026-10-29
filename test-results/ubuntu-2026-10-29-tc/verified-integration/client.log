@@ -1,0 +1,2 @@
+2026/10/29 21:00:46 packet backend=tc ready iface=tun0 veth=stce9dc3081a/stce9dc3081b local=198.18.0.1:51820 endpoint=198.18.0.2:40000 outer-mtu=1500
+2026/10/29 21:00:48 TC kernel packets tx=40 rx=41 dropped=1

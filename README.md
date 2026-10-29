@@ -2,7 +2,8 @@
 
 A Linux UDP tunnel that carries traffic under a configurable **custom IP
 protocol number**. Choose AF_PACKET (TPACKET_V3 receive with sendmmsg or TX-ring
-transmit) or AF_XDP (eBPF redirect with automatic zero-copy/copy selection).
+transmit), AF_XDP (eBPF redirect with automatic zero-copy/copy selection), or
+the optional [TC kernel rewrite backend](TC_BACKEND.md) for a fixed IPv4 peer.
 It supports source-IP spoofing, per-flow NAT, fake TCP-shaped framing and
 fake IP fragmentation.
 
@@ -27,6 +28,11 @@ fake IP fragmentation.
 
 AF_PACKET receives frames before normal IP processing. Copies can still reach the host IP stack; the tunnel itself parses cosmetic transport framing directly.
 
+The diagram above describes AF_PACKET and AF_XDP. `-backend tc` instead
+rewrites packets in kernel eBPF and bypasses the local UDP/userspace forwarder.
+It uses a virtual UDP endpoint, a fixed application port and narrower framing
+options. See [TC setup and limitations](TC_BACKEND.md) before switching.
+
 ## Requirements
 
 - **Linux** (the whole program is behind a `//go:build linux` tag).
@@ -34,6 +40,8 @@ AF_PACKET receives frames before normal IP processing. Copies can still reach th
   `CAP_NET_RAW`; AF_XDP also needs permission to load and attach eBPF/XDP
   programs. See [backend requirements](PACKET_BACKENDS.md#selection-and-lifecycle).
 - **Go 1.27.3** to build. Classic BPF is assembled in Go; libpcap and cgo are not required.
+- **TC backend only:** Linux 6.6+ with TCX, plus runtime `ip`, `tc` and `ethtool`.
+  The embedded BPF object needs no runtime compiler; see [TC_BACKEND.md](TC_BACKEND.md).
 
 ## Build
 
@@ -82,7 +90,11 @@ not a solution to a packet-processing bottleneck.
 | Flag | Default | Applies to | Description |
 |------|---------|-----------|-------------|
 | `-mode` | `client` | both | `client` or `server`. |
-| `-backend` | `afpacket` | both | `afpacket` or `xdp`; independent of the peer's backend. |
+| `-backend` | `afpacket` | both | `afpacket`, `xdp` or `tc`. TC uses a fixed-peer virtual endpoint; see [TC_BACKEND.md](TC_BACKEND.md). |
+| `-tc-local-port` | `0` | TC | Required fixed UDP port of the local application. |
+| `-tc-peer-port` | `0` | TC server | Required fixed UDP port of the remote client application. Omit on the client. |
+| `-tc-address` | `198.18.0.1/30` | TC | Unused IPv4 network+1 address for the owned virtual interface; network+2 is the synthetic peer endpoint. |
+| `-tc-peer-src-ip` | *(remote-ip)* | TC | Expected incoming wire source IP. Set this when the peer spoofs its source. |
 | `-udp-gro` | `false` | both | Coalesce local UDP receives when supported, then preserve individual datagrams. Uses about 1 MiB of receive storage per local socket; see performance notes. |
 | `-afpacket-tx` | `sendmmsg` | AF_PACKET | `sendmmsg` or `ring` (PACKET_TX_RING). Ignored by XDP. |
 | `-ring-mb` | `16` | AF_PACKET | Receive-ring budget in MiB; does not set TX-ring or XDP UMEM size. |
@@ -105,6 +117,12 @@ not a solution to a packet-processing bottleneck.
 | `-tcp-flags` | `0x18` | both | TCP flag byte (hex or decimal) used with `-fake-tcp`, e.g. `0x18`=PSH+ACK, `0x10`=ACK, `0x02`=SYN. |
 | `-fake-frag` | `false` | both | Shape client uplink packets as IP fragments (with a decoy trailing fragment). Must be enabled on both ends: the client emits them, the server strips the padding. |
 
+TC requires `-remote-ip` on both endpoints and `-proto 6 -fake-tcp`. It rejects
+`-fake-frag`, `-noise` and `-udp-gro`. `-listen` does not create a listener in TC
+mode; applications bind their fixed port on wildcard or the TC local address.
+An optional server `-outbound-port` must equal `-tc-local-port`. Other local
+forwarder/NAT settings in the table describe AF_PACKET/AF_XDP.
+
 ### Direction terminology
 
 - **Uplink** = client → server.
@@ -116,7 +134,7 @@ directions asymmetrically).
 
 ## File layout
 
-All files are `package main` under the `//go:build linux` constraint.
+Go files are `package main` under the `//go:build linux` constraint.
 
 | File | Responsibility |
 |------|----------------|
@@ -133,6 +151,8 @@ All files are `package main` under the `//go:build linux` constraint.
 | `tx_ring.go` | Dedicated TPACKET_V2 mmap transmit ring. |
 | `xdp.go` | AF_XDP sockets, UMEM ownership, fallback and resource lifecycle. |
 | `xdp_filter.go` | eBPF tunnel redirect filter; unrelated traffic passes. |
+| `kernel_tc.go` | Fixed-peer TCX setup, dedicated veth lifecycle and kernel counters. |
+| `bpf/tc.c` | Kernel UDP/fake-TCP rewrite programs; embedded object generated at build time. |
 | `udp_receive.go` | Allocation-free local UDP recvmmsg, address decoding and optional GRO splitting. |
 | `local_udp.go` | Local UDP sendmmsg/GSO writes, fallback, and socket-buffer verification. |
 | `local_forwarder.go` | Bounded local-delivery queue with owned packet storage. |
@@ -313,8 +333,14 @@ from normal kernel delivery when redirection succeeds.
 
 ## Packet backends
 
-AF_PACKET remains the default. Both choices use the same tunnel wire format,
+AF_PACKET remains the default. AF_PACKET and AF_XDP use the same tunnel wire format,
 NAT, local UDP forwarding, MTU checks, and shaping flags.
+
+For fixed-peer WireGuard traffic, `-backend tc` avoids the userspace packet
+forwarder by rewriting packets in kernel eBPF. It requires a virtual endpoint
+and fixed application ports, and supports protocol 6/fake TCP including custom
+flags and source spoofing. Follow the separate [TC setup guide](TC_BACKEND.md);
+adding `-backend tc` to an existing loopback-forwarder command is insufficient.
 
 ```sh
 # Existing receive path; choose the raw transmitter explicitly for comparison.

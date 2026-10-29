@@ -1,0 +1,456 @@
+=== RUN   TestCaptureFilter
+=== RUN   TestCaptureFilter/proto=6/client=false/frag=false
+=== RUN   TestCaptureFilter/proto=6/client=false/frag=true
+=== RUN   TestCaptureFilter/proto=6/client=true/frag=false
+=== RUN   TestCaptureFilter/proto=6/client=true/frag=true
+=== RUN   TestCaptureFilter/proto=17/client=false/frag=false
+=== RUN   TestCaptureFilter/proto=17/client=false/frag=true
+=== RUN   TestCaptureFilter/proto=17/client=true/frag=false
+=== RUN   TestCaptureFilter/proto=17/client=true/frag=true
+=== RUN   TestCaptureFilter/proto=253/client=false/frag=false
+=== RUN   TestCaptureFilter/proto=253/client=false/frag=true
+=== RUN   TestCaptureFilter/proto=253/client=true/frag=false
+=== RUN   TestCaptureFilter/proto=253/client=true/frag=true
+--- PASS: TestCaptureFilter (0.01s)
+    --- PASS: TestCaptureFilter/proto=6/client=false/frag=false (0.00s)
+    --- PASS: TestCaptureFilter/proto=6/client=false/frag=true (0.00s)
+    --- PASS: TestCaptureFilter/proto=6/client=true/frag=false (0.00s)
+    --- PASS: TestCaptureFilter/proto=6/client=true/frag=true (0.00s)
+    --- PASS: TestCaptureFilter/proto=17/client=false/frag=false (0.00s)
+    --- PASS: TestCaptureFilter/proto=17/client=false/frag=true (0.00s)
+    --- PASS: TestCaptureFilter/proto=17/client=true/frag=false (0.00s)
+    --- PASS: TestCaptureFilter/proto=17/client=true/frag=true (0.00s)
+    --- PASS: TestCaptureFilter/proto=253/client=false/frag=false (0.00s)
+    --- PASS: TestCaptureFilter/proto=253/client=false/frag=true (0.00s)
+    --- PASS: TestCaptureFilter/proto=253/client=true/frag=false (0.00s)
+    --- PASS: TestCaptureFilter/proto=253/client=true/frag=true (0.00s)
+=== RUN   TestCaptureFilterUnrestrictedPort
+--- PASS: TestCaptureFilterUnrestrictedPort (0.00s)
+=== RUN   TestCaptureFilterKernel
+--- PASS: TestCaptureFilterKernel (0.00s)
+=== RUN   TestTunnelEncoderMatchesSerializer
+--- PASS: TestTunnelEncoderMatchesSerializer (0.05s)
+=== RUN   TestTunnelEncoderFakeFragmentPair
+--- PASS: TestTunnelEncoderFakeFragmentPair (0.00s)
+=== RUN   TestTunnelEncoderValidationAndReuse
+--- PASS: TestTunnelEncoderValidationAndReuse (0.01s)
+=== RUN   TestTunnelEncoderUDPZeroChecksum
+--- PASS: TestTunnelEncoderUDPZeroChecksum (0.00s)
+=== RUN   TestFakeFramingRoundTrip
+=== RUN   TestFakeFramingRoundTrip/udp
+=== RUN   TestFakeFramingRoundTrip/tcp
+=== RUN   TestFakeFramingRoundTrip/fragmented_udp
+=== RUN   TestFakeFramingRoundTrip/fragmented_tcp
+--- PASS: TestFakeFramingRoundTrip (0.00s)
+    --- PASS: TestFakeFramingRoundTrip/udp (0.00s)
+    --- PASS: TestFakeFramingRoundTrip/tcp (0.00s)
+    --- PASS: TestFakeFramingRoundTrip/fragmented_udp (0.00s)
+    --- PASS: TestFakeFramingRoundTrip/fragmented_tcp (0.00s)
+=== RUN   TestIPv4TotalLengthValidation
+=== RUN   TestIPv4TotalLengthValidation/zero
+=== RUN   TestIPv4TotalLengthValidation/below_header
+=== RUN   TestIPv4TotalLengthValidation/truncated
+=== RUN   TestIPv4TotalLengthValidation/empty_payload
+=== RUN   TestIPv4TotalLengthValidation/with_payload
+--- PASS: TestIPv4TotalLengthValidation (0.00s)
+    --- PASS: TestIPv4TotalLengthValidation/zero (0.00s)
+    --- PASS: TestIPv4TotalLengthValidation/below_header (0.00s)
+    --- PASS: TestIPv4TotalLengthValidation/truncated (0.00s)
+    --- PASS: TestIPv4TotalLengthValidation/empty_payload (0.00s)
+    --- PASS: TestIPv4TotalLengthValidation/with_payload (0.00s)
+=== RUN   TestModePayloadLimits
+--- PASS: TestModePayloadLimits (0.00s)
+=== RUN   TestFakeFragmentPaddingValidation
+--- PASS: TestFakeFragmentPaddingValidation (0.00s)
+=== RUN   TestNetworkNamespaceIntegration
+    integration_test.go:20: set SPOOFTUN_NETNS_TEST=1 to enable isolated Linux network tests
+--- SKIP: TestNetworkNamespaceIntegration (0.00s)
+=== RUN   TestServerOutboundPortIntegration
+    integration_test.go:87: set SPOOFTUN_NETNS_TEST=1 to enable isolated Linux network tests
+--- SKIP: TestServerOutboundPortIntegration (0.00s)
+=== RUN   TestNoiseIntegration
+    integration_test.go:130: set SPOOFTUN_NETNS_TEST=1 to enable isolated Linux network tests
+--- SKIP: TestNoiseIntegration (0.00s)
+=== RUN   TestTCEmbeddedObjectMatchesSource
+--- PASS: TestTCEmbeddedObjectMatchesSource (0.00s)
+=== RUN   TestTCConfigABI
+--- PASS: TestTCConfigABI (0.00s)
+=== RUN   TestTCOptionsValidation
+=== RUN   TestTCOptionsValidation/client
+=== RUN   TestTCOptionsValidation/server
+=== RUN   TestTCOptionsValidation/port-boundaries
+=== RUN   TestTCOptionsValidation/minimum-mtu
+=== RUN   TestTCOptionsValidation/mtu-too-small
+=== RUN   TestTCOptionsValidation/mtu-too-large
+=== RUN   TestTCOptionsValidation/spoof
+=== RUN   TestTCOptionsValidation/mode
+=== RUN   TestTCOptionsValidation/missing-remote
+=== RUN   TestTCOptionsValidation/ipv6-remote
+=== RUN   TestTCOptionsValidation/loopback-remote
+=== RUN   TestTCOptionsValidation/multicast-source
+=== RUN   TestTCOptionsValidation/unspecified-filter
+=== RUN   TestTCOptionsValidation/bad-peer-source
+=== RUN   TestTCOptionsValidation/local-port-zero
+=== RUN   TestTCOptionsValidation/local-port-overflow
+=== RUN   TestTCOptionsValidation/target-port-negative
+=== RUN   TestTCOptionsValidation/target-port-overflow
+=== RUN   TestTCOptionsValidation/server-missing-peer
+=== RUN   TestTCOptionsValidation/server-peer-overflow
+=== RUN   TestTCOptionsValidation/client-peer-port
+=== RUN   TestTCOptionsValidation/client-outbound-port
+=== RUN   TestTCOptionsValidation/server-outbound-mismatch
+=== RUN   TestTCOptionsValidation/bad-prefix
+=== RUN   TestTCOptionsValidation/ipv6-prefix
+=== RUN   TestTCOptionsValidation/wrong-prefix-size
+=== RUN   TestTCOptionsValidation/network-address
+=== RUN   TestTCOptionsValidation/peer-address
+=== RUN   TestTCOptionsValidation/broadcast-address
+--- PASS: TestTCOptionsValidation (0.00s)
+    --- PASS: TestTCOptionsValidation/client (0.00s)
+    --- PASS: TestTCOptionsValidation/server (0.00s)
+    --- PASS: TestTCOptionsValidation/port-boundaries (0.00s)
+    --- PASS: TestTCOptionsValidation/minimum-mtu (0.00s)
+    --- PASS: TestTCOptionsValidation/mtu-too-small (0.00s)
+    --- PASS: TestTCOptionsValidation/mtu-too-large (0.00s)
+    --- PASS: TestTCOptionsValidation/spoof (0.00s)
+    --- PASS: TestTCOptionsValidation/mode (0.00s)
+    --- PASS: TestTCOptionsValidation/missing-remote (0.00s)
+    --- PASS: TestTCOptionsValidation/ipv6-remote (0.00s)
+    --- PASS: TestTCOptionsValidation/loopback-remote (0.00s)
+    --- PASS: TestTCOptionsValidation/multicast-source (0.00s)
+    --- PASS: TestTCOptionsValidation/unspecified-filter (0.00s)
+    --- PASS: TestTCOptionsValidation/bad-peer-source (0.00s)
+    --- PASS: TestTCOptionsValidation/local-port-zero (0.00s)
+    --- PASS: TestTCOptionsValidation/local-port-overflow (0.00s)
+    --- PASS: TestTCOptionsValidation/target-port-negative (0.00s)
+    --- PASS: TestTCOptionsValidation/target-port-overflow (0.00s)
+    --- PASS: TestTCOptionsValidation/server-missing-peer (0.00s)
+    --- PASS: TestTCOptionsValidation/server-peer-overflow (0.00s)
+    --- PASS: TestTCOptionsValidation/client-peer-port (0.00s)
+    --- PASS: TestTCOptionsValidation/client-outbound-port (0.00s)
+    --- PASS: TestTCOptionsValidation/server-outbound-mismatch (0.00s)
+    --- PASS: TestTCOptionsValidation/bad-prefix (0.00s)
+    --- PASS: TestTCOptionsValidation/ipv6-prefix (0.00s)
+    --- PASS: TestTCOptionsValidation/wrong-prefix-size (0.00s)
+    --- PASS: TestTCOptionsValidation/network-address (0.00s)
+    --- PASS: TestTCOptionsValidation/peer-address (0.00s)
+    --- PASS: TestTCOptionsValidation/broadcast-address (0.00s)
+=== RUN   TestTCKernelRewrite
+=== RUN   TestTCKernelRewrite/0
+=== RUN   TestTCKernelRewrite/1
+=== RUN   TestTCKernelRewrite/3
+=== RUN   TestTCKernelRewrite/1200
+=== RUN   TestTCKernelRewrite/1460
+=== RUN   TestTCKernelRewrite/tc_out/unrelated-port
+=== RUN   TestTCKernelRewrite/tc_out/unrelated-address
+=== RUN   TestTCKernelRewrite/tc_out/fragment
+=== RUN   TestTCKernelRewrite/tc_out/noninitial-fragment
+=== RUN   TestTCKernelRewrite/tc_out/unrelated-first-fragment
+=== RUN   TestTCKernelRewrite/tc_out/short-ihl
+=== RUN   TestTCKernelRewrite/tc_out/truncated
+=== RUN   TestTCKernelRewrite/tc_out/invalid-ip-checksum
+=== RUN   TestTCKernelRewrite/tc_out/oversize
+=== RUN   TestTCKernelRewrite/tc_in/unrelated-port
+=== RUN   TestTCKernelRewrite/tc_in/unrelated-address
+=== RUN   TestTCKernelRewrite/tc_in/fragment
+=== RUN   TestTCKernelRewrite/tc_in/noninitial-fragment
+=== RUN   TestTCKernelRewrite/tc_in/unrelated-first-fragment
+=== RUN   TestTCKernelRewrite/tc_in/short-ihl
+=== RUN   TestTCKernelRewrite/tc_in/truncated
+=== RUN   TestTCKernelRewrite/tc_in/invalid-ip-checksum
+=== RUN   TestTCKernelRewrite/tc_in/oversize
+=== RUN   TestTCKernelRewrite/invalid-tcp-header
+=== RUN   TestTCKernelRewrite/invalid-tcp-checksum
+=== RUN   TestTCKernelRewrite/invalid-udp-length
+--- PASS: TestTCKernelRewrite (0.09s)
+    --- PASS: TestTCKernelRewrite/0 (0.00s)
+    --- PASS: TestTCKernelRewrite/1 (0.00s)
+    --- PASS: TestTCKernelRewrite/3 (0.00s)
+    --- PASS: TestTCKernelRewrite/1200 (0.00s)
+    --- PASS: TestTCKernelRewrite/1460 (0.00s)
+    --- PASS: TestTCKernelRewrite/tc_out/unrelated-port (0.00s)
+    --- PASS: TestTCKernelRewrite/tc_out/unrelated-address (0.00s)
+    --- PASS: TestTCKernelRewrite/tc_out/fragment (0.00s)
+    --- PASS: TestTCKernelRewrite/tc_out/noninitial-fragment (0.00s)
+    --- PASS: TestTCKernelRewrite/tc_out/unrelated-first-fragment (0.00s)
+    --- PASS: TestTCKernelRewrite/tc_out/short-ihl (0.00s)
+    --- PASS: TestTCKernelRewrite/tc_out/truncated (0.00s)
+    --- PASS: TestTCKernelRewrite/tc_out/invalid-ip-checksum (0.00s)
+    --- PASS: TestTCKernelRewrite/tc_out/oversize (0.00s)
+    --- PASS: TestTCKernelRewrite/tc_in/unrelated-port (0.00s)
+    --- PASS: TestTCKernelRewrite/tc_in/unrelated-address (0.00s)
+    --- PASS: TestTCKernelRewrite/tc_in/fragment (0.00s)
+    --- PASS: TestTCKernelRewrite/tc_in/noninitial-fragment (0.00s)
+    --- PASS: TestTCKernelRewrite/tc_in/unrelated-first-fragment (0.00s)
+    --- PASS: TestTCKernelRewrite/tc_in/short-ihl (0.00s)
+    --- PASS: TestTCKernelRewrite/tc_in/truncated (0.00s)
+    --- PASS: TestTCKernelRewrite/tc_in/invalid-ip-checksum (0.00s)
+    --- PASS: TestTCKernelRewrite/tc_in/oversize (0.00s)
+    --- PASS: TestTCKernelRewrite/invalid-tcp-header (0.00s)
+    --- PASS: TestTCKernelRewrite/invalid-tcp-checksum (0.00s)
+    --- PASS: TestTCKernelRewrite/invalid-udp-length (0.00s)
+=== RUN   TestLocalUDPDeliveryFlushesBeforeRecycleAndReadError
+--- PASS: TestLocalUDPDeliveryFlushesBeforeRecycleAndReadError (0.00s)
+=== RUN   TestLocalUDPDeliveryCloseFlushesSparseTail
+--- PASS: TestLocalUDPDeliveryCloseFlushesSparseTail (0.00s)
+=== RUN   TestLocalForwarderOwnsQueuedPayloads
+--- PASS: TestLocalForwarderOwnsQueuedPayloads (0.02s)
+=== RUN   TestLocalForwarderClosedSessionDoesNotDropNextSession
+2026/10/29 21:05:22 Local UDP batch: raw-control udp4 127.0.0.1:43493: use of closed network connection
+--- PASS: TestLocalForwarderClosedSessionDoesNotDropNextSession (0.00s)
+=== RUN   TestLocalUDPBatchDatagramBoundaries
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-true
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-false
+=== RUN   TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-true
+--- PASS: TestLocalUDPBatchDatagramBoundaries (0.04s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-false (0.01s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-false/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp4/connected-true/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-false/gso-true (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-false (0.00s)
+    --- PASS: TestLocalUDPBatchDatagramBoundaries/udp6/connected-true/gso-true (0.00s)
+=== RUN   TestLocalUDPBatchMixedSocketsAndDestinations
+--- PASS: TestLocalUDPBatchMixedSocketsAndDestinations (0.02s)
+=== RUN   TestLocalUDPActualGSOSegments
+=== RUN   TestLocalUDPActualGSOSegments/[1200_1200_1200_37]
+    local_udp_test.go:145: verified 4 actual UDP_SEGMENT datagrams
+=== RUN   TestLocalUDPActualGSOSegments/[32753_32753]
+    local_udp_test.go:145: verified 2 actual UDP_SEGMENT datagrams
+=== RUN   TestLocalUDPActualGSOSegments/[1_1]
+    local_udp_test.go:145: verified 2 actual UDP_SEGMENT datagrams
+--- PASS: TestLocalUDPActualGSOSegments (0.01s)
+    --- PASS: TestLocalUDPActualGSOSegments/[1200_1200_1200_37] (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[32753_32753] (0.00s)
+    --- PASS: TestLocalUDPActualGSOSegments/[1_1] (0.00s)
+=== RUN   TestLocalUDPGSOFallback
+=== RUN   TestLocalUDPGSOFallback/invalid_argument
+=== RUN   TestLocalUDPGSOFallback/input/output_error
+=== RUN   TestLocalUDPGSOFallback/protocol_not_available
+=== RUN   TestLocalUDPGSOFallback/operation_not_supported
+--- PASS: TestLocalUDPGSOFallback (0.01s)
+    --- PASS: TestLocalUDPGSOFallback/invalid_argument (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/input/output_error (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/protocol_not_available (0.00s)
+    --- PASS: TestLocalUDPGSOFallback/operation_not_supported (0.00s)
+=== RUN   TestLocalUDPPartialAndClosedSocket
+--- PASS: TestLocalUDPPartialAndClosedSocket (0.00s)
+=== RUN   TestLocalUDPWriteDeadline
+--- PASS: TestLocalUDPWriteDeadline (0.00s)
+=== RUN   TestLocalUDPGSOGroupBounds
+--- PASS: TestLocalUDPGSOGroupBounds (0.00s)
+=== RUN   TestLocalUDPConfigureBuffers
+2026/10/29 21:05:23 UDP test socket buffers requested=16777216 kernel-rx=33554432 (was 1048576) kernel-tx=33554432 (was 524288)
+--- PASS: TestLocalUDPConfigureBuffers (0.00s)
+=== RUN   TestNATExhaustionAndReuse
+--- PASS: TestNATExhaustionAndReuse (0.44s)
+=== RUN   TestNATRefreshWinsOverStaleCleanup
+--- PASS: TestNATRefreshWinsOverStaleCleanup (0.01s)
+=== RUN   TestNATConcurrentAllocation
+--- PASS: TestNATConcurrentAllocation (0.02s)
+=== RUN   TestNATNoiseStateResetsOnSessionReplacement
+--- PASS: TestNATNoiseStateResetsOnSessionReplacement (0.01s)
+=== RUN   TestAFPacketRingSizing
+=== RUN   TestAFPacketRingSizing/MTU68/page4096/MiB1
+=== RUN   TestAFPacketRingSizing/MTU68/page4096/MiB16
+=== RUN   TestAFPacketRingSizing/MTU68/page65536/MiB1
+=== RUN   TestAFPacketRingSizing/MTU68/page65536/MiB16
+=== RUN   TestAFPacketRingSizing/MTU1000/page4096/MiB1
+=== RUN   TestAFPacketRingSizing/MTU1000/page4096/MiB16
+=== RUN   TestAFPacketRingSizing/MTU1000/page65536/MiB1
+=== RUN   TestAFPacketRingSizing/MTU1000/page65536/MiB16
+=== RUN   TestAFPacketRingSizing/MTU1280/page4096/MiB1
+=== RUN   TestAFPacketRingSizing/MTU1280/page4096/MiB16
+=== RUN   TestAFPacketRingSizing/MTU1280/page65536/MiB1
+=== RUN   TestAFPacketRingSizing/MTU1280/page65536/MiB16
+=== RUN   TestAFPacketRingSizing/MTU1500/page4096/MiB1
+=== RUN   TestAFPacketRingSizing/MTU1500/page4096/MiB16
+=== RUN   TestAFPacketRingSizing/MTU1500/page65536/MiB1
+=== RUN   TestAFPacketRingSizing/MTU1500/page65536/MiB16
+=== RUN   TestAFPacketRingSizing/MTU9000/page4096/MiB1
+=== RUN   TestAFPacketRingSizing/MTU9000/page4096/MiB16
+=== RUN   TestAFPacketRingSizing/MTU9000/page65536/MiB1
+=== RUN   TestAFPacketRingSizing/MTU9000/page65536/MiB16
+--- PASS: TestAFPacketRingSizing (0.00s)
+    --- PASS: TestAFPacketRingSizing/MTU68/page4096/MiB1 (0.00s)
+    --- PASS: TestAFPacketRingSizing/MTU68/page4096/MiB16 (0.00s)
+    --- PASS: TestAFPacketRingSizing/MTU68/page65536/MiB1 (0.00s)
+    --- PASS: TestAFPacketRingSizing/MTU68/page65536/MiB16 (0.00s)
+    --- PASS: TestAFPacketRingSizing/MTU1000/page4096/MiB1 (0.00s)
+    --- PASS: TestAFPacketRingSizing/MTU1000/page4096/MiB16 (0.00s)
+    --- PASS: TestAFPacketRingSizing/MTU1000/page65536/MiB1 (0.00s)
+    --- PASS: TestAFPacketRingSizing/MTU1000/page65536/MiB16 (0.00s)
+    --- PASS: TestAFPacketRingSizing/MTU1280/page4096/MiB1 (0.00s)
+    --- PASS: TestAFPacketRingSizing/MTU1280/page4096/MiB16 (0.00s)
+    --- PASS: TestAFPacketRingSizing/MTU1280/page65536/MiB1 (0.00s)
+    --- PASS: TestAFPacketRingSizing/MTU1280/page65536/MiB16 (0.00s)
+    --- PASS: TestAFPacketRingSizing/MTU1500/page4096/MiB1 (0.00s)
+    --- PASS: TestAFPacketRingSizing/MTU1500/page4096/MiB16 (0.00s)
+    --- PASS: TestAFPacketRingSizing/MTU1500/page65536/MiB1 (0.00s)
+    --- PASS: TestAFPacketRingSizing/MTU1500/page65536/MiB16 (0.00s)
+    --- PASS: TestAFPacketRingSizing/MTU9000/page4096/MiB1 (0.00s)
+    --- PASS: TestAFPacketRingSizing/MTU9000/page4096/MiB16 (0.00s)
+    --- PASS: TestAFPacketRingSizing/MTU9000/page65536/MiB1 (0.00s)
+    --- PASS: TestAFPacketRingSizing/MTU9000/page65536/MiB16 (0.00s)
+=== RUN   TestAFPacketRingInvalidSizes
+--- PASS: TestAFPacketRingInvalidSizes (0.00s)
+=== RUN   TestRouteNextHop
+=== RUN   TestRouteNextHop/selected_interface_default
+=== RUN   TestRouteNextHop/other_interface_default
+=== RUN   TestRouteNextHop/direct_neighbor
+=== RUN   TestRouteNextHop/specific_gateway_beats_default
+=== RUN   TestRouteNextHop/reject_beats_default
+=== RUN   TestRouteNextHop/down_route_ignored
+=== RUN   TestRouteNextHop/no_interface_route
+=== RUN   TestRouteNextHop/IPv6_rejected
+--- PASS: TestRouteNextHop (0.00s)
+    --- PASS: TestRouteNextHop/selected_interface_default (0.00s)
+    --- PASS: TestRouteNextHop/other_interface_default (0.00s)
+    --- PASS: TestRouteNextHop/direct_neighbor (0.00s)
+    --- PASS: TestRouteNextHop/specific_gateway_beats_default (0.00s)
+    --- PASS: TestRouteNextHop/reject_beats_default (0.00s)
+    --- PASS: TestRouteNextHop/down_route_ignored (0.00s)
+    --- PASS: TestRouteNextHop/no_interface_route (0.00s)
+    --- PASS: TestRouteNextHop/IPv6_rejected (0.00s)
+=== RUN   TestParseARPCache
+=== RUN   TestParseARPCache/interface_scoped
+=== RUN   TestParseARPCache/incomplete
+=== RUN   TestParseARPCache/permanent_without_complete_flag
+=== RUN   TestParseARPCache/all_zero
+=== RUN   TestParseARPCache/broadcast
+=== RUN   TestParseARPCache/multicast
+=== RUN   TestParseARPCache/other_IP
+=== RUN   TestParseARPCache/malformed
+--- PASS: TestParseARPCache (0.00s)
+    --- PASS: TestParseARPCache/interface_scoped (0.00s)
+    --- PASS: TestParseARPCache/incomplete (0.00s)
+    --- PASS: TestParseARPCache/permanent_without_complete_flag (0.00s)
+    --- PASS: TestParseARPCache/all_zero (0.00s)
+    --- PASS: TestParseARPCache/broadcast (0.00s)
+    --- PASS: TestParseARPCache/multicast (0.00s)
+    --- PASS: TestParseARPCache/other_IP (0.00s)
+    --- PASS: TestParseARPCache/malformed (0.00s)
+=== RUN   TestNoiseFramingAndPayloadCollision
+--- PASS: TestNoiseFramingAndPayloadCollision (0.00s)
+=== RUN   TestNoiseModeAndTruncation
+--- PASS: TestNoiseModeAndTruncation (0.00s)
+=== RUN   TestNoiseOnceStateTracksAcceptedFrames
+--- PASS: TestNoiseOnceStateTracksAcceptedFrames (0.00s)
+=== RUN   TestNoiseBase64Content
+--- PASS: TestNoiseBase64Content (0.01s)
+=== RUN   TestNoiseCustomContentWireAndMTU
+--- PASS: TestNoiseCustomContentWireAndMTU (0.00s)
+=== RUN   TestServerSessionIdleActivity
+--- PASS: TestServerSessionIdleActivity (0.00s)
+=== RUN   TestTXRingLayout
+--- PASS: TestTXRingLayout (0.00s)
+=== RUN   TestTXRingValidationAndClose
+--- PASS: TestTXRingValidationAndClose (0.00s)
+=== RUN   TestTXRingWrongFormatRecovery
+--- PASS: TestTXRingWrongFormatRecovery (0.00s)
+=== RUN   TestTXRingSubmissionFailure
+--- PASS: TestTXRingSubmissionFailure (0.00s)
+=== RUN   TestTXRingKernel
+    tx_ring_test.go:105: requires explicitly selected isolated veth interfaces and CAP_NET_RAW
+--- SKIP: TestTXRingKernel (0.00s)
+=== RUN   TestPacketSenderBatch
+=== RUN   TestPacketSenderBatch/A
+=== RUN   TestPacketSenderBatch/B
+=== RUN   TestPacketSenderBatch/I
+=== RUN   TestPacketSenderBatch/\u0081
+=== RUN   TestPacketSenderBatch/\u0082
+=== RUN   TestPacketSenderBatch/Ä
+--- PASS: TestPacketSenderBatch (0.00s)
+    --- PASS: TestPacketSenderBatch/A (0.00s)
+    --- PASS: TestPacketSenderBatch/B (0.00s)
+    --- PASS: TestPacketSenderBatch/I (0.00s)
+    --- PASS: TestPacketSenderBatch/\u0081 (0.00s)
+    --- PASS: TestPacketSenderBatch/\u0082 (0.00s)
+    --- PASS: TestPacketSenderBatch/Ä (0.00s)
+=== RUN   TestPacketSenderBatchPartial
+--- PASS: TestPacketSenderBatchPartial (0.00s)
+=== RUN   TestPacketSenderInvalidFD
+--- PASS: TestPacketSenderInvalidFD (0.00s)
+=== RUN   TestPacketMmsgLayout
+--- PASS: TestPacketMmsgLayout (0.00s)
+=== RUN   TestLocalUDPReaderDatagramBoundaries
+=== RUN   TestLocalUDPReaderDatagramBoundaries/gro-false
+=== RUN   TestLocalUDPReaderDatagramBoundaries/gro-true
+--- PASS: TestLocalUDPReaderDatagramBoundaries (0.00s)
+    --- PASS: TestLocalUDPReaderDatagramBoundaries/gro-false (0.00s)
+    --- PASS: TestLocalUDPReaderDatagramBoundaries/gro-true (0.00s)
+=== RUN   TestLocalUDPReaderActualGRO
+--- PASS: TestLocalUDPReaderActualGRO (0.00s)
+=== RUN   TestLocalUDPReaderOversize
+=== RUN   TestLocalUDPReaderOversize/gro-false
+=== RUN   TestLocalUDPReaderOversize/gro-true
+--- PASS: TestLocalUDPReaderOversize (0.00s)
+    --- PASS: TestLocalUDPReaderOversize/gro-false (0.00s)
+    --- PASS: TestLocalUDPReaderOversize/gro-true (0.00s)
+=== RUN   TestLocalUDPReaderDeadlineAndClose
+--- PASS: TestLocalUDPReaderDeadlineAndClose (0.01s)
+=== RUN   TestLocalUDPGROFallback
+--- PASS: TestLocalUDPGROFallback (0.00s)
+=== RUN   TestLocalUDPReaderMalformedRecords
+=== RUN   TestLocalUDPReaderMalformedRecords/truncated
+=== RUN   TestLocalUDPReaderMalformedRecords/control-truncated
+=== RUN   TestLocalUDPReaderMalformedRecords/invalid-control
+=== RUN   TestLocalUDPReaderMalformedRecords/zero-segment
+=== RUN   TestLocalUDPReaderMalformedRecords/oversize-segment
+=== RUN   TestLocalUDPReaderMalformedRecords/short-record
+=== RUN   TestLocalUDPReaderMalformedRecords/duplicate-gro
+--- PASS: TestLocalUDPReaderMalformedRecords (0.00s)
+    --- PASS: TestLocalUDPReaderMalformedRecords/truncated (0.00s)
+    --- PASS: TestLocalUDPReaderMalformedRecords/control-truncated (0.00s)
+    --- PASS: TestLocalUDPReaderMalformedRecords/invalid-control (0.00s)
+    --- PASS: TestLocalUDPReaderMalformedRecords/zero-segment (0.00s)
+    --- PASS: TestLocalUDPReaderMalformedRecords/oversize-segment (0.00s)
+    --- PASS: TestLocalUDPReaderMalformedRecords/short-record (0.00s)
+    --- PASS: TestLocalUDPReaderMalformedRecords/duplicate-gro (0.00s)
+=== RUN   TestLocalUDPReaderNoSteadyStateAllocations
+--- PASS: TestLocalUDPReaderNoSteadyStateAllocations (0.00s)
+=== RUN   TestXDPBatchOwnershipWrapAndFairness
+--- PASS: TestXDPBatchOwnershipWrapAndFairness (0.00s)
+=== RUN   TestXDPBatchPartialFillPublication
+--- PASS: TestXDPBatchPartialFillPublication (0.00s)
+=== RUN   TestXDPInvalidBatchPreservesOwnership
+--- PASS: TestXDPInvalidBatchPreservesOwnership (0.00s)
+=== RUN   TestPacketReaderSinglePacketFallback
+--- PASS: TestPacketReaderSinglePacketFallback (0.00s)
+=== RUN   TestXDPRingWrapAndCompletionOwnership
+--- PASS: TestXDPRingWrapAndCompletionOwnership (0.01s)
+=== RUN   TestXDPTXWaitReclaimsNewCompletions
+--- PASS: TestXDPTXWaitReclaimsNewCompletions (0.00s)
+=== RUN   TestXDPRXSliceLifetimeAndQueueCoverage
+--- PASS: TestXDPRXSliceLifetimeAndQueueCoverage (0.01s)
+=== RUN   TestXDPRXWaitsForFillConsumer
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-512
+=== RUN   TestXDPRXWaitsForFillConsumer/producer-4294967295
+--- PASS: TestXDPRXWaitsForFillConsumer (0.04s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-512 (0.02s)
+    --- PASS: TestXDPRXWaitsForFillConsumer/producer-4294967295 (0.02s)
+=== RUN   TestXDPCloseInterruptsFillWait
+--- PASS: TestXDPCloseInterruptsFillWait (0.02s)
+=== RUN   TestXDPInvalidBatchDoesNotPublishOrConsumeFrames
+--- PASS: TestXDPInvalidBatchDoesNotPublishOrConsumeFrames (0.00s)
+=== RUN   TestXDPFallbackOnlyForUnsupportedBindOrAttach
+--- PASS: TestXDPFallbackOnlyForUnsupportedBindOrAttach (0.00s)
+=== RUN   TestXDPInstructionsAssemble
+--- PASS: TestXDPInstructionsAssemble (0.00s)
+=== RUN   TestXDPKernelFilter
+    xdp_test.go:251: set SPOOFTUN_XDP_TEST=1 for privileged XDP verifier tests
+--- SKIP: TestXDPKernelFilter (0.00s)
+=== RUN   TestXDPGenericCopyLifecycle
+    xdp_test.go:311: set SPOOFTUN_XDP_TEST_IFACE to an isolated veth
+--- SKIP: TestXDPGenericCopyLifecycle (0.00s)
+=== RUN   TestXDPNativeCopyReceiveBursts
+    xdp_test.go:381: set SPOOFTUN_XDP_TEST_IFACE and SPOOFTUN_XDP_TEST_PEER to isolated veth peers
+--- SKIP: TestXDPNativeCopyReceiveBursts (0.00s)
+PASS
+ok  	spooftun	1.950s

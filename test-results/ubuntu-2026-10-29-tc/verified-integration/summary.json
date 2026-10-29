@@ -1,0 +1,50 @@
+{
+  "status": "passed",
+  "normal_datagrams": 6,
+  "batch_datagrams": 34,
+  "gso_datagrams": 0,
+  "gso_supported": false,
+  "gso_fallback": true,
+  "oversize_rejected": true,
+  "invalid_checksum_rejected": true,
+  "valid_raw_control": true,
+  "wire_checksums": true,
+  "wire_flags": "0x06",
+  "spoofed_source": "198.51.100.1",
+  "plaintext_udp_leaks": 0,
+  "ownership_conflict": true,
+  "unrelated_ping": true,
+  "cleanup": true,
+  "baseline_interfaces": {
+    "stct724364c": [
+      "erspan0",
+      "gre0",
+      "gretap0",
+      "lo",
+      "tun0"
+    ],
+    "stct724364s": [
+      "erspan0",
+      "gre0",
+      "gretap0",
+      "lo",
+      "tun0"
+    ]
+  },
+  "after_interfaces": {
+    "stct724364c": [
+      "erspan0",
+      "gre0",
+      "gretap0",
+      "lo",
+      "tun0"
+    ],
+    "stct724364s": [
+      "erspan0",
+      "gre0",
+      "gretap0",
+      "lo",
+      "tun0"
+    ]
+  }
+}

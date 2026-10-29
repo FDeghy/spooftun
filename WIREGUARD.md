@@ -226,12 +226,12 @@ packet path. Measure receiver loss and CPU/softirq, not just the requested
 iperf3 send rate. Ordinary TCP TSO cannot be assumed to preserve arbitrary
 fake-TCP flags, static sequence fields and packet boundaries.
 
-The larger architectural opportunity is a separate **kernel TC/XDP packet
-rewrite backend**: restore and modify WireGuard packets without the local UDP
-socket and userspace forwarding round trip. [Mimic](https://github.com/hack3ric/mimic)
-uses this approach. This is different from spooftun's current AF_XDP backend,
-which redirects packets into userspace. Supporting spooftun's spoofed return
-mapping, `0x06` flags, checksums/offloads, noise and fake fragments would require
-its own implementation and compatibility tests. It has not been implemented
-or benchmarked here, and Mimic's published results on a newer CPU do not
+The optional **kernel TC rewrite backend** now avoids that userspace forwarding
+round trip for a fixed IPv4 peer. It preserves spoofed addresses and `0x06`
+flags, using an owned virtual interface to complete offload work before header
+rewriting. Applications must use its virtual endpoint and fixed local port;
+noise and fake fragments remain unsupported. Follow [TC_BACKEND.md](TC_BACKEND.md)
+for the complete WireGuard configuration and measured results. This is different
+from AF_XDP, which redirects packets into userspace. [Mimic](https://github.com/hack3ric/mimic)
+also uses kernel rewriting, but its published results on a newer CPU do not
 establish a speed guarantee for this VM.

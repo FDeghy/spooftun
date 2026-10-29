@@ -1,5 +1,9 @@
 # AF_XDP and AF_PACKET transmit selection
 
+For fixed-peer WireGuard traffic, the optional [TC kernel rewrite backend](TC_BACKEND.md)
+bypasses userspace forwarding. It has different application endpoint settings
+and narrower framing support. The AF_PACKET/AF_XDP comparison below is retained.
+
 ## Usage
 
 ```sh
