@@ -1,0 +1,5 @@
+2026/10/29 19:48:12 [Client] Forwarding 127.0.0.1:18081 -> Tunnel(192.0.2.2) -> :40000 (Up=Proto 6, Down=Proto 6) via tun0
+2026/10/29 19:48:12 Using Custom Source IP: 198.51.100.1 (spoofing)
+2026/10/29 19:48:12 Destination MAC: 8a:fd:20:ee:b2:d9
+2026/10/29 19:48:12 packet backend=afpacket tx=sendmmsg
+2026/10/29 19:48:12 UDP client app socket buffers requested=16777216 kernel-rx=33554432 (was 1048576) kernel-tx=33554432 (was 524288)

@@ -1,0 +1,26 @@
+File: diagnostic
+Build ID: ed046b833a2157a72664222ff649b99b2a268696
+Type: cpu
+Time: 2026-10-29 19:46:32 +0330
+Duration: 8s, Total samples = 1.41s (17.62%)
+Showing nodes accounting for 1.07s, 75.89% of 1.41s total
+Showing top 18 nodes out of 90
+      flat  flat%   sum%        cum   cum%
+     1.05s 74.47% 74.47%      1.05s 74.47%  internal/runtime/syscall/linux.Syscall6
+     0.01s  0.71% 75.18%      0.96s 68.09%  syscall.RawSyscall6
+         0     0% 75.18%      0.86s 60.99%  main.main
+     0.01s  0.71% 75.89%      0.86s 60.99%  main.startServerAFPacket
+         0     0% 75.89%      0.86s 60.99%  runtime.main
+         0     0% 75.89%      0.78s 55.32%  main.(*localUDPDelivery).ReadPacket
+         0     0% 75.89%      0.74s 52.48%  main.(*localUDPDelivery).flush
+         0     0% 75.89%      0.74s 52.48%  main.(*localUDPWriter).WriteBatch
+         0     0% 75.89%      0.74s 52.48%  main.writeLocalUDPBatch
+         0     0% 75.89%      0.73s 51.77%  internal/poll.(*FD).RawWrite
+         0     0% 75.89%      0.73s 51.77%  main.(*localUDPWriter).writeReady
+         0     0% 75.89%      0.73s 51.77%  net.(*rawConn).Write
+         0     0% 75.89%      0.67s 47.52%  main.(*localUDPWriter).sendGSO
+         0     0% 75.89%      0.67s 47.52%  syscall.Syscall
+         0     0% 75.89%      0.32s 22.70%  syscall.Syscall6
+         0     0% 75.89%      0.30s 21.28%  main.startServerAFPacket.func1
+         0     0% 75.89%      0.23s 16.31%  runtime.mcall
+         0     0% 75.89%      0.23s 16.31%  runtime.park_m

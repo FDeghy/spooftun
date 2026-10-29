@@ -1,0 +1,50 @@
+{
+  "scope": "same-host isolated veth, both endpoints share CPU; not a WAN measurement",
+  "settings": {
+    "binary": "./baseline",
+    "wg": "/root/spooftun-perf-20261029/wg-tools/usr/bin/wg",
+    "path": "wireguard",
+    "output": "baseline-wg",
+    "seconds": 10,
+    "reverse": false,
+    "streams": 1,
+    "udp_rate": null,
+    "wg_mtu": 1420,
+    "proto": 6,
+    "tcp_flags": "0x18",
+    "spoof": false,
+    "extra": []
+  },
+  "received_mbps": 1015.3513146881058,
+  "receiver": {
+    "start": 0,
+    "end": 10.001916,
+    "seconds": 10.001916,
+    "bytes": 1269432320,
+    "bits_per_second": 1015351314.6881058,
+    "sender": true
+  },
+  "tunnel_cpu_seconds": [],
+  "elapsed_seconds": 10.021360348910093,
+  "host_cpu_tick_deltas": {
+    "user": 41,
+    "nice": 0,
+    "system": 1307,
+    "idle": 25,
+    "iowait": 0,
+    "irq": 0,
+    "softirq": 622,
+    "steal": 4
+  },
+  "iperf_command": [
+    "iperf3",
+    "-c",
+    "10.203.0.2",
+    "-t",
+    "10",
+    "-P",
+    "1",
+    "-J",
+    "--get-server-output"
+  ]
+}

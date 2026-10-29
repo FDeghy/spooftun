@@ -124,8 +124,8 @@ func parseFakeTransport(ipPayload []byte, useTCP bool) (srcPort, dstPort uint16,
 // (used by fake-frag) is expressed in 8-byte units relative to the IP body.
 func padData(data []byte, blockSize, headerLen int) []byte {
 	p := blockSize - ((headerLen + len(data)) % blockSize)
-	// Append p copies of the pad byte. The uplink read buffer has spare
-	// capacity for the MTU, so this reuses the backing array — no alloc.
+	// The client supplies MTU-sized scratch storage, so this reuses that
+	// backing array without appending into an adjacent GRO segment.
 	for i := 0; i < p; i++ {
 		data = append(data, byte(p))
 	}

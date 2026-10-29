@@ -1,0 +1,1 @@
+{"role":"receiver","status":"passed","received_datagrams":2818863,"received_bytes":3833653680,"duplicates":0,"out_of_order":0,"corrupt":0,"sequence_overflows":0,"missing_through_highest":35025,"duration_seconds":31.203474877,"active_seconds":29.997414007,"payload_bytes":1360,"gro":true,"socket_rcvbuf":33554432,"socket_sndbuf":33554432}

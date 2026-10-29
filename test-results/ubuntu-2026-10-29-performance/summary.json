@@ -1,0 +1,298 @@
+[
+  {
+    "run": "baseline-afpacket",
+    "mbps": 392.93441005176066,
+    "cpu_seconds": [
+      3.18,
+      4.880000000000001
+    ],
+    "seconds": 10,
+    "flags": "0x10",
+    "path": "afpacket"
+  },
+  {
+    "run": "baseline-direct",
+    "mbps": 10333.596700860398,
+    "cpu_seconds": [],
+    "seconds": 10,
+    "flags": "0x18",
+    "path": "direct"
+  },
+  {
+    "run": "baseline-wg",
+    "mbps": 1015.3513146881058,
+    "cpu_seconds": [],
+    "seconds": 10,
+    "flags": "0x18",
+    "path": "wireguard"
+  },
+  {
+    "run": "baseline-xdp",
+    "mbps": 379.4519228984844,
+    "cpu_seconds": [
+      3.25,
+      4.59
+    ],
+    "seconds": 10,
+    "flags": "0x10",
+    "path": "xdp"
+  },
+  {
+    "run": "batch64-afpacket",
+    "mbps": 453.0484815432314,
+    "cpu_seconds": [
+      2.79,
+      4.859999999999999
+    ],
+    "seconds": 10,
+    "flags": "0x10",
+    "path": "afpacket"
+  },
+  {
+    "run": "batch64-xdp",
+    "mbps": 300.22954808902574,
+    "cpu_seconds": [
+      3.2,
+      4.32
+    ],
+    "seconds": 10,
+    "flags": "0x10",
+    "path": "xdp"
+  },
+  {
+    "run": "candidate-gro-afpacket",
+    "mbps": 373.83129826144454,
+    "cpu_seconds": [
+      3.19,
+      4.4799999999999995
+    ],
+    "seconds": 10,
+    "flags": "0x10",
+    "path": "afpacket"
+  },
+  {
+    "run": "candidate-gro-xdp",
+    "mbps": 391.92092449119366,
+    "cpu_seconds": [
+      3.1900000000000004,
+      4.550000000000001
+    ],
+    "seconds": 10,
+    "flags": "0x10",
+    "path": "xdp"
+  },
+  {
+    "run": "final-baseline-1080",
+    "mbps": 966.8841840773746,
+    "cpu_seconds": [
+      15.55,
+      24.18
+    ],
+    "seconds": 30,
+    "flags": "0x06",
+    "path": "xdp",
+    "loss_percent": 3.198916800134873,
+    "sent_mbps": 1032.552357,
+    "cpu_us_per_datagram": 14.415595112267843
+  },
+  {
+    "run": "final-gro-fragment",
+    "mbps": 83.10091901978205,
+    "cpu_seconds": [
+      0.95,
+      1.22
+    ],
+    "seconds": 5,
+    "flags": "0x06",
+    "path": "xdp",
+    "loss_percent": 0.0,
+    "sent_mbps": 100.057031,
+    "cpu_us_per_datagram": 47.19032707028532
+  },
+  {
+    "run": "final-native-1080",
+    "mbps": 988.9155217257235,
+    "cpu_seconds": [
+      16.79,
+      21.73
+    ],
+    "seconds": 30,
+    "flags": "0x06",
+    "path": "xdp",
+    "loss_percent": 1.2272731095263725,
+    "sent_mbps": 1035.008952,
+    "cpu_us_per_datagram": 13.66508411370116
+  },
+  {
+    "run": "final-native-900",
+    "mbps": 838.82665780202,
+    "cpu_seconds": [
+      16.599999999999998,
+      21.049999999999997
+    ],
+    "seconds": 30,
+    "flags": "0x06",
+    "path": "xdp",
+    "loss_percent": 0.6517400782968767,
+    "sent_mbps": 873.02258,
+    "cpu_us_per_datagram": 15.742868982115848
+  },
+  {
+    "run": "final-native-afpacket",
+    "mbps": 971.2514910556941,
+    "cpu_seconds": [
+      14.39,
+      23.53
+    ],
+    "seconds": 30,
+    "flags": "0x06",
+    "path": "afpacket",
+    "loss_percent": 0.5482380525481001,
+    "sent_mbps": 1009.730595,
+    "cpu_us_per_datagram": 13.694830634816075
+  },
+  {
+    "run": "final-wg-baseline",
+    "mbps": 396.291186771395,
+    "cpu_seconds": [
+      9.92,
+      14.07
+    ],
+    "seconds": 30,
+    "flags": "0x06",
+    "path": "xdp"
+  },
+  {
+    "run": "final-wg-forward",
+    "mbps": 415.09949600202543,
+    "cpu_seconds": [
+      9.610000000000001,
+      13.99
+    ],
+    "seconds": 30,
+    "flags": "0x06",
+    "path": "xdp"
+  },
+  {
+    "run": "final-wg-reverse",
+    "mbps": 393.13741970093866,
+    "cpu_seconds": [
+      13.63,
+      9.68
+    ],
+    "seconds": 30,
+    "flags": "0x06",
+    "path": "xdp"
+  },
+  {
+    "run": "native-baseline-xdp",
+    "mbps": 836.9149904416286,
+    "cpu_seconds": [
+      5.19,
+      7.86
+    ],
+    "seconds": 10,
+    "flags": "0x06",
+    "path": "xdp",
+    "loss_percent": 10.105026145122405,
+    "sent_mbps": 1025.362294,
+    "cpu_us_per_datagram": 15.403700901441102
+  },
+  {
+    "run": "native-candidate-1100",
+    "mbps": 1013.2107609844854,
+    "cpu_seconds": [
+      11.25,
+      14.200000000000001
+    ],
+    "seconds": 20,
+    "flags": "0x06",
+    "path": "xdp",
+    "loss_percent": 0.2385904808515845,
+    "sent_mbps": 1067.056162,
+    "cpu_us_per_datagram": 13.00566219006153
+  },
+  {
+    "run": "native-candidate-xdp",
+    "mbps": 1031.229529918213,
+    "cpu_seconds": [
+      5.66,
+      7.44
+    ],
+    "seconds": 10,
+    "flags": "0x06",
+    "path": "xdp",
+    "loss_percent": 0.474836795704829,
+    "sent_mbps": 1141.292243,
+    "cpu_us_per_datagram": 12.547760512101886
+  },
+  {
+    "run": "native-direct",
+    "mbps": 1787.4411508506578,
+    "cpu_seconds": [],
+    "seconds": 10,
+    "flags": "0x18",
+    "path": "direct",
+    "loss_percent": 0.0,
+    "sent_mbps": 1968.882877,
+    "cpu_us_per_datagram": 0.0
+  },
+  {
+    "run": "native-wg-candidate",
+    "mbps": 411.6807976693117,
+    "cpu_seconds": [
+      2.5300000000000002,
+      4.12
+    ],
+    "seconds": 10,
+    "flags": "0x06",
+    "path": "xdp",
+    "loss_percent": 41.00161944236824,
+    "sent_mbps": 768.520608,
+    "cpu_us_per_datagram": 15.955889762797103
+  },
+  {
+    "run": "profile-xdp",
+    "mbps": 412.5703876249871,
+    "cpu_seconds": [
+      3.91,
+      5.62
+    ],
+    "seconds": 12,
+    "flags": "0x10",
+    "path": "xdp"
+  },
+  {
+    "run": "raw-baseline-afpacket",
+    "mbps": 456.2188800664362,
+    "cpu_seconds": [
+      2.77,
+      5.15
+    ],
+    "seconds": 10,
+    "flags": "0x10",
+    "path": "afpacket"
+  },
+  {
+    "run": "raw-baseline-xdp",
+    "mbps": 567.5072223520317,
+    "cpu_seconds": [
+      2.64,
+      4.83
+    ],
+    "seconds": 10,
+    "flags": "0x10",
+    "path": "xdp"
+  },
+  {
+    "run": "wg-candidate-procs1",
+    "mbps": 371.96420763914347,
+    "cpu_seconds": [
+      2.89,
+      4.17
+    ],
+    "seconds": 10,
+    "flags": "0x06",
+    "path": "xdp"
+  }
+]

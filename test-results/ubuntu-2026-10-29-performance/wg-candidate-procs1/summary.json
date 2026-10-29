@@ -1,0 +1,57 @@
+{
+  "scope": "same-host isolated veth, both endpoints share CPU; not a WAN measurement",
+  "settings": {
+    "binary": "./candidate-bin",
+    "wg": "/root/spooftun-perf-20261029/wg-tools/usr/bin/wg",
+    "path": "xdp",
+    "output": "wg-candidate-procs1",
+    "seconds": 10,
+    "reverse": false,
+    "streams": 1,
+    "udp_rate": null,
+    "raw_udp": false,
+    "udp_load": null,
+    "wg_mtu": 1420,
+    "proto": 6,
+    "tcp_flags": "0x06",
+    "spoof": true,
+    "extra": [
+      "-udp-gro"
+    ]
+  },
+  "received_mbps": 371.96420763914347,
+  "receiver": {
+    "start": 0,
+    "end": 10.015992,
+    "seconds": 10.015992,
+    "bytes": 465698816,
+    "bits_per_second": 371964207.63914347,
+    "sender": true
+  },
+  "tunnel_cpu_seconds": [
+    2.89,
+    4.17
+  ],
+  "elapsed_seconds": 10.051529168151319,
+  "host_cpu_tick_deltas": {
+    "user": 197,
+    "nice": 0,
+    "system": 1034,
+    "idle": 133,
+    "iowait": 0,
+    "irq": 0,
+    "softirq": 561,
+    "steal": 17
+  },
+  "iperf_command": [
+    "iperf3",
+    "-c",
+    "10.203.0.2",
+    "-t",
+    "10",
+    "-P",
+    "1",
+    "-J",
+    "--get-server-output"
+  ]
+}

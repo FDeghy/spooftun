@@ -1,0 +1,12 @@
+{
+  "baseline_commit": "e5579d5",
+  "uname": "Linux 6.8.0-146-generic #146-Ubuntu SMP PREEMPT_DYNAMIC Thu Sep  3 16:12:30 UTC 2026 x86_64",
+  "go": "go version go1.27.3 linux/amd64",
+  "cpu_model": "Intel(R) Xeon(R) CPU E5-2670 v2 @ 2.50GHz",
+  "online_cpus": "2",
+  "memory": "MemTotal:        3981768 kB",
+  "iperf3": "iperf 3.16 (cJSON 1.7.15)",
+  "source_directory": "candidate",
+  "final_binary": "final-bin",
+  "scope": "Disposable network namespaces and veth; both endpoints and generators on the same host; physical NIC and hardware zero-copy not tested."
+}

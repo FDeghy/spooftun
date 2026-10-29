@@ -1,0 +1,29 @@
+File: diagnostic
+Build ID: ed046b833a2157a72664222ff649b99b2a268696
+Type: cpu
+Time: 2026-10-29 19:46:32 +0330
+Duration: 8.01s, Total samples = 2.02s (25.23%)
+Showing nodes accounting for 1.90s, 94.06% of 2.02s total
+Dropped 34 nodes (cum <= 0.01s)
+Showing top 20 nodes out of 81
+      flat  flat%   sum%        cum   cum%
+     1.38s 68.32% 68.32%      1.38s 68.32%  internal/runtime/syscall/linux.Syscall6
+     0.09s  4.46% 72.77%      0.09s  4.46%  runtime.nanotime (inline)
+     0.06s  2.97% 75.74%      0.08s  3.96%  main.encoderChecksumSum (inline)
+     0.06s  2.97% 78.71%      0.06s  2.97%  runtime.memmove
+     0.06s  2.97% 81.68%      0.06s  2.97%  time.runtimeNow
+     0.05s  2.48% 84.16%      1.51s 74.75%  main.startClientAFPacket
+     0.05s  2.48% 86.63%      0.05s  2.48%  runtime.futex
+     0.03s  1.49% 88.12%      0.11s  5.45%  runtime.netpoll
+     0.02s  0.99% 89.11%      0.02s  0.99%  encoding/binary.bigEndian.Uint16 (inline)
+     0.02s  0.99% 90.10%      0.78s 38.61%  main.(*xdpIO).kickTX
+     0.02s  0.99% 91.09%      0.02s  0.99%  runtime.memclrNoHeapPointers
+     0.01s   0.5% 91.58%      0.07s  3.47%  golang.org/x/net/internal/socket.mmsghdrs.unpack
+     0.01s   0.5% 92.08%      0.06s  2.97%  golang.org/x/net/internal/socket.parseInetAddr
+     0.01s   0.5% 92.57%      0.02s  0.99%  internal/runtime/maps.MemHash
+     0.01s   0.5% 93.07%      0.10s  4.95%  main.(*packetReader).ReadPacket
+     0.01s   0.5% 93.56%      0.02s  0.99%  runtime.(*mcache).prepareForSweep
+     0.01s   0.5% 94.06%      0.04s  1.98%  runtime.mallocgcSmallScanNoHeaderSC5
+         0     0% 94.06%      0.44s 21.78%  golang.org/x/net/internal/socket.(*Conn).RecvMsgs (inline)
+         0     0% 94.06%      0.44s 21.78%  golang.org/x/net/internal/socket.(*Conn).recvMsgs
+         0     0% 94.06%      0.37s 18.32%  golang.org/x/net/internal/socket.(*syscaller).recvmmsg

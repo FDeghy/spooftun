@@ -39,6 +39,9 @@ no batching timer. Local socket backpressure can still block reception.
 RX and TX frame pools are separate. TX uses the first queue and serializes writers. NEED_WAKEUP and
 completion tracking avoid reusing kernel-owned buffers. Idle receive uses
 blocking polling; this backend does not continuously busy-poll.
+After a TX-space wait, newly published completions are reclaimed before deciding
+whether a backoff is still needed. This avoids an unnecessary 1 ms sleep when
+a completed frame has become available; ownership validation remains enabled.
 
 BPF links refuse an existing XDP attachment. Nonmatching traffic passes to the
 network stack; only matching tunnel traffic redirects to an XSK. Cleanup
@@ -55,7 +58,10 @@ Limits:
 - Tests verified native-copy and generic-copy on veth. No zero-copy-capable
   hardware was available, so actual NIC zero-copy execution remains unverified.
 
-AF_PACKET uses TPACKET_V3 RX for both transmit options. The ring transmitter
+AF_PACKET uses TPACKET_V3 RX for both transmit options and subscribes to
+`ETH_P_IP`, matching the IPv4-only tunnel parser. This avoids registering an
+`ETH_P_ALL` tap for unrelated Ethernet protocols and outgoing traffic.
+The ring transmitter
 uses a separate protocol-zero TPACKET_V2 socket and about 1 MiB of mmap TX
 storage. Publishing and reclaiming slots uses atomic ownership status, with
 blocking/backoff under pressure. Concurrent writers are synchronized.

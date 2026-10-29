@@ -1,0 +1,78 @@
+{
+  "scope": "same-host isolated veth; native validated UDP; drain-inclusive rate; not WAN capacity",
+  "settings": {
+    "binary": "./baseline",
+    "wg": "/root/spooftun-perf-20261029/wg-tools/usr/bin/wg",
+    "path": "xdp",
+    "output": "native-baseline-xdp",
+    "seconds": 10,
+    "reverse": false,
+    "streams": 1,
+    "udp_rate": "1.2G",
+    "raw_udp": true,
+    "udp_load": "./udp-load",
+    "wg_mtu": 1420,
+    "proto": 6,
+    "tcp_flags": "0x06",
+    "spoof": true,
+    "extra": []
+  },
+  "sender": {
+    "role": "sender",
+    "status": "passed",
+    "sent_datagrams": 942432,
+    "sent_bytes": 1281707520,
+    "duration_seconds": 10.000036298,
+    "send_mbps": 1025.362294,
+    "requested_mbps": 1200.0,
+    "payload_bytes": 1360,
+    "batch_datagrams": 48,
+    "gso": true,
+    "socket_rcvbuf": 33554432,
+    "socket_sndbuf": 33554432
+  },
+  "receiver": {
+    "role": "receiver",
+    "status": "passed",
+    "received_datagrams": 847199,
+    "received_bytes": 1152190640,
+    "duplicates": 0,
+    "out_of_order": 0,
+    "corrupt": 0,
+    "sequence_overflows": 0,
+    "missing_through_highest": 95233,
+    "duration_seconds": 11.203910962,
+    "active_seconds": 10.05337262,
+    "payload_bytes": 1360,
+    "gro": true,
+    "socket_rcvbuf": 33554432,
+    "socket_sndbuf": 33554432
+  },
+  "received_mbps": 836.9149904416286,
+  "received_mbps_send_interval": 921.7491662348764,
+  "lost_datagrams": 95233,
+  "tunnel_cpu_seconds": [
+    5.19,
+    7.86
+  ],
+  "elapsed_seconds": 11.01369341602549,
+  "host_cpu_tick_deltas": {
+    "user": 402,
+    "nice": 0,
+    "system": 856,
+    "idle": 295,
+    "iowait": 2,
+    "irq": 0,
+    "softirq": 531,
+    "steal": 25
+  },
+  "load_command": [
+    "/root/spooftun-perf-20261029/udp-load",
+    "send",
+    "127.0.0.1",
+    "18081",
+    "1360",
+    "10",
+    "1200.0"
+  ]
+}

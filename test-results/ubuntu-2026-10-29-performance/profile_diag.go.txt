@@ -1,0 +1,4 @@
+package main
+import("os";"fmt";"runtime/pprof";"time";"sync/atomic";"log")
+var diagFillWait,diagTXWait,diagWakeWait atomic.Uint64
+func init(){if d:=os.Getenv("SPOOFTUN_PROFILE");d!="" {f,e:=os.Create(fmt.Sprintf("%s-%d.cpu",d,os.Getpid()));if e!=nil{panic(e)};if e=pprof.StartCPUProfile(f);e!=nil{panic(e)};go func(){time.Sleep(8*time.Second);pprof.StopCPUProfile();f.Close();log.Printf("diagnostic waits fill=%d tx=%d wake=%d",diagFillWait.Load(),diagTXWait.Load(),diagWakeWait.Load())}()}}

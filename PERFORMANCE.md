@@ -1,5 +1,9 @@
 # Packet-path changes and validation
 
+For the latest native UDP and actual WireGuard capacity tests, see
+[the 2026-10-29 results](#udp-receive-and-capacity-tests--2026-10-29).
+The earlier sections retain their original echo-test methodology and results.
+
 Validated on the supplied Ubuntu 24.04 server, Linux 6.8, two vCPUs
 (Intel Xeon E5-2670 v2), using Go 1.27.3. Tests use disposable network namespaces
 and veth devices. Existing server interfaces, routes, services and host firewall
@@ -90,8 +94,8 @@ can defeat configured QoS and is not a universal throughput improvement.
 PACKET_TX_RING and AF_XDP are implemented as selectable backends. See
 [PACKET_BACKENDS.md](PACKET_BACKENDS.md) for the current measurements, fallback
 behavior and retained sendmmsg default. The remaining larger optimizations
-include flow-sharded receive fanout and removing remaining receive-address
-allocations. The encoder/local UDP boundary has been optimized separately;
+include flow-sharded receive fanout. Receive-address allocations were removed
+in the 2026-10-29 change. The encoder/local UDP boundary was optimized separately;
 see the 2026-10-24 results below.
 
 Primary references:
@@ -276,3 +280,168 @@ counter wraparound and queue fairness.
 
 Raw results, exact tested source hashes, native generator source and method:
 [XDP batching evidence](test-results/ubuntu-2026-10-24-xdp-batch/).
+
+## UDP receive and capacity tests — 2026-10-29
+
+The local UDP receive path on both endpoints now uses reusable native
+`recvmmsg` descriptors and `netip.AddrPort`, removing per-datagram address
+allocations. Optional `-udp-gro` receives coalesced records and splits them
+into borrowed datagram views. It preserves empty and short datagrams, rejects
+truncated/oversize records, and retains pending segments across batches.
+Fake-fragment padding uses separate reusable scratch storage. No wire format
+or TCP flag changes are required. GRO is disabled by default because its
+receive storage costs about 1 MiB per client socket/server reply session.
+
+AF_PACKET now subscribes to `ETH_P_IP` instead of `ETH_P_ALL`, avoiding
+irrelevant packet taps before the filter. AF_XDP reclaims completions after
+its TX-space poll before deciding to sleep. The latter fixes a stale-state
+backoff; the diagnostic workload recorded **zero** FILL/TX/wakeup waits, so
+its measured throughput cannot be attributed to that fix.
+
+### Actual one-way UDP delivery
+
+These tests use `scripts/udp-load.c`, a native GSO/sendmmsg generator and a
+GRO/recvmmsg receiver. Every unique sequence and payload is checked. Payloads
+are 1360 bytes, protocol 6, fake TCP with **`-tcp-flags 0x06`**, a spoofed source
+IP and an explicit return IP. Both endpoints share the same two-vCPU Xeon
+E5-2670 v2 host and isolated veth network. AF_XDP ran in **native-copy** mode.
+There is no physical NIC, Internet path or WireGuard encryption in this table.
+The baseline is `e5579d5`, built with the same Go 1.27.3 toolchain.
+
+| 30-second run | Requested Mbps | Actual send Mbps | Received Mbps | Missing datagrams | Tunnel CPU us/delivered datagram |
+|---|---:|---:|---:|---:|---:|
+| Baseline XDP | 1080 | 1032.55 | 966.88 | 3.199% | 14.42 |
+| Updated XDP + GRO | 1080 | 1035.01 | 988.92 | 1.227% | 13.67 |
+| Updated AF_PACKET/sendmmsg + GRO | 1080 | 1009.73 | 971.25 | 0.548% | 13.69 |
+| Updated XDP + GRO, lower load | 900 | 873.02 | 838.83 | 0.652% | 15.74 |
+
+Received Mbps conservatively divides unique received bytes by the full parent
+measurement interval, including a one-second drain and shutdown overhead.
+`received_mbps_send_interval` uses the sender's interval and includes late
+drained packets; it is reported separately, not substituted for that measure.
+Loss compares accepted sends against unique received datagrams after the drain.
+CPU sums the two spooftun processes; it excludes the generator, receiver,
+WireGuard and host-wide softirq. Host CPU tick deltas are retained separately.
+
+For the 1080-Mbps requested XDP comparison, throughput increased about 2.3%
+and tunnel CPU per delivered datagram fell about 5.2%. These are individual,
+sequential runs on a shared VM, not replicated statistical estimates. The
+candidate ran before the baseline. Scheduling and steal time varied, and the
+lower-rate run still lost packets. Do not interpret this as a loss-free rate
+guarantee or as an isolated measurement of GRO's contribution.
+
+Earlier 10- and 20-second candidate runs received **1031.23 and 1013.21 Mbps**,
+with **0.475% and 0.239% loss** respectively. The short 10-second baseline
+received 836.91 Mbps with 10.105% loss. The smaller gain in the longer comparison
+is why the headline is not a universal percentage speedup. A direct-veth
+calibration received 1787.44 Mbps including the drain, with zero loss and an
+actual send rate of 1968.88 Mbps. This checks the native generator's capacity
+under that workload, not the physical link's speed.
+
+**Loss-free 1-Gbps spooftun and 1-Gbps WireGuard over spooftun are not proven.**
+The native receiver found zero corruption or duplicates in these runs. A
+separate GSO/GRO + fake-fragment test at 100 Mbps verified all 45,984 datagrams
+with zero loss or corruption; it is a correctness check, not a capacity claim.
+
+### Real WireGuard and iperf3
+
+`scripts/bench-wireguard.py` also creates two real kernel WireGuard interfaces,
+uses private keys only through stdin, and runs iperf3 through their tunnel IPs.
+WireGuard MTU is 1420; outer veth MTU is 1500. The final 30-second TCP tests use
+the same spoofing and `0x06` settings as above:
+
+| Path | Received TCP payload Mbps |
+|---|---:|
+| WireGuard + baseline XDP, forward | 396.29 |
+| WireGuard + updated XDP/GRO, forward | 415.10 |
+| WireGuard + updated XDP/GRO, reverse | 393.14 |
+
+One short direct-WireGuard calibration measured 1015.35 Mbps, and direct-veth
+TCP measured 10333.60 Mbps. Veth offloads and shared CPUs make these local
+calibrations unsuitable as physical-network estimates. The direct-WireGuard
+run has little margin above 1 Gbps even before adding spooftun.
+
+The forward candidate was about 4.7% faster in the final comparison, but
+earlier short runs had mixed results. This does not establish a large WireGuard
+speedup. A native UDP test requesting 1 Gbps through WireGuard + spooftun sent
+only 768.52 Mbps and received 411.68 Mbps after the drain, with 41.0% loss.
+Increasing offered load is not a solution to the CPU limit.
+
+### Profile and design conclusions
+
+An instrumented baseline XDP run put roughly 68–74% of sampled CPU in the
+low-level syscall function. The client cumulative profile attributed about
+39% to TX wakeup and 18% to UDP receive calls; packet encoding was a much
+smaller share. This supports reducing crossings into the kernel. A Go CPU
+profile does not resolve the internal kernel functions, so it cannot attribute
+all that time to a particular driver or softirq operation.
+
+Increasing the global batch size from 16 to 64 did not reliably help: the
+short WireGuard/XDP result fell from 379 to 300 Mbps, while AF_PACKET rose
+from 393 to 453 Mbps. `GOMAXPROCS=1` measured 372 Mbps for WireGuard/XDP.
+Neither experiment was promoted. Larger socket/ring buffers can absorb bursts
+but do not eliminate the sustained processing cost. TX ring remains selectable;
+the earlier cross-size comparison still does not justify making it the default.
+
+The external projects suggest two distinct directions:
+
+- [quic-go](https://quic-go.net/docs/quic/optimizations/) batches compatible
+  sends with UDP GSO and falls back when unsupported. spooftun already uses
+  this for local sends; optional receive GRO and reused address storage now
+  complement it. QUIC congestion control and flow-control windows do not
+  directly remove raw-packet forwarding costs.
+- [Hysteria's performance guidance](https://v2.hysteria.network/docs/advanced/Performance/)
+  emphasizes CPU capacity, socket buffers and QUIC windows. Its stream-window
+  settings are not spooftun settings. spooftun reports actual socket limits;
+  it does not silently change host sysctls or scheduling priority.
+- [Mimic](https://github.com/hack3ric/mimic) rewrites UDP into TCP-shaped packets
+  in kernel TC and restores them in XDP, avoiding a userspace forwarding loop.
+  It moves a small header-adjacent region rather than copying the whole payload.
+  Its published benchmark uses a newer CPU and is marked for retesting.
+  A separate kernel rewrite backend is the most promising architectural
+  experiment for WireGuard; it is **not implemented here**. Current AF_XDP
+  still sends packets through userspace. Spoofed return mapping, arbitrary
+  flags, checksums/offloads, noise and fragmentation need explicit compatibility
+  design before such a backend can replace the present path.
+
+### Reproduction and validation
+
+On Linux with root, `ip`, `iptables`, `wg`, `iperf3`, Python 3 and GCC:
+
+```sh
+CGO_ENABLED=0 go build -o spooftun .
+gcc -O2 -Wall -Wextra -Werror -o udp-load scripts/udp-load.c
+
+# Native one-way spooftun UDP. Output directory must not already exist.
+sudo python3 scripts/bench-wireguard.py --binary ./spooftun \
+    --path xdp --output native-xdp --seconds 30 --proto 6 --tcp-flags 0x06 \
+    --spoof --extra=-udp-gro --raw-udp --udp-load ./udp-load --udp-rate 1080M
+
+# Real WireGuard + TCP iperf3; repeat with --reverse.
+sudo python3 scripts/bench-wireguard.py --binary ./spooftun \
+    --path xdp --output wg-xdp --seconds 30 --proto 6 --tcp-flags 0x06 \
+    --spoof --extra=-udp-gro
+
+# Direct WireGuard calibration. --path direct instead measures plain veth.
+sudo python3 scripts/bench-wireguard.py --binary ./spooftun \
+    --path wireguard --output wg-direct --seconds 30
+```
+
+Use `--path afpacket` or `--path ring` to compare packet backends. The harness
+sets up and cleans only its own namespaces, veths, processes and scoped
+firewall rules. It never attaches XDP or applies firewall rules to a production
+interface. Native receive validation has a 16,777,216-datagram sequence cap and
+fails explicitly on overflow; choose duration and rate accordingly. Native
+mode currently supports one forward flow. iperf3 supports reverse and multiple
+streams. Raw-UDP iperf mode uses a separate TCP control proxy, while its UDP
+data still traverses spooftun.
+
+Validation passed: fresh native race tests, 48 backend/framing/GRO namespace
+cases, 14 noise cases, three outbound-port cases, real GRO boundary and
+truncation tests, zero steady-state UDP reader allocations, fake-fragment GSO
+delivery, vet, Staticcheck, and static Linux amd64/arm64 builds. arm64 was
+cross-built only; physical NIC zero-copy remains untested.
+
+Source and binary hashes, full received-count JSON, process logs, iperf3 JSON,
+CPU-profile summaries, diagnostic instrumentation and validation output are
+in [the raw performance evidence](test-results/ubuntu-2026-10-29-performance/).

@@ -178,3 +178,60 @@ or capability. See [PERFORMANCE.md](PERFORMANCE.md) for their scope and
 [PACKET_BACKENDS.md](PACKET_BACKENDS.md) for backend comparisons.
 
 - [iperf3 test/control connection documentation](https://software.es.net/iperf/invoking.html)
+
+## Performance profile for a two-vCPU VM
+
+For protocol 6, a spoofed client source address and custom flags `0x06`
+(SYN + RST), the following preserves those settings. Replace every uppercase
+placeholder and choose the actual Ethernet interface on each machine:
+
+```sh
+# Server: WireGuard listens on UDP 51820; 40000 is the tunnel port.
+sudo ./spooftun -mode server -iface eth0 -backend xdp -udp-gro \
+    -proto 6 -fake-tcp -tcp-flags 0x06 -mtu 1500 \
+    -target-port 40000 -outbound-port 51820 -remote-ip CLIENT_REAL_IP
+
+# Client: WireGuard peer Endpoint = 127.0.0.1:1001.
+sudo ./spooftun -mode client -iface eth0 -backend xdp -udp-gro \
+    -proto 6 -fake-tcp -tcp-flags 0x06 -mtu 1500 \
+    -src-ip SPOOFED_IP -filter-dst-ip CLIENT_REAL_IP \
+    -remote-ip SERVER_IP -target-port 40000 -listen 127.0.0.1:1001
+```
+
+Keep WireGuard MTU 1420 on a verified 1500-byte path. The fixed server
+`-remote-ip` above supports one client return address; it is needed because
+the spoofed source cannot identify the real return address. Fake fragmentation
+is omitted in this example; when required, enable it on both peers and account
+for the extra uplink frame per datagram.
+
+Check the XDP startup log for the actual copy/zero-copy mode. A VM's virtual
+NIC may only support copy mode. `-udp-gro` is optional, uses about 1 MiB per
+local receive socket, and only reduces message counts when traffic can be
+coalesced. The native batched UDP workload benefited, but the measured
+WireGuard workload did not show a comparable gain. If XDP is unavailable,
+use `-backend afpacket -afpacket-tx sendmmsg` and the documented narrow
+ingress isolation rules; compare TX ring on the deployment machine.
+
+On the test server, both tunnel endpoints, WireGuard peers and traffic tools
+shared two older Xeon vCPUs. Short native UDP runs exceeded 1 Gbps with loss,
+while WireGuard over spooftun remained much slower. These results do not
+predict the speed of two separate VMs. Full logs, receiver counts and longer
+runs are in [PERFORMANCE.md](PERFORMANCE.md#udp-receive-and-capacity-tests--2026-10-29).
+
+For a sustained 1-Gbps useful-payload target, first verify that the direct
+network and direct WireGuard paths have headroom above that rate, in both
+directions. Use a link faster than 1 Gbps, low CPU steal and enough per-core
+processing capacity. More vCPUs alone do not remove a serialized single-flow
+packet path. Measure receiver loss and CPU/softirq, not just the requested
+iperf3 send rate. Ordinary TCP TSO cannot be assumed to preserve arbitrary
+fake-TCP flags, static sequence fields and packet boundaries.
+
+The larger architectural opportunity is a separate **kernel TC/XDP packet
+rewrite backend**: restore and modify WireGuard packets without the local UDP
+socket and userspace forwarding round trip. [Mimic](https://github.com/hack3ric/mimic)
+uses this approach. This is different from spooftun's current AF_XDP backend,
+which redirects packets into userspace. Supporting spooftun's spoofed return
+mapping, `0x06` flags, checksums/offloads, noise and fake fragments would require
+its own implementation and compatibility tests. It has not been implemented
+or benchmarked here, and Mimic's published results on a newer CPU do not
+establish a speed guarantee for this VM.

@@ -6,9 +6,6 @@ import (
 	"log"
 	"net"
 	"net/netip"
-
-	"golang.org/x/net/ipv4"
-	"golang.org/x/sys/unix"
 )
 
 // startClientAFPacket runs the client side of the tunnel: it accepts local
@@ -122,9 +119,12 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, upPr
 
 	// Uplink (App -> AF_PACKET)
 	// Reads UDP from App, translates ClientPort -> VirtualPort, wraps in Ethernet + IP + Proto, sends raw
-	// recvmmsg batches application datagrams; GRO remains disabled.
-	ipv4AppConn := ipv4.NewPacketConn(appConn)
-	msgs := prepareMsgsUDP()
+	udpReader, err := newLocalUDPReader(appConn, maxPayload, *udpGRO)
+	if err != nil {
+		log.Fatalf("Initialize UDP reader: %v", err)
+	}
+	log.Printf("client UDP receive: recvmmsg GRO=%t", udpReader.gro)
+	msgs := make([]localUDPDatagram, batchSize)
 
 	noiseSender, err := newPacketNoise(*noise, noiseContent)
 	if err != nil {
@@ -163,13 +163,19 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, upPr
 	}
 	hdrLen := transportHeaderLen()
 	fakeTail := [1]byte{'0'}
+	var padded []byte
+	if *fakeFrag {
+		// GRO segments share a receive buffer. Pad in reusable scratch storage
+		// so appending cannot overwrite the next segment or allocate per packet.
+		padded = make([]byte, mtu)
+	}
 
 	n := 0
 	readPos := 0
 	for {
 		if readPos >= n {
 			flush()
-			n, err = ipv4AppConn.ReadBatch(msgs, 0)
+			n, err = udpReader.ReadBatch(msgs)
 			if n == 0 || err != nil {
 				log.Printf("Read UDP error: %v", err)
 				continue
@@ -178,20 +184,18 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, upPr
 		}
 		msg := &msgs[readPos]
 		readPos++
-		if msg.Flags&unix.MSG_TRUNC != 0 || msg.N > maxPayload {
-			continue
-		}
-		data := msg.Buffers[0][:msg.N]
-		cAddr := msg.Addr.(*net.UDPAddr)
+		data := msg.payload
+		clientIP := msg.addr.Addr().As4()
 
 		// NAT: Client -> VirtualPort
-		vPort, natErr := nat.GetOrCreateVirtualPort(cAddr.IP, cAddr.Port)
+		vPort, natErr := nat.GetOrCreateVirtualPort(net.IP(clientIP[:]), int(msg.addr.Port()))
 		if natErr != nil {
 			continue
 		}
 
 		if *fakeFrag {
-			data = padData(data, 8, hdrLen)
+			copy(padded, data)
+			data = padData(padded[:len(data)], 8, hdrLen)
 		}
 		var noiseSession *natSession
 		if noiseSender != nil {

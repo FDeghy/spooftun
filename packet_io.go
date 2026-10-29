@@ -9,6 +9,7 @@ import (
 	"net"
 
 	"github.com/gopacket/gopacket/afpacket"
+	"golang.org/x/sys/unix"
 )
 
 // ReadPacket returns a view valid until the next ReadPacket call.
@@ -83,6 +84,9 @@ func newTunnelIO(iface string, proto uint8, mac net.HardwareAddr, localIP net.IP
 	}
 	rx, err := afpacket.NewTPacket(
 		afpacket.OptInterface(iface),
+		// The tunnel parser accepts IPv4 only. Selecting it at registration
+		// avoids ETH_P_ALL outgoing taps and unrelated Ethernet protocols.
+		afpacket.OptProtocol(unix.ETH_P_IP),
 		afpacket.OptTPacketVersion(afpacket.TPacketVersion3),
 		afpacket.OptBlockSize(afBlockSize),
 		afpacket.OptNumBlocks(afNumBlocks),

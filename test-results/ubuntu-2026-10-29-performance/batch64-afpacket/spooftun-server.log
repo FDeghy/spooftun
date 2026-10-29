@@ -1,0 +1,6 @@
+2026/10/29 19:48:12 [Server] Listening on Up=Proto 6, replying Down=Proto 6 via tun0
+2026/10/29 19:48:12 Using Interface IP: 192.0.2.2
+2026/10/29 19:48:12 packet backend=afpacket tx=sendmmsg
+2026/10/29 19:48:12 Server local UDP destination: 127.0.0.1:51820 (tunnel port unchanged)
+2026/10/29 19:48:13 UDP server target socket buffers requested=16777216 kernel-rx=33554432 (was 1048576) kernel-tx=33554432 (was 524288)
+2026/10/29 19:48:13 New Session: 198.51.100.1:51820 -> Target :51820 (tunnel port 40000)

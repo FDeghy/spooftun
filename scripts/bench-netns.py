@@ -329,6 +329,8 @@ def orchestrate(args):
                                "-afpacket-tx", args.afpacket_tx]
                     if args.block_timeout:
                         common += ["-block-timeout", args.block_timeout]
+                    if args.udp_gro:
+                        common += ["-udp-gro"]
                 if tcp:
                     common += ["-fake-tcp"]
                 if frag:
@@ -439,6 +441,7 @@ def main():
     p.add_argument("--bench-fake-tcp", action="store_true", help="use fake TCP framing for the bench-only run")
     p.add_argument("--baseline", action="store_true", help="benchmark original defaults without correctness probes or new flags")
     p.add_argument("--backend", choices=("afpacket", "xdp"), default="afpacket")
+    p.add_argument("--udp-gro", action="store_true")
     p.add_argument("--afpacket-tx", choices=("sendmmsg", "ring"), default="sendmmsg")
     p.add_argument("--duration", type=float, default=3)
     p.add_argument("--iterations", type=int, default=1)

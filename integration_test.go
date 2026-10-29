@@ -22,14 +22,25 @@ func TestNetworkNamespaceIntegration(t *testing.T) {
 	if os.Geteuid() != 0 {
 		t.Fatal("network namespace integration requires root")
 	}
-	for _, configuration := range []struct{ backend, tx string }{
-		{"afpacket", "sendmmsg"}, {"afpacket", "ring"}, {"xdp", "sendmmsg"},
+	for _, configuration := range []struct {
+		backend, tx string
+		gro         bool
+	}{
+		{"afpacket", "sendmmsg", false}, {"afpacket", "ring", false}, {"xdp", "sendmmsg", false},
+		{"afpacket", "sendmmsg", true}, {"afpacket", "ring", true}, {"xdp", "sendmmsg", true},
 	} {
-		t.Run(configuration.backend+"/"+configuration.tx, func(t *testing.T) {
+		name := configuration.backend + "/" + configuration.tx
+		if configuration.gro {
+			name += "/gro"
+		}
+		t.Run(name, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 			defer cancel()
 			cmd := exec.CommandContext(ctx, "bash", "scripts/netns-test.sh",
 				"--backend", configuration.backend, "--afpacket-tx", configuration.tx)
+			if configuration.gro {
+				cmd.Args = append(cmd.Args, "--udp-gro")
+			}
 			// Signal the whole harness so its EXIT trap can clean up namespaces
 			// even when a hung subprocess reaches the test timeout.
 			cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}

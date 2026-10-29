@@ -10,9 +10,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"golang.org/x/net/ipv4"
-	"golang.org/x/sys/unix"
 )
 
 // startServerAFPacket runs the server side of the tunnel: it captures uplink
@@ -201,11 +198,16 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 			go func(c *net.UDPConn, clientIP net.IP, clientPort uint16, clientMAC net.HardwareAddr,
 				srcServerIP net.IP, tunnelPort uint16, sessionKey natKey,
 				state *serverSession) {
-				ipv4AppConn := ipv4.NewPacketConn(c)
-				msgs := prepareMsgsUDP()
 				defer c.Close()
 				defer sessions.CompareAndDelete(sessionKey, state)
 				defer state.lastSeen.Store(retiredSessionTime)
+				udpReader, err := newLocalUDPReader(c, maxReply, *udpGRO)
+				if err != nil {
+					log.Printf("Initialize reply UDP reader: %v", err)
+					return
+				}
+				log.Printf("server UDP receive: recvmmsg GRO=%t", udpReader.gro)
+				msgs := make([]localUDPDatagram, batchSize)
 
 				// Use shared txSender from outer scope (concurrent writes are safe)
 
@@ -251,16 +253,16 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 				readPos := 0
 				// Packet activity advances lastSeen without resetting Go's socket
 				// timer. Renew the deadline only when the previous one fires.
-				if err := ipv4AppConn.SetReadDeadline(state.idleDeadline(*sessionTimeout)); err != nil {
+				if err := c.SetReadDeadline(state.idleDeadline(*sessionTimeout)); err != nil {
 					return
 				}
 				for {
 					if readPos >= n {
 						flush()
-						n, errRead = ipv4AppConn.ReadBatch(msgs, 0)
+						n, errRead = udpReader.ReadBatch(msgs)
 						if n == 0 || errRead != nil {
 							if ne, ok := errRead.(net.Error); ok && ne.Timeout() && !state.expireIdle(time.Now().UnixNano(), *sessionTimeout) {
-								if err := ipv4AppConn.SetReadDeadline(state.idleDeadline(*sessionTimeout)); err != nil {
+								if err := c.SetReadDeadline(state.idleDeadline(*sessionTimeout)); err != nil {
 									return
 								}
 								continue
@@ -272,11 +274,8 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 					}
 					msg := &msgs[readPos]
 					readPos++
-					if msg.Flags&unix.MSG_TRUNC != 0 || msg.N > maxReply {
-						continue
-					}
 					state.refresh(sessionActivityTime())
-					payload := msg.Buffers[0][:msg.N]
+					payload := msg.payload
 					if noiseSender != nil && !noiseSent {
 						frame, err := noiseSender.Encode(encoder, txBuffers[len(frames)], tunnelPort, clientPort)
 						if err != nil {

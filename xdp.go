@@ -461,14 +461,8 @@ func (x *xdpIO) WriteBatch(packets [][]byte) (int, error) {
 			if time.Now().After(deadline) {
 				return sent, fmt.Errorf("AF_XDP TX stalled: %w", io.ErrNoProgress)
 			}
-			_, err := unix.Poll([]unix.PollFd{{Fd: int32(q.fd), Events: unix.POLLOUT}, {Fd: int32(x.wake), Events: unix.POLLIN}}, 10)
-			if err != nil && err != unix.EINTR {
+			if err := x.waitTX(q); err != nil {
 				return sent, err
-			}
-			// POLLOUT reports descriptor space, not necessarily completed UMEM
-			// frames. Avoid spinning when the driver still owns every TX frame.
-			if len(q.freeTX) == 0 {
-				time.Sleep(time.Millisecond)
 			}
 		}
 	}
@@ -477,6 +471,24 @@ func (x *xdpIO) WriteBatch(packets [][]byte) (int, error) {
 		return sent, os.ErrClosed
 	}
 	return sent, nil
+}
+
+func (x *xdpIO) waitTX(q *xdpQueue) error {
+	_, err := unix.Poll([]unix.PollFd{{Fd: int32(q.fd), Events: unix.POLLOUT}, {Fd: int32(x.wake), Events: unix.POLLIN}}, 10)
+	if err != nil && err != unix.EINTR {
+		return err
+	}
+	// Completions may arrive after the caller's last reap, including while
+	// polling. Reclaim them before deciding whether a backoff is necessary.
+	if err := q.reap(); err != nil {
+		return err
+	}
+	// POLLOUT reports descriptor space, not necessarily completed UMEM frames.
+	// Avoid spinning only when the driver still owns every TX frame.
+	if len(q.freeTX) == 0 {
+		time.Sleep(time.Millisecond)
+	}
+	return nil
 }
 
 func (x *xdpIO) kickTX(q *xdpQueue, deadline time.Time) error {

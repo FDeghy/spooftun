@@ -1,0 +1,28 @@
+File: diagnostic
+Build ID: ed046b833a2157a72664222ff649b99b2a268696
+Type: cpu
+Time: 2026-10-29 19:46:32 +0330
+Duration: 8s, Total samples = 1.41s (17.62%)
+Showing nodes accounting for 1.34s, 95.04% of 1.41s total
+Showing top 20 nodes out of 90
+      flat  flat%   sum%        cum   cum%
+     1.05s 74.47% 74.47%      1.05s 74.47%  internal/runtime/syscall/linux.Syscall6
+     0.05s  3.55% 78.01%      0.05s  3.55%  runtime.nanotime (inline)
+     0.03s  2.13% 80.14%      0.03s  2.13%  time.runtimeNow
+     0.02s  1.42% 81.56%      0.03s  2.13%  main.parseEthIPv4
+     0.02s  1.42% 82.98%      0.02s  1.42%  runtime.(*timers).check
+     0.02s  1.42% 84.40%      0.21s 14.89%  runtime.findRunnable
+     0.02s  1.42% 85.82%      0.02s  1.42%  runtime.futex
+     0.01s  0.71% 86.52%      0.01s  0.71%  encoding/binary.bigEndian.Uint16 (inline)
+     0.01s  0.71% 87.23%      0.01s  0.71%  golang.org/x/net/internal/socket.(*mmsgTmpsPool).Get
+     0.01s  0.71% 87.94%      0.02s  1.42%  internal/sync.(*HashTrieMap[go.shape.interface {},go.shape.interface {}]).Load
+     0.01s  0.71% 88.65%      0.01s  0.71%  main.(*xdpRing).packet (inline)
+     0.01s  0.71% 89.36%      0.01s  0.71%  main.encoderChecksumSum
+     0.01s  0.71% 90.07%      0.01s  0.71%  main.isNoisePacket (inline)
+     0.01s  0.71% 90.78%      0.86s 60.99%  main.startServerAFPacket
+     0.01s  0.71% 91.49%      0.18s 12.77%  main.startServerAFPacket.func1.1
+     0.01s  0.71% 92.20%      0.01s  0.71%  runtime.(*gcControllerState).releaseNextGCMarkWorker
+     0.01s  0.71% 92.91%      0.01s  0.71%  runtime.efaceeq
+     0.01s  0.71% 93.62%      0.03s  2.13%  runtime.futexsleep
+     0.01s  0.71% 94.33%      0.01s  0.71%  runtime.mallocgcSmallScanNoHeaderSC5
+     0.01s  0.71% 95.04%      0.02s  1.42%  runtime.memclrHasPointers

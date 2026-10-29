@@ -83,6 +83,7 @@ not a solution to a packet-processing bottleneck.
 |------|---------|-----------|-------------|
 | `-mode` | `client` | both | `client` or `server`. |
 | `-backend` | `afpacket` | both | `afpacket` or `xdp`; independent of the peer's backend. |
+| `-udp-gro` | `false` | both | Coalesce local UDP receives when supported, then preserve individual datagrams. Uses about 1 MiB of receive storage per local socket; see performance notes. |
 | `-afpacket-tx` | `sendmmsg` | AF_PACKET | `sendmmsg` or `ring` (PACKET_TX_RING). Ignored by XDP. |
 | `-ring-mb` | `16` | AF_PACKET | Receive-ring budget in MiB; does not set TX-ring or XDP UMEM size. |
 | `-block-timeout` | `1ms` | AF_PACKET | TPACKET_V3 receive-block retirement delay. |
@@ -132,7 +133,7 @@ All files are `package main` under the `//go:build linux` constraint.
 | `tx_ring.go` | Dedicated TPACKET_V2 mmap transmit ring. |
 | `xdp.go` | AF_XDP sockets, UMEM ownership, fallback and resource lifecycle. |
 | `xdp_filter.go` | eBPF tunnel redirect filter; unrelated traffic passes. |
-| `offload.go` | Reusable local UDP receive-batch buffers. |
+| `udp_receive.go` | Allocation-free local UDP recvmmsg, address decoding and optional GRO splitting. |
 | `local_udp.go` | Local UDP sendmmsg/GSO writes, fallback, and socket-buffer verification. |
 | `local_forwarder.go` | Bounded local-delivery queue with owned packet storage. |
 | `encoder.go` | Fixed Ethernet/IPv4/UDP/TCP encoding with precomputed checksum sums. |
@@ -224,7 +225,17 @@ borrowed payloads before the next batch read recycles those frames. This avoids
 the intermediate payload copy and channel handoff on the XDP receive path.
 Neither path waits to fill a batch. Compatible same-destination packets use UDP
 GSO; other datagrams and unsupported GSO use sendmmsg. Payload contents and
-datagram boundaries are preserved. Local UDP receive GRO remains disabled.
+datagram boundaries are preserved. Local UDP receives decode addresses directly
+into reusable storage, avoiding per-packet address allocations.
+
+Add `-udp-gro` to opt into Linux UDP receive coalescing. This can reduce receive
+syscalls when the application emits GSO batches. It does not merge application
+datagrams on the tunnel wire. Unsupported kernels fall back to ordinary
+recvmmsg; startup logs report the actual choice. GRO uses about **1 MiB per
+client listener and per active server reply session**, versus about 24 KB
+without it at MTU 1500. It is therefore disabled by default. Either endpoint
+can enable it independently. Fake-fragment padding uses separate reusable
+storage so it cannot overwrite a neighboring GRO segment.
 
 Socket setup logs the requested and actual receive/send buffer sizes, including
 Linux's doubled accounting values, and warns if the kernel caps the request.
@@ -255,9 +266,12 @@ The namespace suite changes only temporary veth interfaces and namespaces, and
 removes its own processes/network on exit. Measurements are local one-flow echo
 results, not Internet bandwidth or maximum tunnel capacity. Both endpoints
 and the Python applications share one 2-vCPU machine; the 128-request window
-and three-second runs can constrain results. **1-Gbps tunneling has not been
-demonstrated.** See [PERFORMANCE.md](PERFORMANCE.md) for measurement limits and
-a two-host capacity-test plan.
+and three-second runs can constrain results. New native one-way and real
+WireGuard tests are documented in [PERFORMANCE.md](PERFORMANCE.md#udp-receive-and-capacity-tests--2026-10-29).
+Short spooftun-only runs exceeded 1 Gbps with packet loss; **loss-free 1 Gbps
+and 1-Gbps WireGuard over spooftun have not been demonstrated**. See
+[WIREGUARD.md](WIREGUARD.md#performance-profile-for-a-two-vcpu-vm) for the tested
+configuration and the remaining CPU bottleneck.
 
 ### Kernel processing of tunnel frames
 

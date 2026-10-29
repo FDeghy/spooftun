@@ -1,0 +1,27 @@
+File: diagnostic
+Build ID: ed046b833a2157a72664222ff649b99b2a268696
+Type: cpu
+Time: 2026-10-29 19:46:32 +0330
+Duration: 8.01s, Total samples = 2.02s (25.23%)
+Showing nodes accounting for 1.45s, 71.78% of 2.02s total
+Dropped 34 nodes (cum <= 0.01s)
+Showing top 18 nodes out of 81
+      flat  flat%   sum%        cum   cum%
+         0     0%     0%      1.51s 74.75%  main.main
+     0.05s  2.48%  2.48%      1.51s 74.75%  main.startClientAFPacket
+         0     0%  2.48%      1.51s 74.75%  runtime.main
+     1.38s 68.32% 70.79%      1.38s 68.32%  internal/runtime/syscall/linux.Syscall6
+         0     0% 70.79%      1.30s 64.36%  syscall.RawSyscall6
+         0     0% 70.79%      1.27s 62.87%  syscall.Syscall6
+         0     0% 70.79%      0.86s 42.57%  main.(*noiseBatch).WriteBatch
+         0     0% 70.79%      0.86s 42.57%  main.(*xdpIO).WriteBatch
+         0     0% 70.79%      0.86s 42.57%  main.startClientAFPacket.func2 (inline)
+     0.02s  0.99% 71.78%      0.78s 38.61%  main.(*xdpIO).kickTX
+         0     0% 71.78%      0.76s 37.62%  golang.org/x/sys/unix.Sendto
+         0     0% 71.78%      0.76s 37.62%  golang.org/x/sys/unix.sendto
+         0     0% 71.78%      0.44s 21.78%  golang.org/x/net/internal/socket.(*Conn).RecvMsgs (inline)
+         0     0% 71.78%      0.44s 21.78%  golang.org/x/net/internal/socket.(*Conn).recvMsgs
+         0     0% 71.78%      0.44s 21.78%  golang.org/x/net/ipv4.(*payloadHandler).ReadBatch
+         0     0% 71.78%      0.37s 18.32%  golang.org/x/net/internal/socket.(*syscaller).recvmmsg
+         0     0% 71.78%      0.37s 18.32%  internal/poll.(*FD).RawRead
+         0     0% 71.78%      0.37s 18.32%  net.(*rawConn).Read

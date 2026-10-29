@@ -50,6 +50,50 @@ func TestXDPRingWrapAndCompletionOwnership(t *testing.T) {
 	}
 }
 
+func TestXDPTXWaitReclaimsNewCompletions(t *testing.T) {
+	// An eventfd supplies real POLLOUT readiness without requiring AF_XDP
+	// privileges. Descriptor space and completed UMEM are separate resources.
+	fd, err := unix.Eventfd(0, unix.EFD_CLOEXEC|unix.EFD_NONBLOCK)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unix.Close(fd)
+	q := &xdpQueue{
+		fd: fd, umem: make([]byte, 2*xdpRingSize*xdpFrameSize),
+		tx: fakeXDPRing(16), completion: fakeXDPRing(8),
+	}
+	x := &xdpIO{wake: -1, queues: []*xdpQueue{q}}
+	if err := q.reap(); err != nil || len(q.freeTX) != 0 {
+		t.Fatalf("unexpected initial TX availability: %v", err)
+	}
+	// Model the kernel publishing a completion after WriteBatch's initial
+	// reap. The wait must make that frame reusable before deciding to sleep.
+	addr := uint64(xdpRingSize * xdpFrameSize)
+	*q.completion.address(0) = addr
+	atomic.StoreUint32(q.completion.producer, 1)
+	if err := x.waitTX(q); err != nil {
+		t.Fatal(err)
+	}
+	if len(q.freeTX) != 1 || q.freeTX[0] != addr || *q.completion.consumer != 1 {
+		t.Fatal("TX wait left a completed frame unavailable")
+	}
+	packet := []byte{1, 2, 3}
+	if n, err := x.WriteBatch([][]byte{packet}); err != nil || n != 1 {
+		t.Fatalf("send after completion: %d %v", n, err)
+	}
+	if len(q.freeTX) != 0 || *q.tx.producer != 1 || q.tx.packet(0).Addr != addr ||
+		!bytes.Equal(q.umem[addr:addr+uint64(len(packet))], packet) {
+		t.Fatal("completed frame was lost, duplicated, or reused incorrectly")
+	}
+	// A completion referring to RX memory must still fail rather than grant
+	// ownership to the transmitter.
+	*q.completion.address(1) = 0
+	atomic.StoreUint32(q.completion.producer, 2)
+	if err := x.waitTX(q); err == nil || len(q.freeTX) != 0 {
+		t.Fatal("TX wait accepted an invalid completion")
+	}
+}
+
 func TestXDPRXSliceLifetimeAndQueueCoverage(t *testing.T) {
 	q0 := &xdpQueue{rx: fakeXDPRing(16), fill: fakeXDPRing(8), umem: make([]byte, 2*xdpRingSize*xdpFrameSize)}
 	q1 := &xdpQueue{rx: fakeXDPRing(16), fill: fakeXDPRing(8), umem: make([]byte, 2*xdpRingSize*xdpFrameSize)}

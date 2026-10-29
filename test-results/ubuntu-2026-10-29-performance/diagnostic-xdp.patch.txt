@@ -1,0 +1,36 @@
+--- baseline/xdp.go
++++ diag/xdp.go
+@@ -337,6 +337,7 @@
+ 		p := atomic.LoadUint32(q.fill.producer)
+ 		used := p - atomic.LoadUint32(q.fill.consumer)
+ 		if used >= xdpRingSize {
++ diagFillWait.Add(1)
+ 			// The kernel can publish RX before releasing its cached FILL
+ 			// consumer (xsk_flush does this). Retain the frame until that
+ 			// slot is released; never overwrite a kernel-owned ring entry.
+@@ -458,6 +459,7 @@
+ 			return sent, err
+ 		}
+ 		if n == 0 {
++ diagTXWait.Add(1)
+ 			if time.Now().After(deadline) {
+ 				return sent, fmt.Errorf("AF_XDP TX stalled: %w", io.ErrNoProgress)
+ 			}
+@@ -468,7 +470,7 @@
+ 			// POLLOUT reports descriptor space, not necessarily completed UMEM
+ 			// frames. Avoid spinning when the driver still owns every TX frame.
+ 			if len(q.freeTX) == 0 {
+-				time.Sleep(time.Millisecond)
++				diagWakeWait.Add(1); time.Sleep(time.Millisecond)
+ 			}
+ 		}
+ 	}
+@@ -496,7 +498,7 @@
+ 		}
+ 		// A transient wakeup failure must be retried even on the last batch.
+ 		// Poll can report writable before descriptors complete; bound CPU use.
+-		time.Sleep(time.Millisecond)
++		diagWakeWait.Add(1); time.Sleep(time.Millisecond)
+ 	}
+ 	return nil
+ }

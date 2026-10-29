@@ -1,0 +1,65 @@
+{
+  "scope": "same-host isolated veth, both endpoints share CPU; not a WAN measurement",
+  "settings": {
+    "binary": "./baseline",
+    "wg": "/root/spooftun-perf-20261029/wg-tools/usr/bin/wg",
+    "path": "afpacket",
+    "output": "raw-baseline-afpacket",
+    "seconds": 10,
+    "reverse": false,
+    "streams": 1,
+    "udp_rate": "1G",
+    "raw_udp": true,
+    "wg_mtu": 1420,
+    "proto": 6,
+    "tcp_flags": "0x10",
+    "spoof": true,
+    "extra": []
+  },
+  "received_mbps": 456.2188800664362,
+  "receiver": {
+    "start": 0,
+    "end": 10.037899,
+    "seconds": 10.037899,
+    "bytes": 572434880,
+    "bits_per_second": 456218880.06643623,
+    "jitter_ms": 0.12512780276740176,
+    "lost_packets": 4926,
+    "packets": 425834,
+    "lost_percent": 1.1473691565928308,
+    "sender": false
+  },
+  "tunnel_cpu_seconds": [
+    2.77,
+    5.15
+  ],
+  "elapsed_seconds": 10.091228688135743,
+  "host_cpu_tick_deltas": {
+    "user": 460,
+    "nice": 0,
+    "system": 1141,
+    "idle": 44,
+    "iowait": 0,
+    "irq": 0,
+    "softirq": 346,
+    "steal": 5
+  },
+  "iperf_command": [
+    "iperf3",
+    "-c",
+    "127.0.0.1",
+    "-t",
+    "10",
+    "-P",
+    "1",
+    "-J",
+    "--get-server-output",
+    "-p",
+    "18081",
+    "-u",
+    "-b",
+    "1G",
+    "-l",
+    "1360"
+  ]
+}

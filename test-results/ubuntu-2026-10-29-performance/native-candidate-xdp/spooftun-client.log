@@ -1,0 +1,8 @@
+2026/10/29 20:03:10 [Client] Forwarding 127.0.0.1:18081 -> Tunnel(192.0.2.2) -> :40000 (Up=Proto 6, Down=Proto 6) via tun0
+2026/10/29 20:03:10 Using Custom Source IP: 198.51.100.1 (spoofing)
+2026/10/29 20:03:10 Destination MAC: ba:7c:61:88:2e:1b
+2026/10/29 20:03:10 AF_XDP native zero-copy unavailable: bind AF_XDP queue 0: operation not supported
+2026/10/29 20:03:10 packet backend=xdp attach=native mode=copy queues=1
+2026/10/29 20:03:10 AF_XDP tun0 queue=0 attachment=native copy zero-copy=false UMEM=4 MiB
+2026/10/29 20:03:10 UDP client app socket buffers requested=16777216 kernel-rx=33554432 (was 1048576) kernel-tx=33554432 (was 524288)
+2026/10/29 20:03:10 client UDP receive: recvmmsg GRO=true
