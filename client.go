@@ -51,12 +51,13 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, upPr
 	log.Printf("Destination MAC: %s", dstMAC)
 
 	filterDst := resolveFilterDstIP(srcIP)
-	receiver, txSender, err := newTunnelIO(iface, dnProto, srcMAC, filterDst, dstPort, true)
+	filter := newTunnelPacketFilter(dnProto, srcMAC, filterDst, dstPort, true)
+	workers, err := newTunnelWorkers(iface, dnProto, srcMAC, filterDst, dstPort, true)
 	if err != nil {
 		log.Fatalf("Initialize packet backend: %v", err)
 	}
-	defer receiver.Close()
-	defer txSender.Close()
+	defer closeTunnelWorkers(workers)
+	txSender := workers[0].sender
 
 	// Local UDP socket for application traffic
 	udpAddr, err := net.ResolveUDPAddr("udp4", localAddr)
@@ -76,46 +77,48 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, upPr
 
 	// Downlink (packet backend -> App)
 	// Reads raw Ethernet frames, strips headers, translates VirtualPort -> ClientPort
-	go func() {
-		forwarder := newLocalUDPDelivery(receiver, mtu)
-		defer forwarder.Close()
+	for _, worker := range workers {
+		go func(receiver packetReceiver) {
+			forwarder := newLocalUDPDelivery(receiver, mtu)
+			defer forwarder.Close()
 
-		for {
-			// Read a borrowed frame; its bytes remain valid until the next read.
-			data, err := forwarder.ReadPacket()
-			if err != nil {
-				log.Fatalf("Packet receive failed: %v", err)
-			}
+			for {
+				// Read a borrowed frame; its bytes remain valid until the next read.
+				data, err := forwarder.ReadPacket()
+				if err != nil {
+					log.Fatalf("Packet receive failed: %v", err)
+				}
 
-			// Parse Ethernet + IPv4 header (fixed-offset, no gopacket dispatch).
-			pkt, ok := parseEthIPv4(data)
-			if !ok || isNoisePacket(pkt, *fakeTCP) {
-				continue
-			}
+				// Parse Ethernet + IPv4 header (fixed-offset, no gopacket dispatch).
+				pkt, ok := parseEthIPv4(data)
+				if !ok || isNoisePacket(pkt, *fakeTCP) {
+					continue
+				}
 
-			// Userspace protocol filter (defense-in-depth: BPF may fail to attach).
-			// Incoming on the client is server→client traffic → dnProto.
-			if pkt.proto != dnProto || pkt.fragOffset != 0 {
-				continue
-			}
+				// Userspace protocol filter (defense-in-depth: BPF may fail to attach).
+				// Incoming on the client is server→client traffic → dnProto.
+				if pkt.proto != dnProto || pkt.fragOffset != 0 {
+					continue
+				}
 
-			// Parse transport header (UDP or TCP) from IP payload
-			_, dstPortRecv, payload, ok := parseFakeTransport(pkt.payload, *fakeTCP)
-			if !ok {
-				continue
-			}
+				// Parse transport header (UDP or TCP) from IP payload
+				srcPortRecv, dstPortRecv, payload, ok := parseTunnelTransport(pkt, *fakeTCP)
+				if !ok || !filter.matches(pkt, srcPortRecv, dstPortRecv) {
+					continue
+				}
 
-			// Reverse NAT: VirtualPort (transport.DstPort) -> Client Session
-			sess := nat.GetSession(dstPortRecv)
-			if sess == nil {
-				continue
-			}
+				// Reverse NAT: VirtualPort (transport.DstPort) -> Client Session
+				sess := nat.GetSession(dstPortRecv)
+				if sess == nil {
+					continue
+				}
 
-			if addr, ok := netip.AddrFromSlice(sess.clientIP); ok {
-				forwarder.Send(appConn, netip.AddrPortFrom(addr.Unmap(), uint16(sess.clientPort)), payload)
+				if addr, ok := netip.AddrFromSlice(sess.clientIP); ok {
+					forwarder.Send(appConn, netip.AddrPortFrom(addr.Unmap(), uint16(sess.clientPort)), payload)
+				}
 			}
-		}
-	}()
+		}(worker.receiver)
+	}
 
 	// Uplink (App -> AF_PACKET)
 	// Reads UDP from App, translates ClientPort -> VirtualPort, wraps in Ethernet + IP + Proto, sends raw

@@ -1,0 +1,90 @@
+{
+  "1": {
+    "single": {
+      "64": {
+        "median_mbps": 9.095,
+        "median_cpu_us": 53.1
+      },
+      "512": {
+        "median_mbps": 72.904,
+        "median_cpu_us": 48.5
+      },
+      "1400": {
+        "median_mbps": 182.242,
+        "median_cpu_us": 56.947
+      }
+    },
+    "flow": {
+      "64": {
+        "median_mbps": 9.468,
+        "median_cpu_us": 48.118
+      },
+      "512": {
+        "median_mbps": 74.584,
+        "median_cpu_us": 50.289
+      },
+      "1400": {
+        "median_mbps": 195.194,
+        "median_cpu_us": 53.535
+      }
+    },
+    "spread": {
+      "64": {
+        "median_mbps": 8.424,
+        "median_cpu_us": 54.699
+      },
+      "512": {
+        "median_mbps": 67.772,
+        "median_cpu_us": 55.185
+      },
+      "1400": {
+        "median_mbps": 161.966,
+        "median_cpu_us": 62.978
+      }
+    }
+  },
+  "8": {
+    "single": {
+      "64": {
+        "median_mbps": 7.357,
+        "median_cpu_us": 65.935
+      },
+      "512": {
+        "median_mbps": 62.764,
+        "median_cpu_us": 66.53
+      },
+      "1400": {
+        "median_mbps": 164.907,
+        "median_cpu_us": 67.435
+      }
+    },
+    "flow": {
+      "64": {
+        "median_mbps": 7.572,
+        "median_cpu_us": 65.137
+      },
+      "512": {
+        "median_mbps": 63.064,
+        "median_cpu_us": 62.565
+      },
+      "1400": {
+        "median_mbps": 180.108,
+        "median_cpu_us": 63.005
+      }
+    },
+    "spread": {
+      "64": {
+        "median_mbps": 7.546,
+        "median_cpu_us": 67.322
+      },
+      "512": {
+        "median_mbps": 64.017,
+        "median_cpu_us": 64.611
+      },
+      "1400": {
+        "median_mbps": 172.622,
+        "median_cpu_us": 65.94
+      }
+    }
+  }
+}

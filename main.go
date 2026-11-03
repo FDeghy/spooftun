@@ -30,6 +30,9 @@ import (
 
 func main() {
 	flag.Parse()
+	if err := validatePacketWorkers(*backend, *packetWorkers, *packetDistribution); err != nil {
+		log.Fatal(err)
+	}
 	if *noisePayload != "" && !*noise {
 		log.Fatal("-noise-payload requires -noise")
 	}

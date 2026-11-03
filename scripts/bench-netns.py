@@ -184,6 +184,51 @@ def probe_duplicates(expect_duplicate):
             "expected_duplicate": expect_duplicate}
 
 
+def probe_multiqueue(distribution):
+    # A burst on one new flow must produce exactly one target-side session,
+    # even when spread sends simultaneous first packets to different workers.
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.settimeout(2)
+    for _ in range(32):
+        sock.sendto(b"oneway-data", LOCAL)
+    time.sleep(0.15)
+    sock.sendto(b"oneway-finish", LOCAL)
+    info = json.loads(sock.recv(65535))
+    if len(info["ports"]) != 1 or info["count"] != 32:
+        raise AssertionError("parallel session creation lost/split a flow: %r" % info)
+    sock.close()
+    sockets = [socket.socket(socket.AF_INET, socket.SOCK_DGRAM) for _ in range(8)]
+    try:
+        for flow, conn in enumerate(sockets):
+            conn.settimeout(2)
+            for seq in range(32):
+                conn.sendto(struct.pack("!II", flow, seq) + b"q" * 128, LOCAL)
+        for flow, conn in enumerate(sockets):
+            seen = []
+            for _ in range(32):
+                packet = conn.recv(65535)
+                f, seq = struct.unpack("!II", packet[:8])
+                if f != flow or packet[8:] != b"q" * 128:
+                    raise AssertionError("flow payload changed")
+                seen.append(seq)
+            if sorted(seen) != list(range(32)):
+                raise AssertionError("flow duplicated or lost packets")
+            if distribution == "flow" and seen != list(range(32)):
+                raise AssertionError("flow mode reordered packets")
+            conn.settimeout(0.02)
+            try:
+                conn.recv(65535)
+            except socket.timeout:
+                pass
+            else:
+                raise AssertionError("duplicate fanout delivery")
+    finally:
+        for conn in sockets:
+            conn.close()
+    return {"flows": 8, "datagrams_per_flow": 32, "single_flow_target_ports": info["ports"],
+            "flow_order_checked": distribution == "flow"}
+
+
 def cpu_seconds(pids):
     ticks = os.sysconf("SC_CLK_TCK")
     total = 0
@@ -195,12 +240,15 @@ def cpu_seconds(pids):
     return total / ticks
 
 
-def benchmark(size, duration, pids):
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.settimeout(1)
-    exchange(sock, b"warmup")
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 4 << 20)
-    sock.setblocking(False)
+def benchmark(size, duration, pids, flows=1):
+    sockets = []
+    for _ in range(flows):
+        conn = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        conn.settimeout(1)
+        exchange(conn, b"warmup")
+        conn.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 4 << 20)
+        conn.setblocking(False)
+        sockets.append(conn)
     if size < 8:
         raise ValueError("benchmark payload must fit an 8-byte sequence number")
     sent = received = duplicates = expired = 0
@@ -209,9 +257,9 @@ def benchmark(size, duration, pids):
     window = 128
     suffix = b"b" * (size - 8)
 
-    def receive_one():
+    def receive_one(conn):
         nonlocal duplicates
-        data = sock.recv(65535)
+        data = conn.recv(65535)
         if len(data) != size or data[8:] != suffix:
             raise AssertionError("benchmark payload mismatch")
         sequence = struct.unpack("!Q", data[:8])[0]
@@ -240,32 +288,35 @@ def benchmark(size, duration, pids):
             last_expiry_check = now
         for _ in range(min(32, window - len(pending))):
             try:
-                sock.sendto(struct.pack("!Q", sent) + suffix, LOCAL)
+                sockets[sent % flows].sendto(struct.pack("!Q", sent) + suffix, LOCAL)
                 pending[sent] = time.monotonic()
                 sent += 1
             except BlockingIOError:
                 break
         if len(pending) >= window:
-            select.select([sock], [], [], min(0.001, max(0, finish - time.monotonic())))
-        for _ in range(128):
-            try:
-                received += int(receive_one())
-            except BlockingIOError:
-                break
+            select.select(sockets, [], [], min(0.001, max(0, finish - time.monotonic())))
+        for conn in sockets:
+            for _ in range(max(1, 128 // flows)):
+                try:
+                    received += int(receive_one(conn))
+                except BlockingIOError:
+                    break
     elapsed = time.monotonic() - start
     cpu = cpu_seconds(pids) - cpu0
     # Throughput counts unique responses during the measurement interval.
     # A bounded drain separately records replies that were still in flight.
     late = 0
     drain_until = time.monotonic() + 0.25
-    sock.settimeout(0.02)
     while time.monotonic() < drain_until:
-        try:
-            late += int(receive_one())
-        except socket.timeout:
-            pass
-    sock.close()
-    return {"payload_bytes": size, "duration_seconds": round(elapsed, 3),
+        ready, _, _ = select.select(sockets, [], [], 0.02)
+        for conn in ready:
+            try:
+                late += int(receive_one(conn))
+            except BlockingIOError:
+                pass
+    for conn in sockets:
+        conn.close()
+    return {"flows": flows, "payload_bytes": size, "duration_seconds": round(elapsed, 3),
             "sent_datagrams": sent, "received_datagrams": received,
             "duplicate_replies": duplicates, "late_replies": late,
             "expired_requests": expired, "max_inflight_datagrams": window,
@@ -325,7 +376,7 @@ def orchestrate(args):
                 noise_options = ["-noise"] + (["-noise-payload", args.noise_payload] if args.noise_payload else [])
                 common = ["-iface", "tun0", "-target-port", "18080", "-proto", str(proto)]
                 if not args.baseline:
-                    common += ["-session-timeout", "1s", "-backend", args.backend,
+                    common += ["-packet-workers", str(args.packet_workers), "-packet-distribution", args.packet_distribution, "-session-timeout", "1s", "-backend", args.backend,
                                "-afpacket-tx", args.afpacket_tx]
                     if args.block_timeout:
                         common += ["-block-timeout", args.block_timeout]
@@ -376,6 +427,9 @@ def orchestrate(args):
                                                (proto, tcp, frag, check.stderr,
                                                 json.dumps(read_tunnel_logs(logs))))
                         checks = json.loads(check.stdout)
+                        if args.packet_workers > 1:
+                            parallel = subprocess.check_output(["ip", "netns", "exec", args.client_ns, sys.executable, HERE, "--probe-multiqueue", "--packet-distribution", args.packet_distribution], text=True, timeout=15)
+                            checks["multiqueue"] = json.loads(parallel)
                         if args.backend == "xdp":
                             # ICMP does not match any tunnel framing mode. A reply
                             # verifies that attached XDP leaves other IPv4 traffic
@@ -393,7 +447,7 @@ def orchestrate(args):
                     startup = {endpoint: [line for line in output.splitlines()
                                           if "New Session" not in line and
                                           any(marker in line for marker in
-                                              ("packet backend=", "AF_XDP", "XDP"))]
+                                              ("packet backend=", "packet receive workers=", "AF_XDP", "XDP"))]
                                for endpoint, output in read_tunnel_logs(logs).items()}
                     entry = {"protocol": proto, "fake_tcp": tcp, "fake_frag": frag,
                              "status": "passed", "checks": checks,
@@ -404,7 +458,7 @@ def orchestrate(args):
                             try:
                                 output = subprocess.check_output(["ip", "netns", "exec", args.client_ns,
                                     sys.executable, HERE, "--measure", "--size", str(size), "--duration", str(args.duration),
-                                    "--pids", "%d,%d" % (client.pid, server.pid)], text=True, stderr=subprocess.STDOUT,
+                                    "--flows", str(args.flows), "--pids", "%d,%d" % (client.pid, server.pid)], text=True, stderr=subprocess.STDOUT,
                                     timeout=args.duration + 10)
                             except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
                                 raise RuntimeError("benchmark failed (%d bytes): %s\n%s\n%s" %
@@ -426,8 +480,9 @@ def orchestrate(args):
             "baseline_mode": args.baseline,
             "requested_backend": None if args.baseline else args.backend,
             "requested_afpacket_tx": None if args.baseline else args.afpacket_tx,
+            "packet_workers": args.packet_workers, "packet_distribution": args.packet_distribution,
             "block_timeout": "baseline default" if args.baseline else (args.block_timeout or "current default"),
-            "benchmark_scope": "Python echo harness, one flow; not an Internet bandwidth measurement",
+            "benchmark_scope": "Python echo harness; not an Internet bandwidth measurement",
             "results": results}
 
 
@@ -441,8 +496,12 @@ def main():
     p.add_argument("--bench-fake-tcp", action="store_true", help="use fake TCP framing for the bench-only run")
     p.add_argument("--baseline", action="store_true", help="benchmark original defaults without correctness probes or new flags")
     p.add_argument("--backend", choices=("afpacket", "xdp"), default="afpacket")
+    p.add_argument("--packet-workers", type=int, default=1)
+    p.add_argument("--packet-distribution", choices=("flow", "spread"), default="flow")
+    p.add_argument("--probe-multiqueue", action="store_true")
     p.add_argument("--udp-gro", action="store_true")
     p.add_argument("--afpacket-tx", choices=("sendmmsg", "ring"), default="sendmmsg")
+    p.add_argument("--flows", type=int, default=1, help="independent UDP flows sharing the 128-request window")
     p.add_argument("--duration", type=float, default=3)
     p.add_argument("--iterations", type=int, default=1)
     p.add_argument("--block-timeout", help="override current-build ring retirement duration, e.g. 1ms or 5ms")
@@ -461,8 +520,11 @@ def main():
     p.add_argument("--size", type=int, default=1400)
     p.add_argument("--pids", default="")
     args = p.parse_args()
-    if args.duration <= 0 or args.iterations < 1:
+    if args.duration <= 0 or args.iterations < 1 or not 1 <= args.flows <= 128:
         p.error("duration and iterations must be positive")
+    if args.probe_multiqueue:
+        print(json.dumps(probe_multiqueue(args.packet_distribution)))
+        return
     if args.target:
         target(args.outbound_port, args.public_target)
         return
@@ -471,7 +533,7 @@ def main():
             args.limit, args.session, args.noise_side if args.noise else None,
             args.noise and args.backend != "xdp", args.noise_payload)
     elif args.measure:
-        result = benchmark(args.size, args.duration, [int(n) for n in args.pids.split(",")])
+        result = benchmark(args.size, args.duration, [int(n) for n in args.pids.split(",")], args.flows)
     else:
         if not all([args.client_ns, args.server_ns, args.binary]):
             p.error("use scripts/netns-test.sh to create the isolated network")

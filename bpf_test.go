@@ -108,6 +108,90 @@ func TestCaptureFilterUnrestrictedPort(t *testing.T) {
 	}
 }
 
+func TestCaptureFilterFullIPv4Frame(t *testing.T) {
+	own := net.HardwareAddr{0, 1, 2, 3, 4, 5}
+	raw := createBPFFilter(17, own, false, net.ParseIP("192.0.2.1"), 443, false)
+	ins, ok := bpf.Disassemble(raw)
+	if !ok {
+		t.Fatal("cannot disassemble capture filter")
+	}
+	vm, err := bpf.NewVM(ins)
+	if err != nil {
+		t.Fatal(err)
+	}
+	frame := make([]byte, 14+65535)
+	copy(frame, filterPacket(17, 5, 12000, 443))
+	binary.BigEndian.PutUint16(frame[16:18], 65535)
+	binary.BigEndian.PutUint16(frame[38:40], 65535-20)
+	// Socket-filter return values are capture lengths including Ethernet,
+	// whereas -mtu is an IPv4 length. The largest supported packet must fit.
+	n, err := vm.Run(frame)
+	if err != nil || n < len(frame) {
+		t.Fatalf("full IPv4 frame truncated: capture=%d frame=%d err=%v", n, len(frame), err)
+	}
+}
+
+func TestTunnelPacketFilterMatchesCaptureFilter(t *testing.T) {
+	own := net.HardwareAddr{0, 1, 2, 3, 4, 5}
+	ip := net.ParseIP("192.0.2.1")
+	for _, proto := range []byte{6, 17, 253} {
+		for _, client := range []bool{false, true} {
+			for _, wildcard := range []bool{false, true} {
+				t.Run(fmt.Sprintf("proto=%d/client=%t/wildcard=%t", proto, client, wildcard), func(t *testing.T) {
+					localIP, port := ip, uint16(443)
+					if wildcard {
+						localIP, port = nil, 0
+					}
+					filter := newTunnelPacketFilter(proto, own, localIP, port, client)
+					ins, _ := bpf.Disassemble(createBPFFilter(proto, own, false, localIP, port, client))
+					vm, err := bpf.NewVM(ins)
+					if err != nil {
+						t.Fatal(err)
+					}
+					cases := []struct {
+						name string
+						edit func([]byte)
+					}{
+						{"match", func([]byte) {}},
+						{"own MAC", func(p []byte) { copy(p[6:12], own) }},
+						{"own MAC prefix", func(p []byte) { copy(p[6:10], own[:4]) }},
+						{"other protocol", func(p []byte) { p[23]++ }},
+						{"noninitial fragment", func(p []byte) { p[21] = 1 }},
+						{"first fragment", func(p []byte) { p[20] = 0x20 }},
+						{"other destination", func(p []byte) { p[33]++ }},
+						{"other source port", func(p []byte) { p[34]++ }},
+						{"other destination port", func(p []byte) { p[36]++ }},
+					}
+					for _, tc := range cases {
+						t.Run(tc.name, func(t *testing.T) {
+							source, destination := uint16(12000), uint16(443)
+							if client {
+								source, destination = destination, source
+							}
+							frame := filterPacket(proto, 5, source, destination)
+							tc.edit(frame)
+							captured, err := vm.Run(frame)
+							if err != nil {
+								t.Fatal(err)
+							}
+							// Model the fields produced by the IPv4/transport parsers;
+							// checksum and length validation belongs to those parsers.
+							packet := ethIPv4{srcMAC: frame[6:12], proto: frame[23],
+								fragOffset: binary.BigEndian.Uint16(frame[20:22]) & 0x1fff,
+								dstIP:      frame[30:34]}
+							source = binary.BigEndian.Uint16(frame[34:36])
+							destination = binary.BigEndian.Uint16(frame[36:38])
+							if got := filter.matches(packet, source, destination); got != (captured > 0) {
+								t.Fatalf("userspace selected=%t, capture selected=%t", got, captured > 0)
+							}
+						})
+					}
+				})
+			}
+		}
+	}
+}
+
 // Exercise the actual Linux verifier and socket filter without CAP_NET_RAW.
 func TestCaptureFilterKernel(t *testing.T) {
 	sender, receiver := packetSenderPair(t, unix.SOCK_NONBLOCK)
@@ -132,5 +216,18 @@ func TestCaptureFilterKernel(t *testing.T) {
 	}
 	if _, err := unix.Read(receiver, buf); err != unix.EAGAIN {
 		t.Fatalf("filter passed rejected frame: %v", err)
+	}
+	// The BPF return value limits the entire captured Ethernet frame, not
+	// just IPv4. Verify the kernel preserves the largest supported frame.
+	large := make([]byte, 14+65535)
+	copy(large, accepted)
+	binary.BigEndian.PutUint16(large[16:18], 65535)
+	binary.BigEndian.PutUint16(large[42:44], 65535-24)
+	if _, err := sender.WriteBatch([][]byte{large}); err != nil {
+		t.Fatal(err)
+	}
+	buf = make([]byte, len(large))
+	if n, err := unix.Read(receiver, buf); err != nil || n != len(large) {
+		t.Fatalf("maximum frame truncated: n=%d want=%d err=%v", n, len(large), err)
 	}
 }

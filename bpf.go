@@ -22,6 +22,46 @@ func resolveFilterDstIP(fallback net.IP) net.IP {
 	return ip
 }
 
+// AF_PACKET can queue frames before its capture filter is attached. Keep the
+// same selection rules in userspace so those startup frames cannot bypass it.
+type tunnelPacketFilter struct {
+	proto                    uint8
+	srcMAC                   [6]byte
+	localIP                  [4]byte
+	port                     uint16
+	isClient, checkIP, valid bool
+}
+
+func newTunnelPacketFilter(proto uint8, srcMAC net.HardwareAddr, localIP net.IP, port uint16, isClient bool) tunnelPacketFilter {
+	f := tunnelPacketFilter{proto: proto, port: port, isClient: isClient, checkIP: localIP != nil}
+	if len(srcMAC) != 6 || localIP != nil && localIP.To4() == nil {
+		return f
+	}
+	copy(f.srcMAC[:], srcMAC)
+	copy(f.localIP[:], localIP.To4())
+	f.valid = true
+	return f
+}
+
+func (f tunnelPacketFilter) matches(p ethIPv4, srcPort, dstPort uint16) bool {
+	if !f.valid || p.proto != f.proto || p.fragOffset != 0 || len(p.srcMAC) != 6 || [6]byte(p.srcMAC) == f.srcMAC {
+		return false
+	}
+	if f.proto != 6 && f.proto != 17 {
+		return true
+	}
+	if f.checkIP && (len(p.dstIP) != 4 || [4]byte(p.dstIP) != f.localIP) {
+		return false
+	}
+	if f.port == 0 {
+		return true
+	}
+	if f.isClient {
+		return srcPort == f.port
+	}
+	return dstPort == f.port
+}
+
 // createBPFFilter assembles classic BPF directly: no libpcap or cgo is needed.
 // Source MAC, IPv4 protocol, and fragment offset are checked for every mode.
 // TCP/UDP also match destination IP and the directional tunnel port. The port
@@ -71,7 +111,9 @@ func createBPFFilter(proto uint8, srcMAC net.HardwareAddr, fakeFrag bool, localI
 			rejectUnless(bpf.JumpEqual, uint32(port))
 		}
 	}
-	ins = append(ins, bpf.RetConstant{Val: 65535})
+	// Capture lengths include Ethernet, while the supported 65535-byte MTU
+	// limits only IPv4. Returning 65535 truncates the largest valid frames.
+	ins = append(ins, bpf.RetConstant{Val: 14 + 65535})
 	reject := len(ins)
 	ins = append(ins, bpf.RetConstant{Val: 0})
 	for _, i := range rejectTrue {

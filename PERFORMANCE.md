@@ -1,5 +1,29 @@
 # Packet-path changes and validation
 
+## AF_PACKET software multiqueue — 2026-10-30
+
+`-packet-workers 2 -packet-distribution flow` enables independent receive rings,
+UDP delivery queues and transmitters, using custom cBPF fanout to keep visible
+flows together under protocol 200 as well as ordinary TCP/UDP numbers. `spread`
+uses per-packet round-robin and may reorder traffic. The client's UDP ingress
+and encoding loop remains single-threaded. XDP and TC retain their existing
+worker model; nondefault packet-worker flags require AF_PACKET.
+
+On the shared two-vCPU Ubuntu host, three 3-second Python echo runs per mode
+at eight flows / 1400-byte payloads measured median 164.907 Mbps with one worker,
+180.108 Mbps with two flow workers, and 172.622 Mbps with two spread workers.
+For a single flow, spread regressed from 182.242 to 161.966 Mbps. All 54
+measurements across 1/8 flows and 64/512/1400-byte payloads had zero duplicate
+or unanswered replies after the drain. The same candidate is compared across
+configurations, with configuration order reversed in the middle repetition.
+
+These short, contended echo tests exclude WireGuard and a physical server link;
+they do not establish capacity or predict a live speedup. Keep one worker as
+the default, use flow mode for independent visible flows, and evaluate spread
+against receiver loss/reordering and actual application throughput. RX ring
+memory scales per worker. See [backend details](PACKET_BACKENDS.md#af_packet-software-multiqueue)
+and [raw multiqueue evidence](test-results/ubuntu-2026-10-30-multiqueue/).
+
 The optional TC eBPF backend now bypasses userspace forwarding for fixed peers.
 Its real WireGuard results and equal-throughput CPU comparisons are documented
 in [TC_BACKEND.md](TC_BACKEND.md#measurements-on-the-two-vcpu-test-server).

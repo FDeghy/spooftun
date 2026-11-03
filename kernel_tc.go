@@ -69,7 +69,7 @@ func (o tcOptions) validate() (netip.Prefix, error) {
 			continue
 		}
 		ip, err := netip.ParseAddr(s)
-		if err != nil || !ip.Is4() || ip.IsUnspecified() || ip.IsMulticast() || ip.IsLoopback() {
+		if err != nil || !ip.Is4() || ip.IsUnspecified() || ip.IsMulticast() || ip.IsLoopback() || ip == netip.AddrFrom4([4]byte{255, 255, 255, 255}) {
 			return netip.Prefix{}, fmt.Errorf("TC requires unicast IPv4 addresses and a fixed -remote-ip on both endpoints")
 		}
 	}

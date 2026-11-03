@@ -23,6 +23,48 @@ compatible, so endpoints need not select the same packet-I/O method.
 
 ## Selection and lifecycle
 
+### AF_PACKET software multiqueue
+
+Add `-packet-workers 2 -packet-distribution flow` to either endpoint's existing
+`-backend afpacket` command. The endpoints may choose different worker counts.
+The default is one worker; up to 64 are accepted. XDP and TC reject nondefault
+packet-worker options rather than silently ignoring them.
+
+Each worker owns a TPACKET_V3 receive ring, local UDP delivery queue, and raw
+transmitter (sendmmsg or TX ring). A kernel-allocated unique PACKET_FANOUT group
+prevents accidental sharing with unrelated processes. This needs Linux support
+for PACKET_FANOUT_FLAG_UNIQUEID (Linux 4.13+). Allocation/setup failures close
+the entire worker set; there is no partial startup or silent fallback.
+
+`flow` installs a classic-BPF fanout selector that hashes source/destination
+IPv4 addresses and the first four IP-payload bytes. These are spooftun's
+port-shaped fields, including with protocol 200 and fake TCP. IPv4 options are
+accounted for. This keeps each visible flow on one receive worker without
+depending on NIC RSS recognizing the custom IP protocol. The ordinary capture
+filter still rejects malformed/noninitial-fragment traffic on each socket.
+
+`spread` uses PACKET_FANOUT_LB to distribute individual packets. It can spread
+one WireGuard carrier flow across receive workers, but packets may reach the
+application out of order. Select it explicitly and compare actual WireGuard
+throughput/loss. Flow mode keeps one WireGuard peer's stable outer tuple on
+one worker, even when it contains many inner connections.
+
+The ownership/steering model follows the same principle as WaterWall's
+worker-owned capture queues; here the existing AF_PACKET backend uses fanout
+instead of introducing NFQUEUE and capture firewall rules. This implementation
+adds receive parallelism. Server session creation is synchronized on misses,
+so simultaneous first packets in spread mode still create one target socket
+and one reply goroutine. Established session lookups have no creation lock.
+Server replies use the transmitter owned by the worker that created the flow.
+The client's application UDP read/encoding loop still uses one transmitter.
+
+`-ring-mb` is a **per-worker** receive budget: two workers at the default use
+about 32 MiB of RX rings, plus delivery buffers and any TX rings. Start with
+two workers and measure per-core CPU and received throughput; more workers
+can reduce performance on a small or contended host.
+
+### AF_XDP
+
 The AF_XDP path creates an XSK map and a small eBPF XDP program using
 github.com/cilium/ebpf. No clang, generated ELF, libbpf, or cgo is required.
 

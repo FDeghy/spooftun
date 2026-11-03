@@ -87,35 +87,37 @@ not a solution to a packet-processing bottleneck.
 
 ## Flags
 
-| Flag | Default | Applies to | Description |
-|------|---------|-----------|-------------|
-| `-mode` | `client` | both | `client` or `server`. |
-| `-backend` | `afpacket` | both | `afpacket`, `xdp` or `tc`. TC uses a fixed-peer virtual endpoint; see [TC_BACKEND.md](TC_BACKEND.md). |
-| `-tc-local-port` | `0` | TC | Required fixed UDP port of the local application. |
-| `-tc-peer-port` | `0` | TC server | Required fixed UDP port of the remote client application. Omit on the client. |
-| `-tc-address` | `198.18.0.1/30` | TC | Unused IPv4 network+1 address for the owned virtual interface; network+2 is the synthetic peer endpoint. |
-| `-tc-peer-src-ip` | *(remote-ip)* | TC | Expected incoming wire source IP. Set this when the peer spoofs its source. |
-| `-udp-gro` | `false` | both | Coalesce local UDP receives when supported, then preserve individual datagrams. Uses about 1 MiB of receive storage per local socket; see performance notes. |
-| `-afpacket-tx` | `sendmmsg` | AF_PACKET | `sendmmsg` or `ring` (PACKET_TX_RING). Ignored by XDP. |
-| `-ring-mb` | `16` | AF_PACKET | Receive-ring budget in MiB; does not set TX-ring or XDP UMEM size. |
-| `-block-timeout` | `1ms` | AF_PACKET | TPACKET_V3 receive-block retirement delay. |
-| `-mtu` | `1500` | both | Maximum outer IPv4 size, capped to interface MTU; does not discover path MTU. |
-| `-session-timeout` | `1m` | server | Idle session lifetime, refreshed by either direction. |
-| `-remote-ip` | *(empty)* | client (required), server (optional) | Remote tunnel endpoint IP. On the server it fixes the downlink destination; if empty the server auto-detects it per session from incoming packets. |
-| `-listen` | `127.0.0.1:1001` | client | Local UDP address applications send to. |
-| `-target-port` | `8080` | both | Tunnel destination port encoded by the client; server capture port for protocols 6/17. Also the local application port unless the server sets `-outbound-port`. |
-| `-outbound-port` | `0` | server | Local UDP destination port on `127.0.0.1`. Zero preserves the incoming tunnel destination port. Replies retain the original tunnel port on the wire. |
-| `-noise` | `false` | both | Send one marked noise packet before the first outgoing datagram of each flow. Requires UDP framing and outgoing protocol 17. |
-| `-noise-payload` | *(empty)* | noise sender | Standard Base64 content, padded or unpadded. Decoded bytes follow the internal 8-byte marker. Empty uses the default random content. Requires `-noise`. |
-| `-proto` | `200` | both | Custom IP protocol number (0–255) for both directions. |
-| `-uplink-proto` | `-1` | both | IP protocol for client→server packets. Overrides `-proto` for that direction; `-1` inherits `-proto`. |
-| `-downlink-proto` | `-1` | both | IP protocol for server→client packets. Overrides `-proto` for that direction; `-1` inherits `-proto`. |
-| `-iface` | *(auto)* | both | Physical Ethernet interface for the selected backend. Auto-detected from the route to `-remote-ip` if empty. |
-| `-src-ip` | *(auto)* | both | Force a specific source IP (spoofing). Defaults to the interface IP. |
-| `-filter-dst-ip` | *(empty)* | both | Destination IP for the BPF capture filter (TCP/UDP protos only). Use when `-src-ip` is spoofed and the on-wire destination differs from it; defaults to `-src-ip`. |
-| `-fake-tcp` | `false` | both | Use a TCP-shaped header instead of UDP for tunnel framing. Must match on both ends. |
-| `-tcp-flags` | `0x18` | both | TCP flag byte (hex or decimal) used with `-fake-tcp`, e.g. `0x18`=PSH+ACK, `0x10`=ACK, `0x02`=SYN. |
-| `-fake-frag` | `false` | both | Shape client uplink packets as IP fragments (with a decoy trailing fragment). Must be enabled on both ends: the client emits them, the server strips the padding. |
+| Flag                   | Default          | Applies to                           | Description                                                                                                                                                        |
+| ---------------------- | ---------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `-mode`                | `client`         | both                                 | `client` or `server`.                                                                                                                                              |
+| `-backend`             | `afpacket`       | both                                 | `afpacket`, `xdp` or `tc`. TC uses a fixed-peer virtual endpoint; see [TC_BACKEND.md](TC_BACKEND.md).                                                              |
+| `-tc-local-port`       | `0`              | TC                                   | Required fixed UDP port of the local application.                                                                                                                  |
+| `-tc-peer-port`        | `0`              | TC server                            | Required fixed UDP port of the remote client application. Omit on the client.                                                                                      |
+| `-tc-address`          | `198.18.0.1/30`  | TC                                   | Unused IPv4 network+1 address for the owned virtual interface; network+2 is the synthetic peer endpoint.                                                           |
+| `-tc-peer-src-ip`      | *(remote-ip)*    | TC                                   | Expected incoming wire source IP. Set this when the peer spoofs its source.                                                                                        |
+| `-udp-gro`             | `false`          | both                                 | Coalesce local UDP receives when supported, then preserve individual datagrams. Uses about 1 MiB of receive storage per local socket; see performance notes.       |
+| `-afpacket-tx`         | `sendmmsg`       | AF_PACKET                            | `sendmmsg` or `ring` (PACKET_TX_RING). Ignored by XDP.                                                                                                             |
+| `-packet-workers`      | `1`              | AF_PACKET                            | Receive workers, each owning an RX ring and transmitter (1–64).                                                                                                    |
+| `-packet-distribution` | `flow`           | AF_PACKET                            | `flow` hashes visible tuples; `spread` distributes packets and may reorder them.                                                                                   |
+| `-ring-mb`             | `16`             | AF_PACKET                            | Receive-ring budget in MiB; does not set TX-ring or XDP UMEM size.                                                                                                 |
+| `-block-timeout`       | `1ms`            | AF_PACKET                            | TPACKET_V3 receive-block retirement delay.                                                                                                                         |
+| `-mtu`                 | `1500`           | both                                 | Maximum outer IPv4 size, capped to interface MTU; does not discover path MTU.                                                                                      |
+| `-session-timeout`     | `1m`             | server                               | Idle session lifetime, refreshed by either direction.                                                                                                              |
+| `-remote-ip`           | *(empty)*        | client (required), server (optional) | Remote tunnel endpoint IP. On the server it fixes the downlink destination; if empty the server auto-detects it per session from incoming packets.                 |
+| `-listen`              | `127.0.0.1:1001` | client                               | Local UDP address applications send to.                                                                                                                            |
+| `-target-port`         | `8080`           | both                                 | Tunnel destination port encoded by the client; server capture port for protocols 6/17. Also the local application port unless the server sets `-outbound-port`.    |
+| `-outbound-port`       | `0`              | server                               | Local UDP destination port on `127.0.0.1`. Zero preserves the incoming tunnel destination port. Replies retain the original tunnel port on the wire.               |
+| `-noise`               | `false`          | both                                 | Send one marked noise packet before the first outgoing datagram of each flow. Requires UDP framing and outgoing protocol 17.                                       |
+| `-noise-payload`       | *(empty)*        | noise sender                         | Standard Base64 content, padded or unpadded. Decoded bytes follow the internal 8-byte marker. Empty uses the default random content. Requires `-noise`.            |
+| `-proto`               | `200`            | both                                 | Custom IP protocol number (0–255) for both directions.                                                                                                             |
+| `-uplink-proto`        | `-1`             | both                                 | IP protocol for client→server packets. Overrides `-proto` for that direction; `-1` inherits `-proto`.                                                              |
+| `-downlink-proto`      | `-1`             | both                                 | IP protocol for server→client packets. Overrides `-proto` for that direction; `-1` inherits `-proto`.                                                              |
+| `-iface`               | *(auto)*         | both                                 | Physical Ethernet interface for the selected backend. Auto-detected from the route to `-remote-ip` if empty.                                                       |
+| `-src-ip`              | *(auto)*         | both                                 | Force a specific source IP (spoofing). Defaults to the interface IP.                                                                                               |
+| `-filter-dst-ip`       | *(empty)*        | both                                 | Destination IP for the BPF capture filter (TCP/UDP protos only). Use when `-src-ip` is spoofed and the on-wire destination differs from it; defaults to `-src-ip`. |
+| `-fake-tcp`            | `false`          | both                                 | Use a TCP-shaped header instead of UDP for tunnel framing. Must match on both ends.                                                                                |
+| `-tcp-flags`           | `0x18`           | both                                 | TCP flag byte (hex or decimal) used with `-fake-tcp`, e.g. `0x18`=PSH+ACK, `0x10`=ACK, `0x02`=SYN.                                                                 |
+| `-fake-frag`           | `false`          | both                                 | Shape client uplink packets as IP fragments (with a decoy trailing fragment). Must be enabled on both ends: the client emits them, the server strips the padding.  |
 
 TC requires `-remote-ip` on both endpoints and `-proto 6 -fake-tcp`. It rejects
 `-fake-frag`, `-noise` and `-udp-gro`. `-listen` does not create a listener in TC
@@ -260,6 +262,13 @@ storage so it cannot overwrite a neighboring GRO segment.
 Socket setup logs the requested and actual receive/send buffer sizes, including
 Linux's doubled accounting values, and warns if the kernel caps the request.
 The program does not change system-wide socket limits.
+
+AF_PACKET optionally supports worker-owned software receive queues. Add
+`-packet-workers 2 -packet-distribution flow` to distribute visible flows using
+custom BPF hashing, including protocol 200. `-packet-distribution spread` can
+distribute one carrier flow but may reorder packets. The default is one worker;
+ring memory scales with the worker count. See [multiqueue details](PACKET_BACKENDS.md#af_packet-software-multiqueue)
+for ownership, backend limits and performance tradeoffs.
 
 - `-ring-mb 16`: RX ring budget, separate from UDP socket buffers.
 - `-block-timeout 1ms`: block retirement latency. Try 5ms for bulk traffic,

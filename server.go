@@ -92,19 +92,18 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 	}
 
 	filterDst := resolveFilterDstIP(srcIP)
-	receiver, txSender, err := newTunnelIO(iface, upProto, srcMAC, filterDst, uint16(*targetPort), false)
+	filter := newTunnelPacketFilter(upProto, srcMAC, filterDst, uint16(*targetPort), false)
+	workers, err := newTunnelWorkers(iface, upProto, srcMAC, filterDst, uint16(*targetPort), false)
 	if err != nil {
 		log.Fatalf("Initialize packet backend: %v", err)
 	}
-	defer receiver.Close()
-	defer txSender.Close()
+	defer closeTunnelWorkers(workers)
 
 	sessions := sync.Map{}
+	var sessionCreateMu sync.Mutex
 	if *outboundPort != 0 {
 		log.Printf("Server local UDP destination: 127.0.0.1:%d (tunnel port unchanged)", *outboundPort)
 	}
-	forwarder := newLocalUDPDelivery(receiver, mtu)
-	defer forwarder.Close()
 
 	autoDst := false
 	if *tunnelIP == "" {
@@ -112,193 +111,220 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 		log.Printf("Auto-detecting Remote IP from incoming packets for each session")
 	}
 
-	for {
-		// Read a borrowed frame from the selected packet backend.
-		data, err := forwarder.ReadPacket()
-		if err != nil {
-			log.Fatalf("Packet receive failed: %v", err)
-		}
-
-		// Parse Ethernet + IPv4 (fixed-offset, no gopacket dispatch).
-		pkt, ok := parseEthIPv4(data)
-		if !ok || isNoisePacket(pkt, *fakeTCP) {
-			continue
-		}
-
-		// Userspace protocol filter (defense-in-depth: BPF may fail to attach).
-		// Incoming on the server is client→server traffic → upProto.
-		if pkt.proto != upProto || pkt.fragOffset != 0 {
-			continue
-		}
-
-		// Parse transport header (UDP or TCP) from IPv4 payload
-		clientSrcPort, clientDstPort, innerPayload, ok := parseFakeTransport(pkt.payload, *fakeTCP)
-		if !ok {
-			continue
-		}
-
-		payload := innerPayload
-		if *fakeFrag {
-			payload = unpadData(payload)
-			if payload == nil {
-				continue
-			}
-		}
-		if len(payload) > maxUplink {
-			continue
-		}
-		// Session key: ClientRealIP + VirtualSrcPort
-		clientKey := makeNatKey(pkt.srcIP, int(clientSrcPort))
-
-		var conn *net.UDPConn
-		var state *serverSession
-		val, sessOk := sessions.Load(clientKey)
-		if sessOk && !val.(*serverSession).refresh(sessionActivityTime()) {
-			sessions.CompareAndDelete(clientKey, val)
-			sessOk = false
-		}
-
-		if sessOk {
-			state = val.(*serverSession)
-			conn = state.conn
-		} else {
-			// NEW SESSION
-			localPort := clientDstPort
-			if *outboundPort != 0 {
-				localPort = uint16(*outboundPort)
-			}
-			targetAddr := fmt.Sprintf("127.0.0.1:%d", localPort)
-			rAddr, err := net.ResolveUDPAddr("udp", targetAddr)
+	runWorker := func(receiver packetReceiver, txSender packetTransmitter) {
+		forwarder := newLocalUDPDelivery(receiver, mtu)
+		defer forwarder.Close()
+		for {
+			// Read a borrowed frame from the selected packet backend.
+			data, err := forwarder.ReadPacket()
 			if err != nil {
-				log.Printf("Resolve error: %v", err)
+				log.Fatalf("Packet receive failed: %v", err)
+			}
+
+			// Parse Ethernet + IPv4 (fixed-offset, no gopacket dispatch).
+			pkt, ok := parseEthIPv4(data)
+			if !ok || isNoisePacket(pkt, *fakeTCP) {
 				continue
 			}
 
-			conn, err = net.DialUDP("udp", nil, rAddr)
+			// Userspace protocol filter (defense-in-depth: BPF may fail to attach).
+			// Incoming on the server is client→server traffic → upProto.
+			if pkt.proto != upProto || pkt.fragOffset != 0 {
+				continue
+			}
+
+			// Parse transport header (UDP or TCP) from IPv4 payload
+			clientSrcPort, clientDstPort, innerPayload, ok := parseTunnelTransport(pkt, *fakeTCP)
+			if !ok || !filter.matches(pkt, clientSrcPort, clientDstPort) {
+				continue
+			}
+
+			payload := innerPayload
+			if *fakeFrag {
+				payload = unpadData(payload)
+				if payload == nil {
+					continue
+				}
+			}
+			if len(payload) > maxUplink {
+				continue
+			}
+			// Session key: ClientRealIP + VirtualSrcPort
+			clientKey := makeNatKey(pkt.srcIP, int(clientSrcPort))
+
+			state, created, err := acquireServerSession(&sessions, &sessionCreateMu, clientKey, func() (*serverSession, error) {
+				localPort := clientDstPort
+				if *outboundPort != 0 {
+					localPort = uint16(*outboundPort)
+				}
+				targetAddr := fmt.Sprintf("127.0.0.1:%d", localPort)
+				rAddr, err := net.ResolveUDPAddr("udp", targetAddr)
+				if err != nil {
+					return nil, err
+				}
+				conn, err := net.DialUDP("udp", nil, rAddr)
+				if err != nil {
+					return nil, err
+				}
+				configureLocalUDP(conn, "server target")
+				state := &serverSession{conn: conn}
+				state.lastSeen.Store(sessionActivityTime())
+				log.Printf("New Session: %s -> Target :%d (tunnel port %d)", clientKey.String(), localPort, clientDstPort)
+				return state, nil
+			})
 			if err != nil {
-				log.Printf("Dial error: %v", err)
+				log.Printf("Create session: %v", err)
 				continue
 			}
+			conn := state.conn
+			if created {
+				// Create safe copies of the slices backed by the mmap ring
+				safeClientIP := make(net.IP, len(pkt.srcIP))
+				copy(safeClientIP, pkt.srcIP)
 
-			configureLocalUDP(conn, "server target")
+				safeClientMAC := make(net.HardwareAddr, len(pkt.srcMAC))
+				copy(safeClientMAC, pkt.srcMAC)
 
-			state = &serverSession{conn: conn}
-			state.lastSeen.Store(sessionActivityTime())
-			sessions.Store(clientKey, state)
-			log.Printf("New Session: %s -> Target :%d (tunnel port %d)", clientKey.String(), localPort, clientDstPort)
-
-			// Create safe copies of the slices backed by the mmap ring
-			safeClientIP := make(net.IP, len(pkt.srcIP))
-			copy(safeClientIP, pkt.srcIP)
-
-			safeClientMAC := make(net.HardwareAddr, len(pkt.srcMAC))
-			copy(safeClientMAC, pkt.srcMAC)
-
-			// Reply handler goroutine
-			go func(c *net.UDPConn, clientIP net.IP, clientPort uint16, clientMAC net.HardwareAddr,
-				srcServerIP net.IP, tunnelPort uint16, sessionKey natKey,
-				state *serverSession) {
-				defer c.Close()
-				defer sessions.CompareAndDelete(sessionKey, state)
-				defer state.lastSeen.Store(retiredSessionTime)
-				udpReader, err := newLocalUDPReader(c, maxReply, *udpGRO)
-				if err != nil {
-					log.Printf("Initialize reply UDP reader: %v", err)
-					return
-				}
-				log.Printf("server UDP receive: recvmmsg GRO=%t", udpReader.gro)
-				msgs := make([]localUDPDatagram, batchSize)
-
-				// Use shared txSender from outer scope (concurrent writes are safe)
-
-				noiseSender, err := newPacketNoise(*noise, noiseContent)
-				if err != nil {
-					log.Printf("Initialize reply noise: %v", err)
-					return
-				}
-				framesPerDatagram := 1
-				if noiseSender != nil {
-					framesPerDatagram++
-				}
-				noiseSent := false
-				txBuffers := make([][]byte, batchSize*framesPerDatagram)
-				for i := range txBuffers {
-					txBuffers[i] = make([]byte, max(60, mtu+14))
-				}
-				frames := make([][]byte, 0, len(txBuffers))
-				var pendingNoise noiseBatch
-				flush := func() {
-					if len(frames) > 0 {
-						if _, err := pendingNoise.WriteBatch(txSender, frames); err != nil {
-							log.Printf("TX batch: %v", err)
-						}
-						frames = frames[:0]
+				// Reply handler goroutine
+				go func(c *net.UDPConn, clientIP net.IP, clientPort uint16, clientMAC net.HardwareAddr,
+					srcServerIP net.IP, tunnelPort uint16, sessionKey natKey,
+					state *serverSession) {
+					defer c.Close()
+					defer sessions.CompareAndDelete(sessionKey, state)
+					defer state.lastSeen.Store(retiredSessionTime)
+					udpReader, err := newLocalUDPReader(c, maxReply, *udpGRO)
+					if err != nil {
+						log.Printf("Initialize reply UDP reader: %v", err)
+						return
 					}
-				}
-				defer flush()
+					log.Printf("server UDP receive: recvmmsg GRO=%t", udpReader.gro)
+					msgs := make([]localUDPDatagram, batchSize)
 
-				dstClientIP := net.ParseIP(*tunnelIP)
-				if autoDst {
-					dstClientIP = clientIP
-				}
+					// Use shared txSender from outer scope (concurrent writes are safe)
 
-				encoder, err := newTunnelEncoder(srcMAC, clientMAC, srcServerIP, dstClientIP, dnProto, *fakeTCP, tcpFlagByte)
-				if err != nil {
-					log.Printf("Create reply encoder: %v", err)
-					return
-				}
+					noiseSender, err := newPacketNoise(*noise, noiseContent)
+					if err != nil {
+						log.Printf("Initialize reply noise: %v", err)
+						return
+					}
+					framesPerDatagram := 1
+					if noiseSender != nil {
+						framesPerDatagram++
+					}
+					noiseSent := false
+					txBuffers := make([][]byte, batchSize*framesPerDatagram)
+					for i := range txBuffers {
+						txBuffers[i] = make([]byte, max(60, mtu+14))
+					}
+					frames := make([][]byte, 0, len(txBuffers))
+					var pendingNoise noiseBatch
+					flush := func() {
+						if len(frames) > 0 {
+							if _, err := pendingNoise.WriteBatch(txSender, frames); err != nil {
+								log.Printf("TX batch: %v", err)
+							}
+							frames = frames[:0]
+						}
+					}
+					defer flush()
 
-				var errRead error
-				n := 0
-				readPos := 0
-				// Packet activity advances lastSeen without resetting Go's socket
-				// timer. Renew the deadline only when the previous one fires.
-				if err := c.SetReadDeadline(state.idleDeadline(*sessionTimeout)); err != nil {
-					return
-				}
-				for {
-					if readPos >= n {
-						flush()
-						n, errRead = udpReader.ReadBatch(msgs)
-						if n == 0 || errRead != nil {
-							if ne, ok := errRead.(net.Error); ok && ne.Timeout() && !state.expireIdle(time.Now().UnixNano(), *sessionTimeout) {
-								if err := c.SetReadDeadline(state.idleDeadline(*sessionTimeout)); err != nil {
-									return
+					dstClientIP := net.ParseIP(*tunnelIP)
+					if autoDst {
+						dstClientIP = clientIP
+					}
+
+					encoder, err := newTunnelEncoder(srcMAC, clientMAC, srcServerIP, dstClientIP, dnProto, *fakeTCP, tcpFlagByte)
+					if err != nil {
+						log.Printf("Create reply encoder: %v", err)
+						return
+					}
+
+					var errRead error
+					n := 0
+					readPos := 0
+					// Packet activity advances lastSeen without resetting Go's socket
+					// timer. Renew the deadline only when the previous one fires.
+					if err := c.SetReadDeadline(state.idleDeadline(*sessionTimeout)); err != nil {
+						return
+					}
+					for {
+						if readPos >= n {
+							flush()
+							n, errRead = udpReader.ReadBatch(msgs)
+							if n == 0 || errRead != nil {
+								if ne, ok := errRead.(net.Error); ok && ne.Timeout() && !state.expireIdle(time.Now().UnixNano(), *sessionTimeout) {
+									if err := c.SetReadDeadline(state.idleDeadline(*sessionTimeout)); err != nil {
+										return
+									}
+									continue
 								}
+								return
+							}
+
+							readPos = 0
+						}
+						msg := &msgs[readPos]
+						readPos++
+						state.refresh(sessionActivityTime())
+						payload := msg.payload
+						if noiseSender != nil && !noiseSent {
+							frame, err := noiseSender.Encode(encoder, txBuffers[len(frames)], tunnelPort, clientPort)
+							if err != nil {
+								log.Printf("Noise encode error: %v", err)
 								continue
 							}
-							return
+							pendingNoise.queued(len(frames), &noiseSent)
+							frames = append(frames, frame)
 						}
 
-						readPos = 0
-					}
-					msg := &msgs[readPos]
-					readPos++
-					state.refresh(sessionActivityTime())
-					payload := msg.payload
-					if noiseSender != nil && !noiseSent {
-						frame, err := noiseSender.Encode(encoder, txBuffers[len(frames)], tunnelPort, clientPort)
+						// Client filters match the original tunnel port, not the
+						// possibly remapped local application's port.
+						frame, err := encoder.Encode(txBuffers[len(frames)], payload, tunnelPort, clientPort, 0, 0x4000, 0, true)
 						if err != nil {
-							log.Printf("Noise encode error: %v", err)
+							log.Printf("Encode error: %v", err)
 							continue
 						}
-						pendingNoise.queued(len(frames), &noiseSent)
 						frames = append(frames, frame)
 					}
+				}(conn, safeClientIP, clientSrcPort, safeClientMAC, srcIP, clientDstPort, clientKey,
+					state)
+			}
 
-					// Client filters match the original tunnel port, not the
-					// possibly remapped local application's port.
-					frame, err := encoder.Encode(txBuffers[len(frames)], payload, tunnelPort, clientPort, 0, 0x4000, 0, true)
-					if err != nil {
-						log.Printf("Encode error: %v", err)
-						continue
-					}
-					frames = append(frames, frame)
-				}
-			}(conn, safeClientIP, clientSrcPort, safeClientMAC, srcIP, clientDstPort, clientKey,
-				state)
+			forwarder.Send(conn, netip.AddrPort{}, payload)
 		}
-
-		forwarder.Send(conn, netip.AddrPort{}, payload)
 	}
+	for _, worker := range workers[1:] {
+		go runWorker(worker.receiver, worker.sender)
+	}
+	runWorker(workers[0].receiver, workers[0].sender)
+}
+
+// Established sessions need no creation lock. Only misses/retirement enter the
+// slow path; rechecking under the lock prevents spread workers opening multiple
+// target sockets (and reply goroutines) for the same newly observed flow.
+func acquireServerSession(sessions *sync.Map, createMu *sync.Mutex, key natKey, create func() (*serverSession, error)) (*serverSession, bool, error) {
+	load := func() *serverSession {
+		if value, ok := sessions.Load(key); ok {
+			state := value.(*serverSession)
+			if state.refresh(sessionActivityTime()) {
+				return state
+			}
+			sessions.CompareAndDelete(key, state)
+		}
+		return nil
+	}
+	if state := load(); state != nil {
+		return state, false, nil
+	}
+	createMu.Lock()
+	defer createMu.Unlock()
+	if state := load(); state != nil {
+		return state, false, nil
+	}
+	state, err := create()
+	if err != nil {
+		return nil, false, err
+	}
+	sessions.Store(key, state)
+	return state, true, nil
 }

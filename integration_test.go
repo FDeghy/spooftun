@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"strings"
@@ -23,13 +24,22 @@ func TestNetworkNamespaceIntegration(t *testing.T) {
 		t.Fatal("network namespace integration requires root")
 	}
 	for _, configuration := range []struct {
-		backend, tx string
-		gro         bool
+		backend, tx  string
+		gro          bool
+		workers      int
+		distribution string
 	}{
-		{"afpacket", "sendmmsg", false}, {"afpacket", "ring", false}, {"xdp", "sendmmsg", false},
-		{"afpacket", "sendmmsg", true}, {"afpacket", "ring", true}, {"xdp", "sendmmsg", true},
+		{"afpacket", "sendmmsg", false, 1, "flow"}, {"afpacket", "ring", false, 1, "flow"}, {"xdp", "sendmmsg", false, 1, "flow"},
+		{"afpacket", "sendmmsg", true, 1, "flow"}, {"afpacket", "ring", true, 1, "flow"}, {"xdp", "sendmmsg", true, 1, "flow"},
+		{"afpacket", "sendmmsg", false, 2, "flow"},
+		{"afpacket", "sendmmsg", true, 2, "spread"},
+		{"afpacket", "ring", true, 2, "flow"},
+		{"afpacket", "ring", false, 2, "spread"},
 	} {
 		name := configuration.backend + "/" + configuration.tx
+		if configuration.workers > 1 {
+			name += fmt.Sprintf("/workers=%d/%s", configuration.workers, configuration.distribution)
+		}
 		if configuration.gro {
 			name += "/gro"
 		}
@@ -37,7 +47,7 @@ func TestNetworkNamespaceIntegration(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 			defer cancel()
 			cmd := exec.CommandContext(ctx, "bash", "scripts/netns-test.sh",
-				"--backend", configuration.backend, "--afpacket-tx", configuration.tx)
+				"--backend", configuration.backend, "--afpacket-tx", configuration.tx, "--packet-workers", fmt.Sprint(configuration.workers), "--packet-distribution", configuration.distribution)
 			if configuration.gro {
 				cmd.Args = append(cmd.Args, "--udp-gro")
 			}
@@ -69,6 +79,9 @@ func TestNetworkNamespaceIntegration(t *testing.T) {
 				}
 				for _, endpoint := range []string{"client", "server"} {
 					startup := strings.Join(mode.BackendStartup[endpoint], "\n")
+					if !strings.Contains(startup, fmt.Sprintf("packet receive workers=%d distribution=%s", configuration.workers, configuration.distribution)) {
+						t.Fatalf("worker startup missing: %s", output)
+					}
 					if !strings.Contains(startup, "packet backend="+configuration.backend) {
 						t.Fatalf("%s missing actual backend startup evidence: %s", endpoint, output)
 					}

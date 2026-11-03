@@ -50,6 +50,10 @@ func parseEthIPv4(frame []byte) (ethIPv4, bool) {
 	if totalLen < ihl || totalLen > len(ip) {
 		return p, false
 	}
+	// Raw capture bypasses the IP stack's header validation.
+	if encoderFoldChecksum(encoderChecksumSum(ip[:ihl], 0)) != 0 {
+		return p, false
+	}
 	p.srcMAC = frame[6:12]
 	p.proto = ip[9]
 	p.fragOffset = binary.BigEndian.Uint16(ip[6:8]) & 0x1fff
@@ -111,9 +115,37 @@ func parseFakeTransport(ipPayload []byte, useTCP bool) (srcPort, dstPort uint16,
 	if len(ipPayload) < 8 {
 		return 0, 0, nil, false
 	}
+	length := int(binary.BigEndian.Uint16(ipPayload[4:6]))
+	if length < 8 || length > len(ipPayload) {
+		return 0, 0, nil, false
+	}
 	srcPort = binary.BigEndian.Uint16(ipPayload[0:2])
 	dstPort = binary.BigEndian.Uint16(ipPayload[2:4])
-	return srcPort, dstPort, ipPayload[8:], true
+	return srcPort, dstPort, ipPayload[8:length:length], true
+}
+
+// Packet sockets bypass kernel transport validation. Verify the wire checksum
+// before forwarding through a local socket, which would checksum corrupt data
+// afresh. Custom outer protocols still use the cosmetic header's pseudoheader,
+// matching tunnelEncoder, including the padded first fake fragment.
+func parseTunnelTransport(p ethIPv4, useTCP bool) (srcPort, dstPort uint16, payload []byte, ok bool) {
+	srcPort, dstPort, payload, ok = parseFakeTransport(p.payload, useTCP)
+	if !ok {
+		return 0, 0, nil, false
+	}
+	body, proto := p.payload, uint32(6)
+	if !useTCP {
+		if binary.BigEndian.Uint16(body[6:8]) == 0 {
+			return srcPort, dstPort, payload, true // RFC 768: checksum omitted.
+		}
+		body, proto = body[:8+len(payload)], 17
+	}
+	sum := encoderChecksumSum(p.srcIP, proto+uint32(len(body)))
+	sum = encoderChecksumSum(p.dstIP, sum)
+	if encoderFoldChecksum(encoderChecksumSum(body, sum)) != 0 {
+		return 0, 0, nil, false
+	}
+	return srcPort, dstPort, payload, true
 }
 
 // --- Fake-frag padding ---
