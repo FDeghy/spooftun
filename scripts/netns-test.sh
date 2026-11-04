@@ -54,7 +54,7 @@ for ns in "$CLIENT" "$SERVER"; do
     # see the unfinished checksum even though the peer's UDP stack accepts it.
     # Complete checksums before the tap, as on a physical receive interface,
     # so the duplicate-delivery probe tests both valid reply paths.
-    ip netns exec "$ns" ethtool -K tun0 tx off
+    ip netns exec "$ns" ethtool -K tun0 tx off >/dev/null
     continue
   fi
   # AF_PACKET is a tap: it does not consume frames before the IP stack.
