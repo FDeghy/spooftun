@@ -1,2 +1,0 @@
-2026/10/29 21:03:55 packet backend=tc ready iface=tun0 veth=stcf8121c2fa/stcf8121c2fb local=198.18.0.1:51820 endpoint=198.18.0.2:51820 outer-mtu=1500
-2026/10/29 21:04:28 TC kernel packets tx=45524 rx=823983 dropped=0

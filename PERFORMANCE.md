@@ -6,7 +6,7 @@
 UDP delivery queues and transmitters, using custom cBPF fanout to keep visible
 flows together under protocol 200 as well as ordinary TCP/UDP numbers. `spread`
 uses per-packet round-robin and may reorder traffic. The client's UDP ingress
-and encoding loop remains single-threaded. XDP and TC retain their existing
+and encoding loop remains single-threaded. XDP retains its existing
 worker model; nondefault packet-worker flags require AF_PACKET.
 
 On the shared two-vCPU Ubuntu host, three 3-second Python echo runs per mode
@@ -23,10 +23,6 @@ the default, use flow mode for independent visible flows, and evaluate spread
 against receiver loss/reordering and actual application throughput. RX ring
 memory scales per worker. See [backend details](PACKET_BACKENDS.md#af_packet-software-multiqueue)
 and [raw multiqueue evidence](test-results/ubuntu-2026-10-30-multiqueue/).
-
-The optional TC eBPF backend now bypasses userspace forwarding for fixed peers.
-Its real WireGuard results and equal-throughput CPU comparisons are documented
-in [TC_BACKEND.md](TC_BACKEND.md#measurements-on-the-two-vcpu-test-server).
 
 For the latest native UDP and actual WireGuard capacity tests, see
 [the 2026-10-29 results](#udp-receive-and-capacity-tests--2026-10-29).
@@ -422,14 +418,6 @@ The external projects suggest two distinct directions:
   emphasizes CPU capacity, socket buffers and QUIC windows. Its stream-window
   settings are not spooftun settings. spooftun reports actual socket limits;
   it does not silently change host sysctls or scheduling priority.
-- [Mimic](https://github.com/hack3ric/mimic) rewrites UDP into TCP-shaped packets
-  in kernel TC and restores them in XDP, avoiding a userspace forwarding loop.
-  It moves a small header-adjacent region rather than copying the whole payload.
-  Its published benchmark uses a newer CPU and is marked for retesting.
-  A separate kernel rewrite backend is the most promising architectural
-  experiment for WireGuard. The subsequent [TC backend](TC_BACKEND.md) now
-  implements a fixed-peer version with spoofing and custom flags; noise and
-  fragmentation remain unsupported. AF_XDP still sends packets through userspace.
 
 ### Reproduction and validation
 

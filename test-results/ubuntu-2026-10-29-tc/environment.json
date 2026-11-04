@@ -1,9 +1,0 @@
-{
-  "kernel": "Linux 6.8.0-146-generic #146-Ubuntu SMP PREEMPT_DYNAMIC Thu Sep  3 16:12:30 UTC 2026 x86_64",
-  "go": "go version go1.27.3 linux/amd64",
-  "cpu": "2 vCPU Intel Xeon E5-2670 v2 @2.50GHz",
-  "clock_ticks_per_second": 100,
-  "baseline_commit": "379ec2497a1c4df5db3b2fbea8ffa155efeaacb3",
-  "scope": "Both WireGuard peers, tunnel endpoints and iperf3 share one host; isolated veth; no physical NIC/WAN measurement",
-  "compiler": "Ubuntu clang18.1.3; extracted locally, not system-installed"
-}

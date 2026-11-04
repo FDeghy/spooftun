@@ -19,9 +19,9 @@ func TestPacketWorkerValidation(t *testing.T) {
 		valid                 bool
 	}{
 		{"afpacket", "flow", 1, true}, {"afpacket", "flow", 2, true}, {"afpacket", "spread", 2, true},
-		{"xdp", "flow", 1, true}, {"tc", "flow", 1, true},
+		{"xdp", "flow", 1, true},
 		{"afpacket", "flow", 0, false}, {"afpacket", "flow", 65, false}, {"afpacket", "random", 2, false},
-		{"xdp", "flow", 2, false}, {"tc", "spread", 1, false},
+		{"xdp", "flow", 2, false}, {"xdp", "spread", 1, false},
 	} {
 		if err := validatePacketWorkers(tc.backend, tc.count, tc.distribution); (err == nil) != tc.valid {
 			t.Fatalf("%+v: %v", tc, err)

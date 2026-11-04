@@ -1,4 +1,1 @@
-bpf/tc.c text eol=lf
-bpf/*.sha256 text eol=lf
-bpf/*.o binary
 scripts/*.sh text eol=lf

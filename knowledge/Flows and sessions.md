@@ -1,6 +1,6 @@
 # Flows and sessions
 
-This path applies to AF_PACKET and AF_XDP. TC has different endpoints and no userspace UDP forwarder: [[Packet backends]].
+This path applies to AF_PACKET and AF_XDP: [[Packet backends]].
 
 ## Round trip
 

@@ -44,11 +44,7 @@ func init() {
 
 // Configuration
 var (
-	backend            = flag.String("backend", "afpacket", "Packet backend: afpacket, xdp (AF_XDP), or tc (kernel rewrite)")
-	tcLocalPort        = flag.Int("tc-local-port", 0, "TC: local application's fixed UDP port (required)")
-	tcPeerPort         = flag.Int("tc-peer-port", 0, "TC server: remote client's fixed UDP port (required)")
-	tcAddress          = flag.String("tc-address", "198.18.0.1/30", "TC: unused private /30, with local address at network+1; peer is network+2")
-	tcPeerSrc          = flag.String("tc-peer-src-ip", "", "TC: expected incoming source IP, defaults to remote-ip; set for a spoofing peer")
+	backend            = flag.String("backend", "afpacket", "Packet backend: afpacket or xdp (AF_XDP)")
 	udpGRO             = flag.Bool("udp-gro", false, "Enable local UDP receive coalescing (GRO), using larger per-flow receive buffers")
 	afpacketTX         = flag.String("afpacket-tx", "sendmmsg", "AF_PACKET transmitter: sendmmsg or ring")
 	packetWorkers      = flag.Int("packet-workers", 1, "AF_PACKET receive workers, each with its own RX ring and transmitter (1-64)")

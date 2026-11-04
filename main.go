@@ -41,8 +41,8 @@ func main() {
 	if payloadErr != nil {
 		log.Fatalf("Invalid -noise-payload: %v", payloadErr)
 	}
-	if *backend != "afpacket" && *backend != "xdp" && *backend != "tc" {
-		log.Fatal("Invalid -backend: use afpacket, xdp or tc")
+	if *backend != "afpacket" && *backend != "xdp" {
+		log.Fatal("Invalid -backend: use afpacket or xdp")
 	}
 	if *afpacketTX != "sendmmsg" && *afpacketTX != "ring" {
 		log.Fatal("Invalid -afpacket-tx: use sendmmsg or ring")
@@ -118,13 +118,6 @@ func main() {
 	if *noise && (*fakeTCP || outgoingProto != 17) {
 		log.Fatal("-noise requires UDP framing and outgoing IP protocol 17")
 	}
-	if *backend == "tc" {
-		if err := runKernelTC(iface, upProto, dnProto); err != nil {
-			log.Fatalf("Kernel TC backend: %+v", err)
-		}
-		return
-	}
-
 	if *mode == "client" {
 		if serverIP == nil {
 			log.Fatal("Remote IP is required for client mode. Use -remote-ip <IP>")

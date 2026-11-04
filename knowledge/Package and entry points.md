@@ -4,7 +4,7 @@ The module is `spooftun`; all Go sources belong to one Linux-only `package main`
 
 ## Startup
 
-`main()` parses flags, validates combinations, discovers the interface, sizes AF_PACKET rings and resolves directional protocols. It dispatches TC to `runKernelTC`; otherwise client/server mode selects `startClientAFPacket` or `startServerAFPacket`. Despite those names, both functions also support AF_XDP through the packet-I/O abstraction. See [[Flows and sessions]] and [[Packet backends]].
+`main()` parses flags, validates combinations, discovers the interface, sizes AF_PACKET rings and resolves directional protocols. Client/server mode selects `startClientAFPacket` or `startServerAFPacket`. Despite those names, both functions also support AF_XDP through the packet-I/O abstraction. See [[Flows and sessions]] and [[Packet backends]].
 
 ## Responsibility map
 
@@ -20,6 +20,5 @@ The module is `spooftun`; all Go sources belong to one Linux-only `package main`
 | AF_XDP sockets, UMEM, rings and eBPF redirect filter | [xdp.go](../xdp.go), [xdp_filter.go](../xdp_filter.go) |
 | UDP receive/GRO, local delivery, copy queue, sendmmsg/GSO | [udp_receive.go](../udp_receive.go), [local_delivery.go](../local_delivery.go), [local_forwarder.go](../local_forwarder.go), [local_udp.go](../local_udp.go) |
 | Interface, route, neighbor discovery and ring sizing | [netutil.go](../netutil.go) |
-| TC setup/lifecycle and kernel packet rewrite | [kernel_tc.go](../kernel_tc.go), [bpf/tc.c](../bpf/tc.c) |
 
 Direct dependencies: cilium/ebpf for eBPF, gopacket for AF_PACKET and packet structures, x/net for BPF/IPv4 helpers, x/sys for Linux syscalls. Versions and toolchain requirement live in [go.mod](../go.mod). See [[Development]].

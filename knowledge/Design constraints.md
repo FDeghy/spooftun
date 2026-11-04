@@ -8,7 +8,7 @@
 - `-mtu` budgets the outer IPv4 packet and is capped to interface MTU; it does not discover path MTU. UDP/TCP framing and fake-fragment padding reduce application payload capacity. On a verified 1500-byte path, the documented WireGuard starting point is MTU 1420 on both peers with spooftun MTU 1500.
 - AF_PACKET does not consume frames before the host stack. Protocol 6/17 can trigger TCP resets or direct UDP delivery alongside the forwarder. Apply narrowly scoped ingress isolation from the deployment guide and keep the tunnel port separate from the local target using `-outbound-port`. Noise filtering in Go cannot stop host-stack delivery.
 
-Sources: [framing.go](../framing.go), [encoder.go](../encoder.go), [client.go](../client.go), [server.go](../server.go), [README.md](../README.md#kernel-processing-of-tunnel-frames), [WIREGUARD.md](../WIREGUARD.md). See [[Packet backends]] for TC's stricter constraints.
+Sources: [framing.go](../framing.go), [encoder.go](../encoder.go), [client.go](../client.go), [server.go](../server.go), [README.md](../README.md#kernel-processing-of-tunnel-frames), [WIREGUARD.md](../WIREGUARD.md).
 
 ## Datagrams, buffers and concurrency
 
@@ -20,10 +20,8 @@ Sources: [framing.go](../framing.go), [encoder.go](../encoder.go), [client.go](.
 
 Sources: [packet_io.go](../packet_io.go), [local_delivery.go](../local_delivery.go), [local_forwarder.go](../local_forwarder.go), [udp_receive.go](../udp_receive.go), [local_udp.go](../local_udp.go), [xdp.go](../xdp.go), [tx_ring.go](../tx_ring.go), [noise.go](../noise.go), [nat.go](../nat.go), [server.go](../server.go).
 
-## Generated object and evidence
+## Performance evidence
 
-TC's Go configuration layout must match `struct tc_config` in C. Changes to the C program require regenerating both the embedded little-endian object and its hash manifest; ordinary builds need neither Clang nor cgo. ABI and source/object consistency checks live in [kernel_tc_test.go](../kernel_tc_test.go).
+Performance records describe particular hosts/configurations. More workers can regress throughput. Recorded tests do not establish loss-free gigabit WireGuard, hardware zero-copy or WAN capacity.
 
-Performance records describe particular hosts/configurations. More workers can regress throughput; low Go CPU with TC excludes kernel forwarding cost. Recorded tests do not establish loss-free gigabit WireGuard, hardware zero-copy or WAN capacity.
-
-Sources: [kernel_tc.go](../kernel_tc.go), [bpf/tc.c](../bpf/tc.c), [scripts/build-tc-bpf.sh](../scripts/build-tc-bpf.sh), [PERFORMANCE.md](../PERFORMANCE.md), [test-results/ubuntu-2026-10-30-multiqueue/README.md](../test-results/ubuntu-2026-10-30-multiqueue/README.md). Related: [[Development]], [[Flows and sessions]].
+Sources: [PERFORMANCE.md](../PERFORMANCE.md), [test-results/ubuntu-2026-10-30-multiqueue/README.md](../test-results/ubuntu-2026-10-30-multiqueue/README.md). Related: [[Development]], [[Flows and sessions]].

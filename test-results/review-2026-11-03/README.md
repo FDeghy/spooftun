@@ -1,8 +1,8 @@
 # Working-tree bug review — 2026-11-03
 
-Five confirmed issues were fixed. One further confirmed AF_PACKET worker startup issue remains unresolved. Native Linux runtime verification is unavailable: this host is Windows/amd64 with Go 1.27.3, WSL is not installed, no container runtime was found, and the user confirmed no disposable Linux runner is available.
+Four confirmed issues in the retained backends were fixed. One further confirmed AF_PACKET worker startup issue remains unresolved. Native Linux runtime verification is unavailable: this host is Windows/amd64 with Go 1.27.3, WSL is not installed, no container runtime was found, and the user confirmed no disposable Linux runner is available.
 
-The review included the existing uncommitted forwarding changes and untracked `packet_workers.go` / `packet_workers_test.go`. Unrelated changes were preserved. No dependency, default, C program, or embedded BPF object was changed. Valid emitted wire formats remain unchanged; malformed input is now rejected more strictly.
+The review included the existing uncommitted forwarding changes and untracked `packet_workers.go` / `packet_workers_test.go`. Unrelated changes were preserved. No dependency or default was changed. Valid emitted wire formats remain unchanged; malformed input is now rejected more strictly.
 
 ## Findings, ordered by severity
 
@@ -58,26 +58,17 @@ The supported maximum IPv4 MTU is 65,535, but BPF accepted only 65,535 bytes of 
 
 The accepted capture length now includes the Ethernet header. `TestCaptureFilterFullIPv4Frame` failed before the fix with `capture=65535 frame=65549`, then passed in the BPF VM. Actual Linux socket-filter max-frame coverage was added to `TestCaptureFilterKernel`, but could not execute here.
 
-### 6. P3 — TC unicast validation accepted limited broadcast — fixed
-
-Location: `kernel_tc.go:72`; regressions in `kernel_tc_test.go:87`.
-
-`255.255.255.255` passed validation for remote, source, destination-filter and expected peer-source settings, despite the required unicast endpoint invariant. These settings could reach the frozen BPF configuration and produce unusable forwarding or filtering.
-
-The validator now explicitly rejects limited broadcast while preserving link-local unicast. All four broadcast cases failed before the fix and passed afterward; a link-local compatibility case also passed.
-
 ## Review coverage
 
 | Subsystem | Traced invariants / outcome |
 | --- | --- |
-| Startup and CLI | Mode/backend/protocol/port/MTU/timeout validation, worker incompatibilities, TC restrictions and startup cleanup; TC broadcast and AF_PACKET startup findings above. |
+| Startup and CLI | Mode/backend/protocol/port/MTU/timeout validation, worker incompatibilities and startup cleanup; AF_PACKET startup findings above. |
 | Client/server forwarding | Encoding, borrowed-frame lifetime, reply address copies, directional capture rules, local destination remapping, noise acceptance accounting and reply goroutine ownership. |
 | NAT/session state | Full identifier-space exhaustion, copied retained addresses, concurrent creation, atomic refresh versus retirement, identity-aware deletion and replacement. No additional confirmed bug. |
 | Framing/encoder | IPv4 bounds, transport boundaries/checksums, padding, fragment model, MTU limits and serializer compatibility. |
 | Local UDP | recvmmsg truncation, GRO control validation and segment boundaries, bounded copy queue, sparse flush, sendmmsg partial failures, GSO grouping/fallback and poller backpressure. No additional confirmed bug. |
 | AF_PACKET/TX ring | Socket/ring setup, batch descriptors, partial writes, ring slot ownership, submission/waits and cleanup. Startup and max-frame findings above. |
 | AF_XDP | Separate RX/TX UMEM pools, borrowed batch lifetime, FILL recycling, completions, TX backpressure, fallback classification, existing-attachment rejection and cleanup. No additional confirmed bug. |
-| TC/eBPF | Go/C configuration ABI, hash manifest, immutable maps, tuple/fragment/bounds/MTU validation, incremental checksum error preservation, zero-checksum fallback, offloads, TCX conflict checks and owned-resource cleanup. C/object unchanged. |
 | Network setup and support code | Interface/route/neighbor selection, ring sizing, noise, namespace harness ownership and Python syntax. No additional confirmed bug. |
 
 Skills read/applied: installed `golang-how-to`, `golang-concurrency`, `golang-safety`, `golang-security`, `golang-error-handling`, `golang-gopls`, `golang-context`, `golang-testing`, `golang-troubleshooting`, `golang-cli`, `golang-lint`, `graphify`, and `surgical-patch`. All needed skill files were present. Knowledge notes and the existing graph supplied orientation; claims were verified against current source. The code graph was refreshed with `graphify update .`.
@@ -92,7 +83,6 @@ All commands used Go 1.27.3. These results concern the final working tree, inclu
 | `go vet config.go nat.go nat_test.go framing.go framing_test.go encoder.go encoder_test.go` | PASS, Windows portable subset. |
 | Focused pre-fix UDP/header/transport corruption regressions | Failed as described above, then passed after fixes. |
 | Portable BPF VM suite and vet | PASS, final production copies; command and test adaptation below. |
-| TC portable extraction harness | PASS: verbatim `tcOptions.validate`, configuration type and original `TestTCOptionsValidation`, `TestTCConfigABI`, `TestTCEmbeddedObjectMatchesSource`, with actual source/object/manifest fixtures copied. Covers validation, serialization offsets and hashes, not eBPF loading/execution. |
 | `GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go list ./...` | PASS: one package, `spooftun`. |
 | Linux/amd64 `go build -trimpath -o <temporary binary> .` | PASS; cross-compilation only. |
 | Linux/amd64 `go test -c -o <temporary test binary> .` | PASS; no tests executed. |
@@ -119,7 +109,7 @@ Advisories: [GO-2026-6860](https://pkg.go.dev/vuln/GO-2026-6860), [GO-2026-6866]
 ## Unexecuted checks and material gaps
 
 - Native Linux `go test ./...` and whole-project `go test -race ./...`: unavailable. Windows portable race checks cover only the selected pure Go logic.
-- Namespace/veth integration, actual Linux socket-filter regression, AF_PACKET startup reproduction, GRO/GSO kernel execution, TX-ring tests, XDP verifier/lifecycle/completions and TC verifier/rewrite/cleanup: unavailable. No production interfaces or firewall rules were changed.
+- Namespace/veth integration, actual Linux socket-filter regression, AF_PACKET startup reproduction, GRO/GSO kernel execution, TX-ring tests, XDP verifier/lifecycle/completions: unavailable. No production interfaces or firewall rules were changed.
 - Hardware AF_XDP zero-copy, offload compatibility and throughput: unverified. No performance claim or measured optimization is made.
 - Standalone staticcheck/golangci-lint/gosec were unavailable and were not installed. Vet, gopls and the vulnerability check ran as described.
 - One confirmed bug remains: multiqueue startup duplication, finding 4. No further confirmed unfixed issue was identified in the reviewed source; this is not a proof that the project is bug-free.

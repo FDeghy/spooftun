@@ -1,9 +1,5 @@
 # AF_XDP and AF_PACKET transmit selection
 
-For fixed-peer WireGuard traffic, the optional [TC kernel rewrite backend](TC_BACKEND.md)
-bypasses userspace forwarding. It has different application endpoint settings
-and narrower framing support. The AF_PACKET/AF_XDP comparison below is retained.
-
 ## Usage
 
 ```sh
@@ -27,7 +23,7 @@ compatible, so endpoints need not select the same packet-I/O method.
 
 Add `-packet-workers 2 -packet-distribution flow` to either endpoint's existing
 `-backend afpacket` command. The endpoints may choose different worker counts.
-The default is one worker; up to 64 are accepted. XDP and TC reject nondefault
+The default is one worker; up to 64 are accepted. XDP rejects nondefault
 packet-worker options rather than silently ignoring them.
 
 Each worker owns a TPACKET_V3 receive ring, local UDP delivery queue, and raw

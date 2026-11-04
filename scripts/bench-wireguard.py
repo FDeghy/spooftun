@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Real iperf3 over isolated veth / WireGuard / WireGuard+spooftun paths.
 
-Requires root, ip, iptables, wg and iperf3 (plus ethtool for TC).
+Requires root, ip, iptables, wg and iperf3.
 Nothing is attached to production
 interfaces. Both endpoints share this host; results are not WAN capacity.
 """
@@ -32,7 +32,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--binary', required=True)
     parser.add_argument('--wg', default='wg')
-    parser.add_argument('--path', choices=['direct', 'wireguard', 'afpacket', 'ring', 'xdp', 'tc'], required=True)
+    parser.add_argument('--path', choices=['direct', 'wireguard', 'afpacket', 'ring', 'xdp'], required=True)
     parser.add_argument('--output', required=True, help='New directory for JSON and process logs')
     parser.add_argument('--seconds', type=int, default=30)
     parser.add_argument('--reverse', action='store_true')
@@ -52,14 +52,10 @@ def main():
     if opts.tcp_rate and (opts.udp_rate or opts.udp_load):
         parser.error('--tcp-rate cannot be combined with UDP modes')
     if opts.raw_udp and (not opts.udp_rate or opts.path not in ('afpacket', 'ring', 'xdp')):
-        parser.error('--raw-udp requires afpacket/ring/xdp and --udp-rate; TC currently tests real WireGuard only')
-    if opts.path == 'tc' and opts.proto != 6:
-        parser.error('--path tc requires --proto 6')
+        parser.error('--raw-udp requires afpacket/ring/xdp and --udp-rate')
     if opts.udp_load and (not opts.udp_rate or opts.reverse or opts.streams != 1):
         parser.error('--udp-load requires --udp-rate, one stream and forward direction')
     required_tools = ['ip', 'iptables', 'iperf3', opts.wg]
-    if opts.path == 'tc':
-        required_tools.append('ethtool')
     for tool in required_tools:
         if not shutil.which(tool):
             parser.error('missing tool: ' + tool)
@@ -95,43 +91,24 @@ def main():
         for name, other, address in [(client, server, '192.0.2.2'), (server, client, '192.0.2.1')]:
             mac = json.loads(run('ip', '-n', other, '-j', 'link', 'show', 'tun0'))[0]['address']
             run('ip', '-n', name, 'neigh', 'replace', address, 'lladdr', mac, 'nud', 'permanent', 'dev', 'tun0')
-        tunnel = opts.path in ('afpacket', 'ring', 'xdp', 'tc')
+        tunnel = opts.path in ('afpacket', 'ring', 'xdp')
         if tunnel:
             # Only tunnel protocol/ports are suppressed. Direct iperf control
             # and unrelated traffic are left alone within these namespaces.
             for name, direction in [(server, '--dport'), (client, '--sport')]:
-                if opts.path != 'tc' and opts.proto in (6, 17):
+                if opts.proto in (6, 17):
                     ns(name, 'iptables', '-t', 'raw', '-A', 'PREROUTING', '-i', 'tun0',
                        '-p', str(opts.proto), direction, '40000', '-j', 'DROP')
             common = [binary, '-iface', 'tun0', '-proto', str(opts.proto), '-fake-tcp',
                       '-tcp-flags', opts.tcp_flags, '-target-port', '40000', '-mtu', '1500',
-                      '-backend', opts.path if opts.path in ('xdp', 'tc') else 'afpacket', *opts.extra]
+                      '-backend', 'xdp' if opts.path == 'xdp' else 'afpacket', *opts.extra]
             if opts.path == 'ring':
                 common += ['-afpacket-tx', 'ring']
-            server_args = ['-remote-ip', '192.0.2.1'] if opts.spoof or opts.path == 'tc' else []
+            server_args = ['-remote-ip', '192.0.2.1'] if opts.spoof else []
             client_args = ['-src-ip', '198.51.100.1', '-filter-dst-ip', '192.0.2.1'] if opts.spoof else []
-            if opts.path == 'tc':
-                common += ['-tc-local-port', '51820']
-                server_args += ['-tc-peer-port', '51820']
-                if opts.spoof:
-                    server_args += ['-tc-peer-src-ip', '198.51.100.1']
             tunnels.append(start(server, 'spooftun-server', common + ['-mode', 'server', '-outbound-port', '51820', *server_args]))
-            listen_args = [] if opts.path == 'tc' else ['-listen', '127.0.0.1:18081']
-            tunnels.append(start(client, 'spooftun-client', common + ['-mode', 'client', *listen_args,
+            tunnels.append(start(client, 'spooftun-client', common + ['-mode', 'client', '-listen', '127.0.0.1:18081',
                                                                   '-remote-ip', '192.0.2.2', *client_args]))
-            if opts.path == 'tc':
-                # TC creates private veth devices before announcing readiness.
-                # Wait for both endpoints rather than guessing startup duration.
-                deadline = time.monotonic() + 15
-                while True:
-                    if any(p.poll() is not None for p in tunnels):
-                        raise RuntimeError('TC startup failed; inspect spooftun logs')
-                    if all('packet backend=tc ready' in (out / (label + '.log')).read_text()
-                           for label in ('spooftun-server', 'spooftun-client')):
-                        break
-                    if time.monotonic() >= deadline:
-                        raise RuntimeError('TC startup timed out; inspect spooftun logs')
-                    time.sleep(0.1)
         dest = '192.0.2.2'
         if opts.raw_udp and not opts.udp_load:
             # iperf3's TCP control connection is distinct from its UDP data.
@@ -152,8 +129,7 @@ while True:
             public = [run(opts.wg, 'pubkey', input=k + '\n') for k in private]
             for i, name in enumerate([client, server]):
                 run('ip', '-n', name, 'link', 'add', 'wg0', 'type', 'wireguard')
-                tunnel_endpoint = '198.18.0.2:40000' if opts.path == 'tc' else '127.0.0.1:18081'
-                endpoint = (['endpoint', tunnel_endpoint] if i == 0 else []) if tunnel else [
+                endpoint = (['endpoint', '127.0.0.1:18081'] if i == 0 else []) if tunnel else [
                     'endpoint', ('192.0.2.2' if i == 0 else '192.0.2.1') + ':51820']
                 ns(name, opts.wg, 'set', 'wg0', 'listen-port', '51820', 'private-key', '/dev/stdin',
                    'peer', public[1-i], 'allowed-ips', '10.203.0.%d/32' % (2-i), *endpoint, input=private[i] + '\n')
@@ -240,9 +216,7 @@ while True:
                 p.terminate()
         for p in processes:
             try:
-                # Allow TC to detach its links, log kernel counters and remove
-                # its owned veth pair before deleting the enclosing namespace.
-                p.wait(timeout=10 if opts.path == 'tc' and p in tunnels else 3)
+                p.wait(timeout=3)
             except subprocess.TimeoutExpired:
                 p.kill()
                 p.wait()

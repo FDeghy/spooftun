@@ -1,6 +1,6 @@
 # spooftun
 
-Linux UDP tunnel using raw Ethernet/IPv4 frames with configurable IP protocol numbers. AF_PACKET and AF_XDP forward application datagrams through userspace; TC rewrites a fixed peer's packets inside the kernel.
+Linux UDP tunnel using raw Ethernet/IPv4 frames with configurable IP protocol numbers. AF_PACKET and AF_XDP forward application datagrams through userspace.
 
 ## Map
 

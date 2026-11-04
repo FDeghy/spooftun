@@ -225,13 +225,3 @@ processing capacity. More vCPUs alone do not remove a serialized single-flow
 packet path. Measure receiver loss and CPU/softirq, not just the requested
 iperf3 send rate. Ordinary TCP TSO cannot be assumed to preserve arbitrary
 fake-TCP flags, static sequence fields and packet boundaries.
-
-The optional **kernel TC rewrite backend** now avoids that userspace forwarding
-round trip for a fixed IPv4 peer. It preserves spoofed addresses and `0x06`
-flags, using an owned virtual interface to complete offload work before header
-rewriting. Applications must use its virtual endpoint and fixed local port;
-noise and fake fragments remain unsupported. Follow [TC_BACKEND.md](TC_BACKEND.md)
-for the complete WireGuard configuration and measured results. This is different
-from AF_XDP, which redirects packets into userspace. [Mimic](https://github.com/hack3ric/mimic)
-also uses kernel rewriting, but its published results on a newer CPU do not
-establish a speed guarantee for this VM.
