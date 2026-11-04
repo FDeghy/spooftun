@@ -50,6 +50,11 @@ for ns in "$CLIENT" "$SERVER"; do
   # Regression mode deliberately lets Linux process server-side tunnel UDP.
   # This affects only the disposable server namespace, never host firewall rules.
   if [[ "$ns" == "$SERVER" && ${SPOOFTUN_TEST_SERVER_KERNEL_UDP:-0} == 1 ]]; then
+    # A kernel UDP reply can cross veth with CHECKSUM_PARTIAL: packet sockets
+    # see the unfinished checksum even though the peer's UDP stack accepts it.
+    # Complete checksums before the tap, as on a physical receive interface,
+    # so the duplicate-delivery probe tests both valid reply paths.
+    ip netns exec "$ns" ethtool -K tun0 tx off
     continue
   fi
   # AF_PACKET is a tap: it does not consume frames before the IP stack.

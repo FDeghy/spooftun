@@ -33,6 +33,11 @@ jobs:
         run: test -z "$(gofmt -l *.go)"
       - name: Test
         run: go test ./...
+      - name: Network test dependencies
+        if: matrix.goarch == 'amd64'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ethtool iproute2
       - name: Namespace integration
         if: matrix.goarch == 'amd64'
         run: sudo env PATH="$PATH" SPOOFTUN_NETNS_TEST=1 go test -run 'TestNetworkNamespaceIntegration|TestServerOutboundPortIntegration|TestNoiseIntegration' -v .
@@ -54,8 +59,6 @@ jobs:
       - name: TC kernel rewrite validation
         if: matrix.goarch == 'amd64'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y ethtool iproute2
           sudo env PATH="$PATH" SPOOFTUN_TC_TEST=1 go test -run '^TestTC' -v .
           sudo python3 scripts/test-tc.py --binary ./spooftun-linux-amd64 --output /tmp/spooftun-tc-proof
 
