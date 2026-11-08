@@ -79,6 +79,10 @@ func (r *afpacketReceiver) ReadPacket() ([]byte, error) {
 func (r *afpacketReceiver) Close() error { r.socket.Close(); return nil }
 
 func newTunnelIO(iface string, proto uint8, mac net.HardwareAddr, localIP net.IP, port uint16, isClient bool) (packetReceiver, packetTransmitter, error) {
+	return newTunnelIOWorker(iface, proto, mac, localIP, port, isClient, true)
+}
+
+func newTunnelIOWorker(iface string, proto uint8, mac net.HardwareAddr, localIP net.IP, port uint16, isClient, needTX bool) (packetReceiver, packetTransmitter, error) {
 	if *backend == "xdp" {
 		return newXDPIO(iface, proto, mac, localIP, port, isClient)
 	}
@@ -101,18 +105,20 @@ func newTunnelIO(iface string, proto uint8, mac net.HardwareAddr, localIP net.IP
 		return nil, nil, fmt.Errorf("attach capture filter: %w", err)
 	}
 	var tx packetTransmitter
-	if *afpacketTX == "ring" {
-		var mtu int
-		mtu, err = effectiveMTU(iface)
-		if err == nil {
-			tx, err = newTXRingSender(iface, mtu)
+	if needTX {
+		if *afpacketTX == "ring" {
+			var mtu int
+			mtu, err = effectiveMTU(iface)
+			if err == nil {
+				tx, err = newTXRingSender(iface, mtu)
+			}
+		} else {
+			tx, err = newPacketSender(iface)
 		}
-	} else {
-		tx, err = newPacketSender(iface)
-	}
-	if err != nil {
-		rx.Close()
-		return nil, nil, fmt.Errorf("open AF_PACKET TX: %w", err)
+		if err != nil {
+			rx.Close()
+			return nil, nil, fmt.Errorf("open AF_PACKET TX: %w", err)
+		}
 	}
 	log.Printf("packet backend=afpacket tx=%s", *afpacketTX)
 	return &afpacketReceiver{socket: rx}, tx, nil

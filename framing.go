@@ -5,8 +5,6 @@ package main
 import (
 	"encoding/binary"
 	"net"
-
-	"github.com/gopacket/gopacket/layers"
 )
 
 // --- Ethernet/IPv4 fixed-offset parse ---
@@ -74,28 +72,6 @@ func transportHeaderLen() int {
 	return 8
 }
 
-// newFakeTCPHeader builds a TCP header with the user-configured flag byte.
-// Seq/Ack are constants; the goal is to mimic a mid-flow segment shape, not
-// to participate in a real TCP handshake (the kernel never sees these packets
-// — both ends use AF_PACKET).
-func newFakeTCPHeader(dstPort uint16, flagsByte uint8) *layers.TCP {
-	return &layers.TCP{
-		DstPort:    layers.TCPPort(dstPort),
-		Seq:        1,
-		Ack:        0,
-		DataOffset: 5, // 20-byte header, no options
-		Window:     65535,
-		FIN:        flagsByte&0x01 != 0,
-		SYN:        flagsByte&0x02 != 0,
-		RST:        flagsByte&0x04 != 0,
-		PSH:        flagsByte&0x08 != 0,
-		ACK:        flagsByte&0x10 != 0,
-		URG:        flagsByte&0x20 != 0,
-		ECE:        flagsByte&0x40 != 0,
-		CWR:        flagsByte&0x80 != 0,
-	}
-}
-
 // parseFakeTransport reads src/dst port and inner payload from an IP body
 // shaped as either UDP (8-byte header) or TCP (variable-length header).
 // Both protocols place srcPort at bytes 0-1 and dstPort at bytes 2-3.
@@ -140,8 +116,14 @@ func parseTunnelTransport(p ethIPv4, useTCP bool) (srcPort, dstPort uint16, payl
 		}
 		body, proto = body[:8+len(payload)], 17
 	}
-	sum := encoderChecksumSum(p.srcIP, proto+uint32(len(body)))
-	sum = encoderChecksumSum(p.dstIP, sum)
+	sum := proto + uint32(len(body))
+	if len(p.srcIP) == 4 && len(p.dstIP) == 4 {
+		sum += uint32(binary.BigEndian.Uint16(p.srcIP[:2])) + uint32(binary.BigEndian.Uint16(p.srcIP[2:4])) +
+			uint32(binary.BigEndian.Uint16(p.dstIP[:2])) + uint32(binary.BigEndian.Uint16(p.dstIP[2:4]))
+	} else {
+		sum = encoderChecksumSum(p.srcIP, sum)
+		sum = encoderChecksumSum(p.dstIP, sum)
+	}
 	if encoderFoldChecksum(encoderChecksumSum(body, sum)) != 0 {
 		return 0, 0, nil, false
 	}

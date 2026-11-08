@@ -3,6 +3,7 @@
 package main
 
 import (
+	"encoding/binary"
 	"fmt"
 	"log"
 	"net"
@@ -32,8 +33,12 @@ func validatePacketWorkers(backend string, count int, distribution string) error
 
 func closeTunnelWorkers(workers []tunnelWorker) {
 	for _, w := range workers {
-		w.receiver.Close()
-		w.sender.Close()
+		if w.receiver != nil {
+			w.receiver.Close()
+		}
+		if w.sender != nil {
+			w.sender.Close()
+		}
 	}
 }
 
@@ -41,7 +46,7 @@ func closeTunnelWorkers(workers []tunnelWorker) {
 // avoids PID-derived IDs accidentally sharing packets with another process.
 // It also supplies the public fd needed to install the group's cBPF selector;
 // gopacket intentionally does not expose its socket fd. The temporary member
-// leaves before any forwarding loop starts, so only real workers receive data.
+// leaves as soon as worker 0 joins, so only real workers receive data.
 func openPacketFanout(iface, distribution string) (fd int, id uint16, kind afpacket.FanoutType, err error) {
 	dev, err := net.InterfaceByName(iface)
 	if err != nil {
@@ -56,8 +61,12 @@ func openPacketFanout(iface, distribution string) (fd int, id uint16, kind afpac
 			unix.Close(fd)
 		}
 	}()
-	// sockaddr_ll protocol is in network byte order on both supported CPUs.
-	if err = unix.Bind(fd, &unix.SockaddrLinklayer{Ifindex: dev.Index, Protocol: 0x0008}); err != nil {
+	reject := unix.SockFilter{Code: unix.BPF_RET | unix.BPF_K, K: 0}
+	if err = unix.SetsockoptSockFprog(fd, unix.SOL_SOCKET, unix.SO_ATTACH_FILTER, &unix.SockFprog{Len: 1, Filter: &reject}); err != nil {
+		return
+	}
+	// sockaddr_ll protocol is in network byte order.
+	if err = unix.Bind(fd, &unix.SockaddrLinklayer{Ifindex: dev.Index, Protocol: binary.NativeEndian.Uint16([]byte{0x08, 0x00})}); err != nil {
 		return
 	}
 	kind = afpacket.FanoutCBPF
@@ -127,17 +136,26 @@ func newTunnelWorkers(iface string, proto uint8, mac net.HardwareAddr, localIP n
 		if err != nil {
 			return nil, fmt.Errorf("create packet fanout: %w", err)
 		}
-		defer unix.Close(fd)
+		defer func() {
+			if fd >= 0 {
+				unix.Close(fd)
+			}
+		}()
 	}
 	for i := 0; i < *packetWorkers; i++ {
-		rx, tx, e := newTunnelIO(iface, proto, mac, localIP, port, client)
+		needTX := i == 0 || !client || *tunName != ""
+		rx, tx, e := newTunnelIOWorker(iface, proto, mac, localIP, port, client, needTX)
 		if e != nil {
 			return nil, e
 		}
 		workers = append(workers, tunnelWorker{rx, tx})
-		if fd >= 0 {
+		if *packetWorkers > 1 {
 			if err = rx.(*afpacketReceiver).socket.SetFanout(kind, id); err != nil {
 				return nil, fmt.Errorf("join packet fanout worker %d: %w", i, err)
+			}
+			if fd >= 0 {
+				unix.Close(fd)
+				fd = -1
 			}
 		}
 	}

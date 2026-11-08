@@ -1,0 +1,64 @@
+-----------------------------------------------------------
+Server listening on 5201 (test #1)
+-----------------------------------------------------------
+Accepted connection from 198.18.0.1, port 44798
+[  5] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 44802
+[  8] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 44806
+[ 10] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 44822
+[ 12] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 44834
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-1.00   sec  4.50 MBytes  37.6 Mbits/sec                  
+[  8]   0.00-1.00   sec  15.8 MBytes   132 Mbits/sec                  
+[ 10]   0.00-1.00   sec  4.62 MBytes  38.7 Mbits/sec                  
+[ 12]   0.00-1.00   sec  9.00 MBytes  75.2 Mbits/sec                  
+[SUM]   0.00-1.00   sec  33.9 MBytes   283 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   1.00-2.00   sec  4.62 MBytes  38.8 Mbits/sec                  
+[  8]   1.00-2.00   sec  20.4 MBytes   171 Mbits/sec                  
+[ 10]   1.00-2.00   sec  5.38 MBytes  45.1 Mbits/sec                  
+[ 12]   1.00-2.00   sec  14.9 MBytes   125 Mbits/sec                  
+[SUM]   1.00-2.00   sec  45.2 MBytes   380 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   2.00-2.03   sec  0.00 Bytes  0.00 bits/sec                  
+[  8]   2.00-2.03   sec   384 KBytes   111 Mbits/sec                  
+[ 10]   2.00-2.03   sec   128 KBytes  36.9 Mbits/sec                  
+[ 12]   2.00-2.03   sec   128 KBytes  37.2 Mbits/sec                  
+[SUM]   2.00-2.03   sec   640 KBytes   185 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-2.03   sec  9.12 MBytes  37.7 Mbits/sec                  receiver
+[  8]   0.00-2.03   sec  36.5 MBytes   151 Mbits/sec                  receiver
+[ 10]   0.00-2.03   sec  10.1 MBytes  41.8 Mbits/sec                  receiver
+[ 12]   0.00-2.03   sec  24.0 MBytes  99.1 Mbits/sec                  receiver
+[SUM]   0.00-2.03   sec  79.8 MBytes   329 Mbits/sec                  receiver
+-----------------------------------------------------------
+Server listening on 5201 (test #2)
+-----------------------------------------------------------
+Accepted connection from 198.18.0.1, port 44844
+[  5] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 44860
+[  8] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 44870
+[ 10] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 44882
+[ 12] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 44896
+[ ID] Interval           Transfer     Bitrate         Retr  Cwnd
+[  5]   0.00-1.00   sec  9.38 MBytes  78.5 Mbits/sec    0    247 KBytes       
+[  8]   0.00-1.00   sec  15.8 MBytes   132 Mbits/sec    0    435 KBytes       
+[ 10]   0.00-1.00   sec  7.12 MBytes  59.7 Mbits/sec    0    163 KBytes       
+[ 12]   0.00-1.00   sec  10.8 MBytes  90.0 Mbits/sec    0    249 KBytes       
+[SUM]   0.00-1.00   sec  43.0 MBytes   360 Mbits/sec    0             
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   1.00-2.00   sec  7.50 MBytes  63.0 Mbits/sec    0    221 KBytes       
+[  8]   1.00-2.00   sec  11.2 MBytes  94.4 Mbits/sec    0    293 KBytes       
+[ 10]   1.00-2.00   sec  4.75 MBytes  39.9 Mbits/sec    0    168 KBytes       
+[ 12]   1.00-2.00   sec  6.12 MBytes  51.4 Mbits/sec    0    199 KBytes       
+[SUM]   1.00-2.00   sec  29.6 MBytes   249 Mbits/sec    0             
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate         Retr
+[  5]   0.00-2.01   sec  16.9 MBytes  70.5 Mbits/sec    0             sender
+[  8]   0.00-2.01   sec  27.0 MBytes   113 Mbits/sec    0             sender
+[ 10]   0.00-2.01   sec  11.9 MBytes  49.6 Mbits/sec    0             sender
+[ 12]   0.00-2.01   sec  16.9 MBytes  70.5 Mbits/sec    0             sender
+[SUM]   0.00-2.01   sec  72.6 MBytes   304 Mbits/sec    0             sender
+iperf3: interrupt - the server has terminated
+-----------------------------------------------------------
+Server listening on 5201 (test #3)
+-----------------------------------------------------------

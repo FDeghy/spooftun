@@ -1,0 +1,70 @@
+-----------------------------------------------------------
+Server listening on 5201 (test #1)
+-----------------------------------------------------------
+Accepted connection from fd42::1, port 50370
+[  5] local fd42::2 port 5201 connected to fd42::1 port 50376
+[  8] local fd42::2 port 5201 connected to fd42::1 port 50392
+[ 10] local fd42::2 port 5201 connected to fd42::1 port 50406
+[ 12] local fd42::2 port 5201 connected to fd42::1 port 50414
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-1.00   sec  16.4 MBytes   137 Mbits/sec                  
+[  8]   0.00-1.00   sec  12.4 MBytes   104 Mbits/sec                  
+[ 10]   0.00-1.00   sec  9.50 MBytes  79.5 Mbits/sec                  
+[ 12]   0.00-1.00   sec  19.5 MBytes   163 Mbits/sec                  
+[SUM]   0.00-1.00   sec  57.8 MBytes   483 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   1.00-2.00   sec  20.8 MBytes   174 Mbits/sec                  
+[  8]   1.00-2.00   sec  19.5 MBytes   164 Mbits/sec                  
+[ 10]   1.00-2.00   sec  12.5 MBytes   105 Mbits/sec                  
+[ 12]   1.00-2.00   sec  27.0 MBytes   227 Mbits/sec                  
+[SUM]   1.00-2.00   sec  79.8 MBytes   670 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   2.00-2.02   sec   384 KBytes   135 Mbits/sec                  
+[  8]   2.00-2.02   sec   512 KBytes   181 Mbits/sec                  
+[ 10]   2.00-2.02   sec   256 KBytes  90.3 Mbits/sec                  
+[ 12]   2.00-2.02   sec   384 KBytes   136 Mbits/sec                  
+[SUM]   2.00-2.02   sec  1.50 MBytes   541 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-2.02   sec  37.5 MBytes   155 Mbits/sec                  receiver
+[  8]   0.00-2.02   sec  32.4 MBytes   134 Mbits/sec                  receiver
+[ 10]   0.00-2.02   sec  22.2 MBytes  92.2 Mbits/sec                  receiver
+[ 12]   0.00-2.02   sec  46.9 MBytes   194 Mbits/sec                  receiver
+[SUM]   0.00-2.02   sec   139 MBytes   576 Mbits/sec                  receiver
+-----------------------------------------------------------
+Server listening on 5201 (test #2)
+-----------------------------------------------------------
+Accepted connection from fd42::1, port 50422
+[  5] local fd42::2 port 5201 connected to fd42::1 port 50426
+[  8] local fd42::2 port 5201 connected to fd42::1 port 50430
+[ 10] local fd42::2 port 5201 connected to fd42::1 port 50438
+[ 12] local fd42::2 port 5201 connected to fd42::1 port 50454
+[ ID] Interval           Transfer     Bitrate         Retr  Cwnd
+[  5]   0.00-1.00   sec  16.5 MBytes   138 Mbits/sec    0    219 KBytes       
+[  8]   0.00-1.00   sec  13.6 MBytes   114 Mbits/sec    0    230 KBytes       
+[ 10]   0.00-1.00   sec  16.0 MBytes   134 Mbits/sec    0    232 KBytes       
+[ 12]   0.00-1.00   sec  17.6 MBytes   148 Mbits/sec    0    279 KBytes       
+[SUM]   0.00-1.00   sec  63.8 MBytes   534 Mbits/sec    0             
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   1.00-2.00   sec  14.5 MBytes   122 Mbits/sec    0    268 KBytes       
+[  8]   1.00-2.00   sec  11.5 MBytes  96.5 Mbits/sec    0    170 KBytes       
+[ 10]   1.00-2.00   sec  12.6 MBytes   106 Mbits/sec    0    156 KBytes       
+[ 12]   1.00-2.00   sec  18.4 MBytes   154 Mbits/sec    0    336 KBytes       
+[SUM]   1.00-2.00   sec  57.0 MBytes   478 Mbits/sec    0             
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   2.00-2.01   sec   256 KBytes   447 Mbits/sec    0    254 KBytes       
+[  8]   2.00-2.01   sec  0.00 Bytes  0.00 bits/sec    0    175 KBytes       
+[ 10]   2.00-2.01   sec  0.00 Bytes  0.00 bits/sec    0    156 KBytes       
+[ 12]   2.00-2.01   sec  0.00 Bytes  0.00 bits/sec    0    355 KBytes       
+[SUM]   2.00-2.01   sec   256 KBytes   447 Mbits/sec    0             
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate         Retr
+[  5]   0.00-2.01   sec  31.2 MBytes   131 Mbits/sec    0             sender
+[  8]   0.00-2.01   sec  25.1 MBytes   105 Mbits/sec    0             sender
+[ 10]   0.00-2.01   sec  28.6 MBytes   120 Mbits/sec    0             sender
+[ 12]   0.00-2.01   sec  36.0 MBytes   151 Mbits/sec    0             sender
+[SUM]   0.00-2.01   sec   121 MBytes   506 Mbits/sec    0             sender
+iperf3: interrupt - the server has terminated
+-----------------------------------------------------------
+Server listening on 5201 (test #3)
+-----------------------------------------------------------

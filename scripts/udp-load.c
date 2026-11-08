@@ -169,12 +169,14 @@ static int send_load(int fd, size_t size, double seconds, double rate_mbps) {
         if (gso) {
             ssize_t result;
             do { result = sendmsg(fd, &gso_message, MSG_NOSIGNAL); }
-            while (result < 0 && errno == EINTR && !stopping);
+            while (result < 0 && (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) && !stopping && monotonic_ns() < finish);
             if (result == (ssize_t)length) {
                 accepted = segments;
             } else if (result < 0 && (errno == EINVAL || errno == ENOPROTOOPT ||
                                       errno == EOPNOTSUPP || errno == EIO)) {
                 gso = false;
+            } else if (result < 0 && (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR)) {
+                break;
             } else {
                 if (result < 0) perror("sendmsg UDP_SEGMENT");
                 else fprintf(stderr, "short UDP_SEGMENT send\n");
@@ -185,7 +187,8 @@ static int send_load(int fd, size_t size, double seconds, double rate_mbps) {
         while (!gso && accepted < segments && !stopping) {
             int count = sendmmsg(fd, messages + accepted, segments - accepted,
                                  MSG_NOSIGNAL);
-            if (count < 0 && errno == EINTR) continue;
+            if (count < 0 && (errno == EINTR || ((errno == EAGAIN || errno == EWOULDBLOCK) && monotonic_ns() < finish))) continue;
+            if (count < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) break;
             if (count <= 0) {
                 if (count < 0) perror("sendmmsg");
                 else fprintf(stderr, "sendmmsg made no progress\n");
@@ -233,7 +236,13 @@ static int receive_load(int fd) {
     unsigned char *data = malloc((size_t)BATCH * RX_BUFFER);
     unsigned char *seen = calloc(MAX_SEQUENCE / 8, 1);
     unsigned char *expected = malloc(MAX_PAYLOAD);
-    if (!data || !seen || !expected) { perror("malloc receive"); return 1; }
+    if (!data || !seen || !expected) {
+        perror("malloc receive");
+        free(expected);
+        free(seen);
+        free(data);
+        return 1;
+    }
     content(expected, MAX_PAYLOAD);
     struct iovec vectors[BATCH] = {0};
     struct mmsghdr messages[BATCH] = {0};

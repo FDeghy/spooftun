@@ -5,6 +5,7 @@ package main
 import (
 	"encoding/binary"
 	"errors"
+	"math/bits"
 	"net"
 )
 
@@ -99,14 +100,27 @@ func (e *tunnelEncoder) Encode(dst, payload []byte, srcPort, dstPort, ipID, ipFl
 	return dst, nil
 }
 
-// The bounded IPv4 packet length keeps this unfolded sum below uint32 overflow.
-// Unroll the payload loop to amortize bounds checks and loop bookkeeping.
+// Sum wide words with end-around carry. Folding a 64-bit one's-complement
+// sum is equivalent to summing its four network-order 16-bit words.
 func encoderChecksumSum(data []byte, sum uint32) uint32 {
+	var wide, carry uint64
+	for len(data) >= 32 {
+		wide, carry = bits.Add64(wide, binary.BigEndian.Uint64(data[:8]), carry)
+		wide, carry = bits.Add64(wide, binary.BigEndian.Uint64(data[8:16]), carry)
+		wide, carry = bits.Add64(wide, binary.BigEndian.Uint64(data[16:24]), carry)
+		wide, carry = bits.Add64(wide, binary.BigEndian.Uint64(data[24:32]), carry)
+		data = data[32:]
+	}
 	for len(data) >= 8 {
-		sum += uint32(binary.BigEndian.Uint16(data[:2])) + uint32(binary.BigEndian.Uint16(data[2:4])) +
-			uint32(binary.BigEndian.Uint16(data[4:6])) + uint32(binary.BigEndian.Uint16(data[6:8]))
+		wide, carry = bits.Add64(wide, binary.BigEndian.Uint64(data[:8]), carry)
 		data = data[8:]
 	}
+	wide, carry = bits.Add64(wide, 0, carry)
+	wide += carry
+	wide = (wide & 0xffffffff) + wide>>32
+	wide = (wide & 0xffff) + wide>>16
+	wide = (wide & 0xffff) + wide>>16
+	sum += uint32(wide)
 	for len(data) >= 2 {
 		sum += uint32(binary.BigEndian.Uint16(data[:2]))
 		data = data[2:]

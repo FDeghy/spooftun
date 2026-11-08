@@ -1,0 +1,268 @@
+{
+  "options": {
+    "binary": "./spooftun-tun-wide",
+    "output": "wide-final-one",
+    "workers": 1,
+    "seconds": 5,
+    "repeat": 6,
+    "streams": 4,
+    "mtu": 1500,
+    "fake_tcp": false,
+    "fake_frag": false,
+    "verify_only": false,
+    "direct": false,
+    "ipv6": false
+  },
+  "kernel": "Linux asiatechmiladtower-ubuntu-9033 6.8.0-146-generic #146-Ubuntu SMP PREEMPT_DYNAMIC Thu Sep  3 16:12:30 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux",
+  "cpus": 2,
+  "runs": [
+    {
+      "repetition": 0,
+      "reverse": false,
+      "bits_per_second": 469036054.63096017,
+      "retransmits": 0,
+      "tunnel_cpu_seconds": [
+        3.7600000000000002,
+        3.51
+      ],
+      "tunnel_io_calls": [
+        {
+          "syscr": 77267,
+          "syscw": 220595
+        },
+        {
+          "syscr": 20325,
+          "syscw": 44297
+        }
+      ]
+    },
+    {
+      "repetition": 0,
+      "reverse": true,
+      "bits_per_second": 455228058.31744725,
+      "retransmits": 0,
+      "tunnel_cpu_seconds": [
+        3.47,
+        3.74
+      ],
+      "tunnel_io_calls": [
+        {
+          "syscr": 22468,
+          "syscw": 42833
+        },
+        {
+          "syscr": 74994,
+          "syscw": 213538
+        }
+      ]
+    },
+    {
+      "repetition": 1,
+      "reverse": false,
+      "bits_per_second": 425148131.01561064,
+      "retransmits": 0,
+      "tunnel_cpu_seconds": [
+        3.6900000000000004,
+        3.3099999999999996
+      ],
+      "tunnel_io_calls": [
+        {
+          "syscr": 75027,
+          "syscw": 200348
+        },
+        {
+          "syscr": 21583,
+          "syscw": 44370
+        }
+      ]
+    },
+    {
+      "repetition": 1,
+      "reverse": true,
+      "bits_per_second": 389963889.85084873,
+      "retransmits": 0,
+      "tunnel_cpu_seconds": [
+        3.4499999999999993,
+        3.530000000000001
+      ],
+      "tunnel_io_calls": [
+        {
+          "syscr": 20732,
+          "syscw": 39666
+        },
+        {
+          "syscr": 65928,
+          "syscw": 182206
+        }
+      ]
+    },
+    {
+      "repetition": 2,
+      "reverse": false,
+      "bits_per_second": 410701415.3039627,
+      "retransmits": 0,
+      "tunnel_cpu_seconds": [
+        3.869999999999999,
+        3.2299999999999986
+      ],
+      "tunnel_io_calls": [
+        {
+          "syscr": 79730,
+          "syscw": 195380
+        },
+        {
+          "syscr": 25077,
+          "syscw": 47447
+        }
+      ]
+    },
+    {
+      "repetition": 2,
+      "reverse": true,
+      "bits_per_second": 389184086.415092,
+      "retransmits": 0,
+      "tunnel_cpu_seconds": [
+        3.1300000000000026,
+        3.7699999999999996
+      ],
+      "tunnel_io_calls": [
+        {
+          "syscr": 21429,
+          "syscw": 41746
+        },
+        {
+          "syscr": 70282,
+          "syscw": 183268
+        }
+      ]
+    },
+    {
+      "repetition": 3,
+      "reverse": false,
+      "bits_per_second": 494960400.93890756,
+      "retransmits": 0,
+      "tunnel_cpu_seconds": [
+        3.8599999999999994,
+        3.620000000000001
+      ],
+      "tunnel_io_calls": [
+        {
+          "syscr": 93437,
+          "syscw": 236680
+        },
+        {
+          "syscr": 24777,
+          "syscw": 53630
+        }
+      ]
+    },
+    {
+      "repetition": 3,
+      "reverse": true,
+      "bits_per_second": 405734400.23036337,
+      "retransmits": 0,
+      "tunnel_cpu_seconds": [
+        3.4399999999999977,
+        3.7300000000000004
+      ],
+      "tunnel_io_calls": [
+        {
+          "syscr": 21659,
+          "syscw": 42337
+        },
+        {
+          "syscr": 74976,
+          "syscw": 192127
+        }
+      ]
+    },
+    {
+      "repetition": 4,
+      "reverse": false,
+      "bits_per_second": 512506516.09324235,
+      "retransmits": 0,
+      "tunnel_cpu_seconds": [
+        3.950000000000003,
+        3.4299999999999997
+      ],
+      "tunnel_io_calls": [
+        {
+          "syscr": 99549,
+          "syscw": 242247
+        },
+        {
+          "syscr": 23139,
+          "syscw": 60581
+        }
+      ]
+    },
+    {
+      "repetition": 4,
+      "reverse": true,
+      "bits_per_second": 442208432.6568238,
+      "retransmits": 0,
+      "tunnel_cpu_seconds": [
+        3.4099999999999966,
+        3.7200000000000024
+      ],
+      "tunnel_io_calls": [
+        {
+          "syscr": 22680,
+          "syscw": 43167
+        },
+        {
+          "syscr": 75688,
+          "syscw": 208294
+        }
+      ]
+    },
+    {
+      "repetition": 5,
+      "reverse": false,
+      "bits_per_second": 437043765.1231017,
+      "retransmits": 0,
+      "tunnel_cpu_seconds": [
+        3.8500000000000014,
+        3.4299999999999997
+      ],
+      "tunnel_io_calls": [
+        {
+          "syscr": 82073,
+          "syscw": 208247
+        },
+        {
+          "syscr": 24732,
+          "syscw": 46274
+        }
+      ]
+    },
+    {
+      "repetition": 5,
+      "reverse": true,
+      "bits_per_second": 466737635.0919136,
+      "retransmits": 0,
+      "tunnel_cpu_seconds": [
+        3.5,
+        3.739999999999995
+      ],
+      "tunnel_io_calls": [
+        {
+          "syscr": 21263,
+          "syscw": 44174
+        },
+        {
+          "syscr": 75421,
+          "syscw": 218197
+        }
+      ]
+    }
+  ],
+  "verified": {
+    "inner_mtu": 1472,
+    "queues": 1,
+    "ipv4_max_df_both_directions": true,
+    "oversize_rejected": true,
+    "ipv6_max_both_directions": true,
+    "udp_echo": true
+  }
+}

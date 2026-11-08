@@ -16,18 +16,11 @@ import (
 // frames (client→server) under the custom IP protocol number, forwards the
 // inner payload to a local target port, and spawns a per-flow reply goroutine
 // that wraps target responses back into tunnel frames on the selected backend.
+const maxServerSessions = 65536
+
 type serverSession struct {
 	conn     *net.UDPConn
 	lastSeen atomic.Int64
-}
-
-// Use the coarse clock's upper bound so timestamp quantization cannot expire
-// a session before its idle timeout. Short timeouts retain full precision.
-func sessionActivityTime() int64 {
-	if *sessionTimeout < time.Second {
-		return time.Now().UnixNano()
-	}
-	return atomic.LoadInt64(&coarseTime) + int64(coarseTimeInterval)
 }
 
 func (s *serverSession) refresh(now int64) bool {
@@ -101,6 +94,8 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 
 	sessions := sync.Map{}
 	var sessionCreateMu sync.Mutex
+	var activeSessions atomic.Int32
+	expectedDstPort := uint16(*targetPort)
 	if *outboundPort != 0 {
 		log.Printf("Server local UDP destination: 127.0.0.1:%d (tunnel port unchanged)", *outboundPort)
 	}
@@ -112,7 +107,7 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 	}
 
 	runWorker := func(receiver packetReceiver, txSender packetTransmitter) {
-		forwarder := newLocalUDPDelivery(receiver, mtu)
+		forwarder := newLocalUDPDelivery(receiver, maxUplink)
 		defer forwarder.Close()
 		for {
 			// Read a borrowed frame from the selected packet backend.
@@ -135,7 +130,7 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 
 			// Parse transport header (UDP or TCP) from IPv4 payload
 			clientSrcPort, clientDstPort, innerPayload, ok := parseTunnelTransport(pkt, *fakeTCP)
-			if !ok || !filter.matches(pkt, clientSrcPort, clientDstPort) {
+			if !ok || clientDstPort != expectedDstPort || !filter.matches(pkt, clientSrcPort, clientDstPort) {
 				continue
 			}
 
@@ -153,7 +148,10 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 			clientKey := makeNatKey(pkt.srcIP, int(clientSrcPort))
 
 			state, created, err := acquireServerSession(&sessions, &sessionCreateMu, clientKey, func() (*serverSession, error) {
-				localPort := clientDstPort
+				if activeSessions.Load() >= maxServerSessions {
+					return nil, fmt.Errorf("maximum active server sessions (%d) reached", maxServerSessions)
+				}
+				localPort := expectedDstPort
 				if *outboundPort != 0 {
 					localPort = uint16(*outboundPort)
 				}
@@ -169,6 +167,7 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 				configureLocalUDP(conn, "server target")
 				state := &serverSession{conn: conn}
 				state.lastSeen.Store(sessionActivityTime())
+				activeSessions.Add(1)
 				log.Printf("New Session: %s -> Target :%d (tunnel port %d)", clientKey.String(), localPort, clientDstPort)
 				return state, nil
 			})
@@ -190,6 +189,7 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 					srcServerIP net.IP, tunnelPort uint16, sessionKey natKey,
 					state *serverSession) {
 					defer c.Close()
+					defer activeSessions.Add(-1)
 					defer sessions.CompareAndDelete(sessionKey, state)
 					defer state.lastSeen.Store(retiredSessionTime)
 					udpReader, err := newLocalUDPReader(c, maxReply, *udpGRO)
@@ -242,6 +242,7 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 					var errRead error
 					n := 0
 					readPos := 0
+					replyID := uint16(1)
 					// Packet activity advances lastSeen without resetting Go's socket
 					// timer. Renew the deadline only when the previous one fires.
 					if err := c.SetReadDeadline(state.idleDeadline(*sessionTimeout)); err != nil {
@@ -252,7 +253,7 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 							flush()
 							n, errRead = udpReader.ReadBatch(msgs)
 							if n == 0 || errRead != nil {
-								if ne, ok := errRead.(net.Error); ok && ne.Timeout() && !state.expireIdle(time.Now().UnixNano(), *sessionTimeout) {
+								if ne, ok := errRead.(net.Error); ok && ne.Timeout() && !state.expireIdle(monotonicNow(), *sessionTimeout) {
 									if err := c.SetReadDeadline(state.idleDeadline(*sessionTimeout)); err != nil {
 										return
 									}
@@ -267,24 +268,34 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 						readPos++
 						state.refresh(sessionActivityTime())
 						payload := msg.payload
+						base := len(frames)
+						dataIdx := base
+						var noiseFrame []byte
 						if noiseSender != nil && !noiseSent {
-							frame, err := noiseSender.Encode(encoder, txBuffers[len(frames)], tunnelPort, clientPort)
+							noiseFrame, err = noiseSender.Encode(encoder, txBuffers[base], tunnelPort, clientPort)
 							if err != nil {
 								log.Printf("Noise encode error: %v", err)
 								continue
 							}
-							pendingNoise.queued(len(frames), &noiseSent)
-							frames = append(frames, frame)
+							dataIdx++
 						}
 
 						// Client filters match the original tunnel port, not the
 						// possibly remapped local application's port.
-						frame, err := encoder.Encode(txBuffers[len(frames)], payload, tunnelPort, clientPort, 0, 0x4000, 0, true)
+						frame, err := encoder.Encode(txBuffers[dataIdx], payload, tunnelPort, clientPort, replyID, 0x4000, 0, true)
 						if err != nil {
 							log.Printf("Encode error: %v", err)
 							continue
 						}
+						if noiseFrame != nil {
+							pendingNoise.queued(base, &noiseSent)
+							frames = append(frames, noiseFrame)
+						}
 						frames = append(frames, frame)
+						replyID++
+						if replyID == 0 {
+							replyID = 1
+						}
 					}
 				}(conn, safeClientIP, clientSrcPort, safeClientMAC, srcIP, clientDstPort, clientKey,
 					state)

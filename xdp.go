@@ -75,7 +75,7 @@ func xdpGetsockopt(fd, option int, value unsafe.Pointer, size uint32) error {
 	return nil
 }
 
-func newXDPQueue(ifindex, id int, zero bool) (_ *xdpQueue, err error) {
+func newXDPQueue(ifindex, id int, zero, withTX bool) (_ *xdpQueue, err error) {
 	q := &xdpQueue{fd: -1, id: id}
 	defer func() {
 		if err != nil {
@@ -86,7 +86,11 @@ func newXDPQueue(ifindex, id int, zero bool) (_ *xdpQueue, err error) {
 	if err != nil {
 		return nil, err
 	}
-	q.umem, err = unix.Mmap(-1, 0, xdpFrameSize*xdpRingSize*2, unix.PROT_READ|unix.PROT_WRITE, unix.MAP_PRIVATE|unix.MAP_ANONYMOUS)
+	umemFrames := xdpRingSize
+	if withTX {
+		umemFrames *= 2
+	}
+	q.umem, err = unix.Mmap(-1, 0, xdpFrameSize*umemFrames, unix.PROT_READ|unix.PROT_WRITE, unix.MAP_PRIVATE|unix.MAP_ANONYMOUS)
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +99,11 @@ func newXDPQueue(ifindex, id int, zero bool) (_ *xdpQueue, err error) {
 	if err = xdpSockopt(q.fd, unix.XDP_UMEM_REG, unsafe.Pointer(&reg), 32); err != nil {
 		return nil, fmt.Errorf("register UMEM: %w", err)
 	}
-	for _, opt := range []int{unix.XDP_UMEM_FILL_RING, unix.XDP_UMEM_COMPLETION_RING, unix.XDP_RX_RING, unix.XDP_TX_RING} {
+	ringOpts := []int{unix.XDP_UMEM_FILL_RING, unix.XDP_UMEM_COMPLETION_RING, unix.XDP_RX_RING}
+	if withTX {
+		ringOpts = append(ringOpts, unix.XDP_TX_RING)
+	}
+	for _, opt := range ringOpts {
 		if err = unix.SetsockoptInt(q.fd, unix.SOL_XDP, opt, xdpRingSize); err != nil {
 			return nil, err
 		}
@@ -107,8 +115,10 @@ func newXDPQueue(ifindex, id int, zero bool) (_ *xdpQueue, err error) {
 	if q.rx, err = mapXDPRing(q.fd, offsets.Rx, unix.XDP_PGOFF_RX_RING, 16); err != nil {
 		return nil, err
 	}
-	if q.tx, err = mapXDPRing(q.fd, offsets.Tx, unix.XDP_PGOFF_TX_RING, 16); err != nil {
-		return nil, err
+	if withTX {
+		if q.tx, err = mapXDPRing(q.fd, offsets.Tx, unix.XDP_PGOFF_TX_RING, 16); err != nil {
+			return nil, err
+		}
 	}
 	if q.fill, err = mapXDPRing(q.fd, offsets.Fr, unix.XDP_UMEM_PGOFF_FILL_RING, 8); err != nil {
 		return nil, err
@@ -142,7 +152,9 @@ func newXDPQueue(ifindex, id int, zero bool) (_ *xdpQueue, err error) {
 	q.zeroCopy = options&unix.XDP_OPTIONS_ZEROCOPY != 0
 	for i := uint32(0); i < xdpRingSize; i++ {
 		*q.fill.address(i) = uint64(i) * xdpFrameSize
-		q.freeTX = append(q.freeTX, uint64(i+xdpRingSize)*xdpFrameSize)
+		if withTX {
+			q.freeTX = append(q.freeTX, uint64(i+xdpRingSize)*xdpFrameSize)
+		}
 	}
 	atomic.StoreUint32(q.fill.producer, xdpRingSize)
 	return q, nil
@@ -274,8 +286,8 @@ func openXDPIO(dev *net.Interface, ids []int, proto uint8, mac net.HardwareAddr,
 	if err != nil {
 		return nil, err
 	}
-	for _, id := range ids {
-		q, e := newXDPQueue(dev.Index, id, zero)
+	for i, id := range ids {
+		q, e := newXDPQueue(dev.Index, id, zero, i == 0)
 		if e != nil {
 			return nil, e
 		}
@@ -452,8 +464,10 @@ func (x *xdpIO) WriteBatch(packets [][]byte) (int, error) {
 			*q.tx.packet(p) = unix.XDPDesc{Addr: addr, Len: uint32(len(packet))}
 			p++
 		}
-		atomic.StoreUint32(q.tx.producer, p)
-		sent += n
+		if n > 0 {
+			atomic.StoreUint32(q.tx.producer, p)
+			sent += n
+		}
 		if err := x.kickTX(q, deadline); err != nil {
 			return sent, err
 		}

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"net/netip"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -19,6 +20,10 @@ func (k natKey) String() string {
 	ip := net.IPv4(k[0], k[1], k[2], k[3])
 	port := (uint16(k[4]) << 8) | uint16(k[5])
 	return fmt.Sprintf("%s:%d", ip.String(), port)
+}
+
+func makeNatKey4(ip [4]byte, port uint16) natKey {
+	return natKey{ip[0], ip[1], ip[2], ip[3], byte(port >> 8), byte(port)}
 }
 
 func makeNatKey(ip net.IP, port int) natKey {
@@ -35,6 +40,7 @@ func makeNatKey(ip net.IP, port int) natKey {
 type natSession struct {
 	clientIP   net.IP
 	clientPort int
+	clientAddr netip.AddrPort
 	lastSeen   int64 // Unix nano timestamp - atomic access friendly
 	forwardKey natKey
 	noiseSent  bool // Owned by the single client uplink loop; reset on a new session.
@@ -91,8 +97,16 @@ func newNatTable() *NatTable {
 }
 
 func (n *NatTable) GetOrCreateVirtualPort(clientIP net.IP, clientPort int) (uint16, error) {
-	key := makeNatKey(clientIP, clientPort)
-	now := atomic.LoadInt64(&coarseTime)
+	ip4 := clientIP.To4()
+	if ip4 == nil || clientPort < 0 || clientPort > 65535 {
+		return 0, errors.New("invalid client IPv4 address or port")
+	}
+	return n.GetOrCreateVirtualPort4([4]byte(ip4), uint16(clientPort))
+}
+
+func (n *NatTable) GetOrCreateVirtualPort4(clientIP [4]byte, clientPort uint16) (uint16, error) {
+	key := makeNatKey4(clientIP, clientPort)
+	now := sessionActivityTime()
 
 	// Fast path: an existing mapping whose session is still live.
 	n.mu.RLock()
@@ -120,18 +134,16 @@ func (n *NatTable) GetOrCreateVirtualPort(clientIP net.IP, clientPort int) (uint
 	// Slow path: allocate a virtual port. Try the client's real port first,
 	// then scan from a random offset over the entire virtual-port space.
 	// These ports are wire identifiers, not local bind ports; low ports and
-	// 65535 are valid too. The clientIP slice may alias a
-	// reusable read buffer, so copy it into the retained session.
-	ip4 := clientIP.To4()
-	ipCopy := make(net.IP, len(ip4))
-	copy(ipCopy, ip4)
+	// 65535 are valid too.
+	ipCopy := net.IPv4(clientIP[0], clientIP[1], clientIP[2], clientIP[3]).To4()
 	session := &natSession{
 		clientIP:   ipCopy,
-		clientPort: clientPort,
+		clientPort: int(clientPort),
+		clientAddr: netip.AddrPortFrom(netip.AddrFrom4(clientIP), clientPort),
 		lastSeen:   now,
 		forwardKey: key,
 	}
-	proposed := uint16(clientPort)
+	proposed := clientPort
 	if n.reverse[proposed].Load() != nil {
 		start := n.rng.Intn(len(n.reverse))
 		found := false
@@ -154,21 +166,26 @@ func (n *NatTable) GetOrCreateVirtualPort(clientIP net.IP, clientPort int) (uint
 
 func (n *NatTable) GetSession(virtualPort uint16) *natSession {
 	sess := n.reverse[virtualPort].Load()
-	if sess != nil && sess.refresh(atomic.LoadInt64(&coarseTime)) {
+	if sess != nil && sess.refresh(sessionActivityTime()) {
 		return sess
 	}
 	return nil
 }
 
 func (n *NatTable) Cleanup() {
+	interval := max(10*time.Millisecond, min(30*time.Second, *sessionTimeout/2))
 	for {
-		time.Sleep(30 * time.Second)
-		n.cleanupOnce(time.Now())
+		time.Sleep(interval)
+		n.cleanupOnce(monotonicTime())
 	}
 }
 
 func (n *NatTable) cleanupOnce(now time.Time) {
-	threshold := now.Add(-60 * time.Second).UnixNano()
+	timeout := *sessionTimeout
+	if timeout <= 0 {
+		timeout = 60 * time.Second
+	}
+	threshold := now.Add(-timeout).UnixNano()
 	for i := range n.reverse {
 		sess := n.reverse[i].Load()
 		if sess == nil {

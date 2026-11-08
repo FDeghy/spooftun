@@ -1,0 +1,25 @@
+{
+  "options": {
+    "binary": "./spooftun-tun",
+    "output": "verify-frag",
+    "workers": 2,
+    "seconds": 5,
+    "repeat": 3,
+    "streams": 4,
+    "mtu": 1500,
+    "fake_tcp": false,
+    "fake_frag": true,
+    "verify_only": true,
+    "direct": false
+  },
+  "kernel": "Linux asiatechmiladtower-ubuntu-9033 6.8.0-146-generic #146-Ubuntu SMP PREEMPT_DYNAMIC Thu Sep  3 16:12:30 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux",
+  "cpus": 2,
+  "runs": [],
+  "verified": {
+    "inner_mtu": 1471,
+    "queues": 2,
+    "ipv4_max_df_both_directions": true,
+    "oversize_rejected": true,
+    "ipv6_max_both_directions": true
+  }
+}

@@ -1,0 +1,3 @@
+2026/11/05 02:19:53 packet backend=afpacket tx=sendmmsg
+2026/11/05 02:19:53 packet receive workers=1 distribution=flow ring-mb-per-worker=16
+2026/11/05 02:19:53 TUN sttun0 address=198.18.0.2/30 mtu=1472 outer-mtu=1500 queues=1 (no encryption/authentication)

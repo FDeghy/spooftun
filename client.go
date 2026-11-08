@@ -5,7 +5,6 @@ package main
 import (
 	"log"
 	"net"
-	"net/netip"
 )
 
 // startClientAFPacket runs the client side of the tunnel: it accepts local
@@ -19,6 +18,7 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, upPr
 		log.Fatal(err)
 	}
 	maxPayload := payloadLimit(mtu, *fakeTCP, *fakeFrag)
+	maxReply := payloadLimit(mtu, *fakeTCP, false)
 	if *noise {
 		if err := validateNoisePayload(noiseContent, mtu); err != nil {
 			log.Fatal(err)
@@ -79,7 +79,7 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, upPr
 	// Reads raw Ethernet frames, strips headers, translates VirtualPort -> ClientPort
 	for _, worker := range workers {
 		go func(receiver packetReceiver) {
-			forwarder := newLocalUDPDelivery(receiver, mtu)
+			forwarder := newLocalUDPDelivery(receiver, maxReply)
 			defer forwarder.Close()
 
 			for {
@@ -103,7 +103,7 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, upPr
 
 				// Parse transport header (UDP or TCP) from IP payload
 				srcPortRecv, dstPortRecv, payload, ok := parseTunnelTransport(pkt, *fakeTCP)
-				if !ok || !filter.matches(pkt, srcPortRecv, dstPortRecv) {
+				if !ok || srcPortRecv != dstPort || len(payload) > maxReply || !filter.matches(pkt, srcPortRecv, dstPortRecv) {
 					continue
 				}
 
@@ -113,8 +113,8 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, upPr
 					continue
 				}
 
-				if addr, ok := netip.AddrFromSlice(sess.clientIP); ok {
-					forwarder.Send(appConn, netip.AddrPortFrom(addr.Unmap(), uint16(sess.clientPort)), payload)
+				if sess.clientAddr.IsValid() {
+					forwarder.Send(appConn, sess.clientAddr, payload)
 				}
 			}
 		}(worker.receiver)
@@ -166,12 +166,6 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, upPr
 	}
 	hdrLen := transportHeaderLen()
 	fakeTail := [1]byte{'0'}
-	var padded []byte
-	if *fakeFrag {
-		// GRO segments share a receive buffer. Pad in reusable scratch storage
-		// so appending cannot overwrite the next segment or allocate per packet.
-		padded = make([]byte, mtu)
-	}
 
 	n := 0
 	readPos := 0
@@ -188,47 +182,61 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, upPr
 		msg := &msgs[readPos]
 		readPos++
 		data := msg.payload
-		clientIP := msg.addr.Addr().As4()
 
 		// NAT: Client -> VirtualPort
-		vPort, natErr := nat.GetOrCreateVirtualPort(net.IP(clientIP[:]), int(msg.addr.Port()))
+		vPort, natErr := nat.GetOrCreateVirtualPort4(msg.addr.Addr().As4(), msg.addr.Port())
 		if natErr != nil {
 			continue
 		}
 
-		if *fakeFrag {
-			copy(padded, data)
-			data = padData(padded[:len(data)], 8, hdrLen)
-		}
 		var noiseSession *natSession
 		if noiseSender != nil {
 			noiseSession = nat.reverse[vPort].Load()
 		}
+		base := len(frames)
+		dataIdx := base
+		var noiseFrame []byte
 		if noiseSession != nil && !noiseSession.noiseSent {
-			frame, err := noiseSender.Encode(encoder, txBuffers[len(frames)], vPort, dstPort)
+			noiseFrame, err = noiseSender.Encode(encoder, txBuffers[base], vPort, dstPort)
 			if err != nil {
 				log.Printf("Noise encode error: %v", err)
 				continue
 			}
-			pendingNoise.queued(len(frames), &noiseSession.noiseSent)
-			frames = append(frames, frame)
+			dataIdx++
 		}
-		frame, err := encoder.Encode(txBuffers[len(frames)], data, vPort, dstPort, ipId, ipFlags, 0, true)
+		if *fakeFrag {
+			// Stage and pad directly in the target TX frame's payload region so
+			// GRO segments are not overwritten and no scratch copy is needed.
+			buf := txBuffers[dataIdx][34+hdrLen : 34+hdrLen+len(data)]
+			copy(buf, data)
+			data = padData(buf, 8, hdrLen)
+		}
+		frame, err := encoder.Encode(txBuffers[dataIdx], data, vPort, dstPort, ipId, ipFlags, 0, true)
 		if err != nil {
 			log.Printf("Encode error: %v", err)
 			continue
 		}
-		frames = append(frames, frame)
+		var fragFrame []byte
 		if *fakeFrag {
 			offset := uint16((len(data) + hdrLen) / 8)
-			frame, err = encoder.Encode(txBuffers[len(frames)], fakeTail[:], 0, 0, ipId, 0, offset, false)
+			fragFrame, err = encoder.Encode(txBuffers[dataIdx+1], fakeTail[:], 0, 0, ipId, 0, offset, false)
 			if err != nil {
 				log.Printf("Encode error: %v", err)
 				continue
 			}
-			frames = append(frames, frame)
+		}
+		if noiseFrame != nil {
+			pendingNoise.queued(base, &noiseSession.noiseSent)
+			frames = append(frames, noiseFrame)
+		}
+		frames = append(frames, frame)
+		if fragFrame != nil {
+			frames = append(frames, fragFrame)
 		}
 
-		ipId = (ipId + 1) % 65000
+		ipId++
+		if ipId == 0 {
+			ipId = 1
+		}
 	}
 }

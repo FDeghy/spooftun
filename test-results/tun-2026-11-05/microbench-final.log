@@ -1,0 +1,17 @@
+goos: linux
+goarch: amd64
+pkg: spooftun
+cpu: Intel(R) Xeon(R) CPU E5-2670 v2 @ 2.50GHz
+BenchmarkTUNFlowPort-2   	52124107	        21.65 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTUNFlowPort-2   	50182530	        21.73 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTUNFlowPort-2   	47591668	        23.48 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTUNFlowPort-2   	64648574	        18.81 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTUNFlowPort-2   	63414757	        25.48 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTUNFlowPort-2   	48807031	        23.97 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTUNFraming-2    	  552650	      2120 ns/op	 694.28 MB/s	       0 B/op	       0 allocs/op
+BenchmarkTUNFraming-2    	  579465	      1950 ns/op	 754.85 MB/s	       0 B/op	       0 allocs/op
+BenchmarkTUNFraming-2    	  602716	      1843 ns/op	 798.74 MB/s	       0 B/op	       0 allocs/op
+BenchmarkTUNFraming-2    	  833631	      1846 ns/op	 797.33 MB/s	       0 B/op	       0 allocs/op
+BenchmarkTUNFraming-2    	  670215	      1645 ns/op	 894.80 MB/s	       0 B/op	       0 allocs/op
+BenchmarkTUNFraming-2    	  843396	      1648 ns/op	 893.21 MB/s	       0 B/op	       0 allocs/op
+PASS

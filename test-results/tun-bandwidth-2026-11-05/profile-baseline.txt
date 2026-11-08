@@ -1,0 +1,265 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 1K of event 'task-clock:ppp'
+# Event count (approx.): 17858585680
+#
+# Overhead  Command       Shared Object         Symbol                                                                       IPC   [IPC Coverage]
+# ........  ............  ....................  ...........................................................................  ....................
+#
+     4.64%  spooftun-tun  spooftun-tun          [.] internal/runtime/syscall/linux.Syscall6                                  -      -            
+            |
+            ---internal/runtime/syscall/linux.Syscall6
+               |          
+                --3.79%--syscall.Syscall
+                          |          
+                          |--1.75%--syscall.write
+                          |          internal/poll.(*FD).Write
+                          |          os.(*File).Write
+                          |          main.tunReceive
+                          |          main.startTUN.func2
+                          |          runtime.goexit.abi0
+                          |          
+                           --1.70%--syscall.Syscall.abi0
+                                     |          
+                                      --1.53%--golang.org/x/sys/unix.read
+                                                main.tunTransmit.func1
+                                                internal/poll.(*FD).RawControl
+                                                os.(*rawConn).Control
+                                                main.tunTransmit
+                                                main.startTUN.func1
+                                                runtime.goexit.abi0
+
+     3.90%  spooftun-tun  [kernel.kallsyms]     [k] _raw_spin_unlock_irqrestore                                              -      -            
+            |
+            ---_raw_spin_unlock_irqrestore
+               |          
+                --3.11%--__wake_up_sync_key
+                          sock_def_readable
+                          |          
+                           --2.55%--tcp_data_ready
+                                     |          
+                                      --2.43%--tcp_data_queue
+                                                tcp_rcv_established
+                                                tcp_v4_do_rcv
+                                                tcp_v4_rcv
+                                                ip_protocol_deliver_rcu
+                                                ip_local_deliver_finish
+                                                ip_local_deliver
+                                                |          
+                                                 --2.38%--ip_rcv
+                                                           __netif_receive_skb_one_core
+                                                           __netif_receive_skb
+                                                           netif_receive_skb
+                                                           tun_rx_batched
+                                                           tun_get_user
+                                                           tun_chr_write_iter
+                                                           vfs_write
+                                                           ksys_write
+                                                           __x64_sys_write
+                                                           x64_sys_call
+                                                           do_syscall_64
+                                                           entry_SYSCALL_64_after_hwframe
+                                                           internal/runtime/syscall/linux.Syscall6
+                                                           syscall.Syscall
+                                                           syscall.write
+                                                           internal/poll.(*FD).Write
+                                                           os.(*File).Write
+                                                           main.tunReceive
+                                                           main.startTUN.func2
+                                                           runtime.goexit.abi0
+
+     2.88%  spooftun-tun  [kernel.kallsyms]     [k] finish_task_switch.isra.0                                                -      -            
+            |
+            ---finish_task_switch.isra.0
+               __schedule
+               |          
+                --2.60%--schedule
+                          |          
+                           --1.24%--syscall_exit_to_user_mode
+                                     do_syscall_64
+                                     entry_SYSCALL_64_after_hwframe
+                                     |          
+                                      --1.19%--internal/runtime/syscall/linux.Syscall6
+                                                syscall.Syscall
+                                                |          
+                                                 --1.07%--syscall.write
+                                                           internal/poll.(*FD).Write
+                                                           os.(*File).Write
+                                                           main.tunReceive
+                                                           main.startTUN.func2
+                                                           runtime.goexit.abi0
+
+     2.71%  spooftun-tun  [kernel.kallsyms]     [k] do_syscall_64                                                            -      -            
+            |
+            ---do_syscall_64
+               entry_SYSCALL_64_after_hwframe
+               |          
+                --2.38%--internal/runtime/syscall/linux.Syscall6
+                          |          
+                           --2.21%--syscall.Syscall
+                                     |          
+                                      --1.36%--syscall.write
+                                                internal/poll.(*FD).Write
+                                                os.(*File).Write
+                                                main.tunReceive
+                                                main.startTUN.func2
+                                                runtime.goexit.abi0
+
+     2.43%  spooftun-tun  spooftun-tun          [.] main.(*tunnelEncoder).Encode                                             -      -            
+            |
+            ---main.(*tunnelEncoder).Encode
+               main.tunTransmit
+               main.startTUN.func1
+               runtime.goexit.abi0
+
+     2.32%  spooftun-tun  spooftun-tun          [.] main.parseTunnelTransport                                                -      -            
+            |
+            ---main.parseTunnelTransport
+               main.tunReceive
+               main.startTUN.func2
+               runtime.goexit.abi0
+
+     2.15%  spooftun-tun  [kernel.kallsyms]     [k] memcpy_orig                                                              -      -            
+            |
+            ---memcpy_orig
+               tpacket_rcv
+               packet_rcv_fanout
+               __netif_receive_skb_one_core
+               __netif_receive_skb
+               process_backlog
+               __napi_poll
+               net_rx_action
+               handle_softirqs
+               __do_softirq
+               do_softirq.part.0
+               __local_bh_enable_ip
+               __dev_queue_xmit
+               packet_xmit
+               packet_snd
+               packet_sendmsg
+               ____sys_sendmsg
+               ___sys_sendmsg
+               __sys_sendmmsg
+               __x64_sys_sendmmsg
+               x64_sys_call
+               do_syscall_64
+               entry_SYSCALL_64_after_hwframe
+               internal/runtime/syscall/linux.Syscall6
+               syscall.Syscall6
+               syscall.Syscall6.abi0
+               main.(*packetSender).WriteBatch
+               main.tunTransmit
+               main.startTUN.func1
+               runtime.goexit.abi0
+
+     2.15%  spooftun-tun  [kernel.kallsyms]     [k] rep_movs_alternative                                                     -      -            
+            |
+            ---rep_movs_alternative
+               |          
+                --1.19%--simple_copy_to_iter
+                          __skb_datagram_iter
+                          skb_copy_datagram_iter
+                          tun_put_user.isra.0
+                          tun_do_read
+                          tun_chr_read_iter
+                          vfs_read
+                          ksys_read
+                          __x64_sys_read
+                          x64_sys_call
+                          do_syscall_64
+                          entry_SYSCALL_64_after_hwframe
+                          internal/runtime/syscall/linux.Syscall6
+                          syscall.Syscall
+                          |          
+                           --1.13%--syscall.Syscall.abi0
+                                     golang.org/x/sys/unix.read
+                                     main.tunTransmit.func1
+                                     internal/poll.(*FD).RawControl
+                                     os.(*rawConn).Control
+                                     main.tunTransmit
+                                     main.startTUN.func1
+                                     runtime.goexit.abi0
+
+     1.58%  spooftun-tun  [kernel.kallsyms]     [k] memset_orig                                                              -      -            
+            |
+            ---memset_orig
+               |          
+                --1.36%--kmalloc_reserve
+                          __alloc_skb
+                          |          
+                           --1.30%--alloc_skb_with_frags
+                                     sock_alloc_send_pskb
+                                     |          
+                                      --1.13%--tun_get_user
+                                                tun_chr_write_iter
+                                                vfs_write
+                                                ksys_write
+                                                __x64_sys_write
+                                                x64_sys_call
+                                                do_syscall_64
+                                                entry_SYSCALL_64_after_hwframe
+                                                internal/runtime/syscall/linux.Syscall6
+                                                syscall.Syscall
+                                                syscall.write
+                                                internal/poll.(*FD).Write
+                                                os.(*File).Write
+                                                main.tunReceive
+                                                main.startTUN.func2
+                                                runtime.goexit.abi0
+
+     1.47%  spooftun-tun  [kernel.kallsyms]     [k] pvclock_clocksource_read                                                 -      -            
+            |
+            ---pvclock_clocksource_read
+               xen_clocksource_get_cycles
+
+     1.24%  spooftun-tun  [kernel.kallsyms]     [k] __skb_flow_dissect                                                       -      -            
+            |
+            ---__skb_flow_dissect
+
+     1.19%  iperf3        [kernel.kallsyms]     [k] finish_task_switch.isra.0                                                -      -            
+            |
+            ---finish_task_switch.isra.0
+               __schedule
+               schedule
+               |          
+                --1.13%--schedule_hrtimeout_range_clock
+                          schedule_hrtimeout_range
+                          do_select
+                          core_sys_select
+                          do_pselect.constprop.0
+                          __x64_sys_pselect6
+                          x64_sys_call
+                          do_syscall_64
+                          entry_SYSCALL_64_after_hwframe
+                          __select
+                          Nread
+                          iperf_tcp_recv
+                          iperf_recv_mt
+
+     1.13%  spooftun-tun  [kernel.kallsyms]     [k] __rcu_read_lock                                                          -      -            
+            |
+            ---__rcu_read_lock
+
+     1.13%  spooftun-tun  [kernel.kallsyms]     [k] __rcu_read_unlock                                                        -      -            
+            |
+            ---__rcu_read_unlock
+
+     1.07%  spooftun-tun  [kernel.kallsyms]     [k] __netif_receive_skb_core.constprop.0                                     -      -            
+            |
+            ---__netif_receive_skb_core.constprop.0
+               |          
+                --1.02%--__netif_receive_skb_one_core
+                          __netif_receive_skb
+
+     1.07%  spooftun-tun  [kernel.kallsyms]     [k] fib_table_lookup                                                         -      -            
+            |
+            ---fib_table_lookup
+
+
+
+#
+# (Cannot load tips.txt file, please install perf!)
+#

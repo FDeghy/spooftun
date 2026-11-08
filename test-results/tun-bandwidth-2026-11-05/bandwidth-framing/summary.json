@@ -1,0 +1,68 @@
+{
+  "options": {
+    "binary": "./spooftun-tun-bandwidth",
+    "output": "bandwidth-framing",
+    "workers": 2,
+    "seconds": 2,
+    "repeat": 1,
+    "streams": 4,
+    "mtu": 1400,
+    "fake_tcp": true,
+    "fake_frag": true,
+    "verify_only": false,
+    "direct": false,
+    "ipv6": false
+  },
+  "kernel": "Linux asiatechmiladtower-ubuntu-9033 6.8.0-146-generic #146-Ubuntu SMP PREEMPT_DYNAMIC Thu Sep  3 16:12:30 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux",
+  "cpus": 2,
+  "runs": [
+    {
+      "repetition": 0,
+      "reverse": false,
+      "bits_per_second": 374381207.666583,
+      "retransmits": 121,
+      "tunnel_cpu_seconds": [
+        1.24,
+        2.01
+      ],
+      "tunnel_io_calls": [
+        {
+          "syscr": 25182,
+          "syscw": 75990
+        },
+        {
+          "syscr": 74163,
+          "syscw": 17087
+        }
+      ]
+    },
+    {
+      "repetition": 0,
+      "reverse": true,
+      "bits_per_second": 440186228.7479135,
+      "retransmits": 2212,
+      "tunnel_cpu_seconds": [
+        1.65,
+        1.5300000000000002
+      ],
+      "tunnel_io_calls": [
+        {
+          "syscr": 88049,
+          "syscw": 18570
+        },
+        {
+          "syscr": 23725,
+          "syscw": 86294
+        }
+      ]
+    }
+  ],
+  "verified": {
+    "inner_mtu": 1355,
+    "queues": 2,
+    "ipv4_max_df_both_directions": true,
+    "oversize_rejected": true,
+    "ipv6_max_both_directions": true,
+    "udp_echo": true
+  }
+}

@@ -19,6 +19,8 @@ const (
 )
 
 var (
+	tunName    = flag.String("tun", "", "Route IP packets through a new multiqueue TUN device with this name (empty keeps UDP mode)")
+	tunAddress = flag.String("tun-address", "", "TUN interface address/prefix; requires -tun and -remote-ip on both peers")
 	// will be changed at runtime
 	// AF_PACKET ring buffer configuration (TPACKET_V3)
 	afBlockSize = 1 << 20 // 1MB blocks
@@ -29,15 +31,36 @@ var (
 	afBlockTimeout = time.Millisecond
 )
 
-// Coarse timestamp to avoid time.Now() per packet
-var coarseTime int64
+// Coarse monotonic timestamp to avoid time.Now() per packet and NTP jumps.
+var (
+	coarseBaseTime = time.Now()
+	coarseBaseNano = coarseBaseTime.UnixNano()
+	coarseTime     int64
+)
+
+func monotonicTime() time.Time {
+	return coarseBaseTime.Add(time.Since(coarseBaseTime))
+}
+
+func monotonicNow() int64 {
+	return coarseBaseNano + int64(time.Since(coarseBaseTime))
+}
+
+// Use the coarse clock's upper bound so timestamp quantization cannot expire
+// a session before its idle timeout. Short timeouts retain full precision.
+func sessionActivityTime() int64 {
+	if *sessionTimeout < time.Second {
+		return monotonicNow()
+	}
+	return atomic.LoadInt64(&coarseTime) + int64(coarseTimeInterval)
+}
 
 func init() {
-	atomic.StoreInt64(&coarseTime, time.Now().UnixNano())
+	atomic.StoreInt64(&coarseTime, monotonicNow())
 	go func() {
 		for {
 			time.Sleep(coarseTimeInterval)
-			atomic.StoreInt64(&coarseTime, time.Now().UnixNano())
+			atomic.StoreInt64(&coarseTime, monotonicNow())
 		}
 	}()
 }

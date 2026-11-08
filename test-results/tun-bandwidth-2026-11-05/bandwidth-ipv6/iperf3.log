@@ -1,0 +1,64 @@
+-----------------------------------------------------------
+Server listening on 5201 (test #1)
+-----------------------------------------------------------
+Accepted connection from fd42::1, port 51132
+[  5] local fd42::2 port 5201 connected to fd42::1 port 51148
+[  8] local fd42::2 port 5201 connected to fd42::1 port 51162
+[ 10] local fd42::2 port 5201 connected to fd42::1 port 51172
+[ 12] local fd42::2 port 5201 connected to fd42::1 port 51188
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-1.00   sec  12.2 MBytes   103 Mbits/sec                  
+[  8]   0.00-1.00   sec  9.00 MBytes  75.4 Mbits/sec                  
+[ 10]   0.00-1.00   sec  20.8 MBytes   174 Mbits/sec                  
+[ 12]   0.00-1.00   sec  5.12 MBytes  43.0 Mbits/sec                  
+[SUM]   0.00-1.00   sec  47.1 MBytes   395 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   1.00-2.00   sec  17.9 MBytes   150 Mbits/sec                  
+[  8]   1.00-2.00   sec  10.9 MBytes  91.1 Mbits/sec                  
+[ 10]   1.00-2.00   sec  30.2 MBytes   253 Mbits/sec                  
+[ 12]   1.00-2.00   sec  6.88 MBytes  57.6 Mbits/sec                  
+[SUM]   1.00-2.00   sec  65.9 MBytes   552 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   2.00-2.04   sec   640 KBytes   147 Mbits/sec                  
+[  8]   2.00-2.04   sec   512 KBytes   117 Mbits/sec                  
+[ 10]   2.00-2.04   sec  1.00 MBytes   235 Mbits/sec                  
+[ 12]   2.00-2.04   sec   256 KBytes  58.8 Mbits/sec                  
+[SUM]   2.00-2.04   sec  2.38 MBytes   557 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-2.04   sec  30.8 MBytes   127 Mbits/sec                  receiver
+[  8]   0.00-2.04   sec  20.4 MBytes  83.9 Mbits/sec                  receiver
+[ 10]   0.00-2.04   sec  52.0 MBytes   214 Mbits/sec                  receiver
+[ 12]   0.00-2.04   sec  12.2 MBytes  50.4 Mbits/sec                  receiver
+[SUM]   0.00-2.04   sec   115 MBytes   475 Mbits/sec                  receiver
+-----------------------------------------------------------
+Server listening on 5201 (test #2)
+-----------------------------------------------------------
+Accepted connection from fd42::1, port 51196
+[  5] local fd42::2 port 5201 connected to fd42::1 port 51200
+[  8] local fd42::2 port 5201 connected to fd42::1 port 51208
+[ 10] local fd42::2 port 5201 connected to fd42::1 port 51218
+[ 12] local fd42::2 port 5201 connected to fd42::1 port 51226
+[ ID] Interval           Transfer     Bitrate         Retr  Cwnd
+[  5]   0.00-1.00   sec  8.25 MBytes  69.0 Mbits/sec   52    187 KBytes       
+[  8]   0.00-1.00   sec  17.5 MBytes   146 Mbits/sec  126    539 KBytes       
+[ 10]   0.00-1.00   sec  30.0 MBytes   251 Mbits/sec    0    667 KBytes       
+[ 12]   0.00-1.00   sec  13.2 MBytes   111 Mbits/sec   81    282 KBytes       
+[SUM]   0.00-1.00   sec  69.0 MBytes   577 Mbits/sec  259             
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   1.00-2.00   sec  6.38 MBytes  53.6 Mbits/sec   68    167 KBytes       
+[  8]   1.00-2.00   sec  17.9 MBytes   150 Mbits/sec   94    287 KBytes       
+[ 10]   1.00-2.00   sec  37.9 MBytes   319 Mbits/sec   65    853 KBytes       
+[ 12]   1.00-2.00   sec  12.8 MBytes   107 Mbits/sec  100    268 KBytes       
+[SUM]   1.00-2.00   sec  74.9 MBytes   630 Mbits/sec  327             
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate         Retr
+[  5]   0.00-2.00   sec  14.6 MBytes  61.2 Mbits/sec  120             sender
+[  8]   0.00-2.00   sec  35.4 MBytes   148 Mbits/sec  220             sender
+[ 10]   0.00-2.00   sec  67.9 MBytes   284 Mbits/sec   65             sender
+[ 12]   0.00-2.00   sec  26.0 MBytes   109 Mbits/sec  181             sender
+[SUM]   0.00-2.00   sec   144 MBytes   602 Mbits/sec  586             sender
+iperf3: interrupt - the server has terminated
+-----------------------------------------------------------
+Server listening on 5201 (test #3)
+-----------------------------------------------------------

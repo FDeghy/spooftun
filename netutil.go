@@ -42,7 +42,7 @@ func getInterfaceInfo(name string) (mac net.HardwareAddr, ip net.IP, err error) 
 		}
 	}
 
-	if ip == nil {
+	if ip == nil && *customSrc == "" {
 		return nil, nil, fmt.Errorf("interface %s has no IPv4 address", name)
 	}
 
@@ -105,6 +105,9 @@ func parseARPCache(r io.Reader, iface string, ip net.IP) net.HardwareAddr {
 		if err == nil && len(mac) == 6 && mac[0]&1 == 0 && !allZeroMAC(mac) {
 			return mac
 		}
+	}
+	if scanner.Err() != nil {
+		return nil
 	}
 	return nil
 }

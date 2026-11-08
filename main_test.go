@@ -34,3 +34,30 @@ func TestCLIUnsupportedOptions(t *testing.T) {
 		})
 	}
 }
+
+func TestCLITUNOptions(t *testing.T) {
+	if os.Getenv("SPOOFTUN_TUN_CLI_TEST_HELPER") == "1" {
+		main()
+		return
+	}
+	for _, tt := range []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"missing-name", []string{"-tun-address=10.77.0.1/30"}, "-tun-address requires -tun"},
+		{"missing-address", []string{"-tun=sttun0"}, "valid -tun-address CIDR"},
+		{"missing-peer", []string{"-tun=sttun0", "-tun-address=10.77.0.1/30"}, "-remote-ip on both peers"},
+		{"udp-only-option", []string{"-tun=sttun0", "-tun-address=10.77.0.1/30", "-remote-ip=192.0.2.2", "-udp-gro"}, "-tun cannot use"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			args := append([]string{"-test.run=^TestCLITUNOptions$"}, tt.args...)
+			cmd := exec.Command(os.Args[0], args...)
+			cmd.Env = append(os.Environ(), "SPOOFTUN_TUN_CLI_TEST_HELPER=1")
+			output, err := cmd.CombinedOutput()
+			if err == nil || !strings.Contains(string(output), tt.want) {
+				t.Fatalf("got %v, %s; want failure containing %q", err, output, tt.want)
+			}
+		})
+	}
+}

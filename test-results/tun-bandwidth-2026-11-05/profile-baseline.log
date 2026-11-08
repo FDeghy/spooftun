@@ -1,0 +1,48 @@
+{
+  "options": {
+    "binary": "./spooftun-tun",
+    "output": "profile-baseline",
+    "workers": 2,
+    "seconds": 5,
+    "repeat": 1,
+    "streams": 4,
+    "mtu": 1500,
+    "fake_tcp": false,
+    "fake_frag": false,
+    "verify_only": false,
+    "direct": false
+  },
+  "kernel": "Linux asiatechmiladtower-ubuntu-9033 6.8.0-146-generic #146-Ubuntu SMP PREEMPT_DYNAMIC Thu Sep  3 16:12:30 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux",
+  "cpus": 2,
+  "runs": [
+    {
+      "repetition": 0,
+      "reverse": false,
+      "bits_per_second": 359337683.922364,
+      "retransmits": 0,
+      "tunnel_cpu_seconds": [
+        3.55,
+        3.83
+      ]
+    },
+    {
+      "repetition": 0,
+      "reverse": true,
+      "bits_per_second": 597374459.4590002,
+      "retransmits": 5116,
+      "tunnel_cpu_seconds": [
+        4.29,
+        3.5999999999999996
+      ]
+    }
+  ],
+  "verified": {
+    "inner_mtu": 1472,
+    "queues": 2,
+    "ipv4_max_df_both_directions": true,
+    "oversize_rejected": true,
+    "ipv6_max_both_directions": true
+  }
+}
+[ perf record: Woken up 2 times to write data ]
+[ perf record: Captured and wrote 0.472 MB tun-profile.data (1768 samples) ]

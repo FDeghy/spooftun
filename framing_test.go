@@ -13,6 +13,24 @@ import (
 	"github.com/gopacket/gopacket/layers"
 )
 
+func newFakeTCPHeader(dstPort uint16, flagsByte uint8) *layers.TCP {
+	return &layers.TCP{
+		DstPort:    layers.TCPPort(dstPort),
+		Seq:        1,
+		Ack:        0,
+		DataOffset: 5,
+		Window:     65535,
+		FIN:        flagsByte&0x01 != 0,
+		SYN:        flagsByte&0x02 != 0,
+		RST:        flagsByte&0x04 != 0,
+		PSH:        flagsByte&0x08 != 0,
+		ACK:        flagsByte&0x10 != 0,
+		URG:        flagsByte&0x20 != 0,
+		ECE:        flagsByte&0x40 != 0,
+		CWR:        flagsByte&0x80 != 0,
+	}
+}
+
 // Exercise the on-wire modes through the upgraded serializer and the tunnel's
 // own parser. These modes intentionally use a custom IP protocol number and
 // transport-shaped headers rather than ordinary UDP/TCP packets.

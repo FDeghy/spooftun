@@ -21,6 +21,41 @@ var (
 	encoderDstIP  = net.IPv4(198, 51, 100, 29)
 )
 
+func TestEncoderChecksumWideCarry(t *testing.T) {
+	data := make([]byte, 65536)
+	sizes := []int{1471, 1472, 65527}
+	for i := 0; i <= 128; i++ {
+		sizes = append(sizes, i)
+	}
+	for _, pattern := range []byte{0, 1, 0x7f, 0xff} {
+		for i := range data {
+			data[i] = pattern
+		}
+		for offset := 0; offset < 8; offset++ {
+			for _, size := range sizes {
+				p := data[offset : offset+size]
+				for _, initial := range []uint32{0, 17, 65535, 131071} {
+					want := uint64(initial)
+					for i := 0; i < len(p); i += 2 {
+						word := uint64(p[i]) << 8
+						if i+1 < len(p) {
+							word |= uint64(p[i+1])
+						}
+						want += word
+					}
+					for want>>16 != 0 {
+						want = (want & 0xffff) + (want >> 16)
+					}
+					got := encoderFoldChecksum(encoderChecksumSum(p, initial))
+					if got != ^uint16(want) {
+						t.Fatalf("pattern=%x offset=%d size=%d initial=%d: got %x want %x", pattern, offset, size, initial, got, ^uint16(want))
+					}
+				}
+			}
+		}
+	}
+}
+
 // encoderOracle preserves the previous production serializer as an independent
 // byte-for-byte oracle, including transport pseudoheader protocol and padding.
 func encoderOracle(buffer gopacket.SerializeBuffer, payload []byte, proto uint8, tcp bool, tcpFlags uint8,

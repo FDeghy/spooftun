@@ -126,7 +126,7 @@ func (s *packetSender) WriteBatch(packets [][]byte) (int, error) {
 			}
 			for j := done; j < done+int(n); j++ {
 				if int(messages[j].length) != len(packets[sent+j]) {
-					return sent + j, io.ErrShortWrite
+					return sent + done + int(n), io.ErrShortWrite
 				}
 			}
 			done += int(n)

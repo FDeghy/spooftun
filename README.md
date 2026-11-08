@@ -1,6 +1,6 @@
 # spooftun
 
-A Linux UDP tunnel that carries traffic under a configurable **custom IP
+A Linux UDP or routed TUN tunnel that carries traffic under a configurable **custom IP
 protocol number**. Choose AF_PACKET (TPACKET_V3 receive with sendmmsg or TX-ring
 transmit) or AF_XDP (eBPF redirect with automatic zero-copy/copy selection).
 It supports source-IP spoofing, per-flow NAT, fake TCP-shaped framing and
@@ -66,6 +66,72 @@ Applications now send UDP to `127.0.0.1:1001` on the client and reach
 > (and `-uplink-proto` / `-downlink-proto`), `-fake-tcp`, and `-fake-frag`.
 > A mismatch means one side won't recognize the other's frames.
 
+## Routed TUN mode
+
+Use `-tun <name> -tun-address <CIDR>` on both endpoints to carry complete
+IPv4/IPv6 packets instead of local UDP datagrams. This creates a new,
+nonpersistent Linux TUN interface and configures its address and MTU using `ip`.
+It requires `CAP_NET_ADMIN` in addition to the packet backend's permissions.
+Both endpoints require a fixed `-remote-ip`; the received outer source must
+match that peer. TUN mode uses the existing unencrypted tunnel framing and
+does not authenticate peers. Route only trusted traffic through it.
+
+```sh
+# Server (substitute the client's outer IPv4 address)
+sudo ./spooftun -mode server -remote-ip <CLIENT_IP> \
+  -tun sttun0 -tun-address 10.77.0.2/30 -packet-workers 2
+
+# Client
+sudo ./spooftun -mode client -remote-ip <SERVER_IP> \
+  -tun sttun0 -tun-address 10.77.0.1/30 -packet-workers 2
+
+ping 10.77.0.2
+```
+
+`-packet-workers` creates the same number of TUN queues and AF_PACKET workers,
+each with its own packet buffers and transmitter. Sends drain up to 64 available
+packets with one worker, or 16 per worker with multiple workers, without waiting
+for a full batch. The default `flow`
+distribution uses ports derived from inner flows; `spread` can reorder packets.
+Checksums use portable 64-bit accumulation with end-around carry; the wire
+format and packet validation remain the same. See the measured comparisons in
+[the bandwidth tuning report](test-results/tun-bandwidth-2026-11-05/README.md).
+XDP currently supports one worker, as in UDP mode. Existing interfaces are
+rejected, and the new interface disappears when the process exits. Additional
+routes and addresses are managed with normal `ip route` / `ip address` commands;
+keep the outer peer reachable through the physical interface.
+
+The TUN MTU is derived from `min(-mtu, physical interface MTU)`, subtracting
+the outer IPv4 and cosmetic transport headers and reserving fake-fragment
+padding when enabled. Both peers must use the same path MTU and framing flags.
+For outer MTU 1500:
+
+| Framing | TUN MTU |
+| --- | ---: |
+| UDP-shaped | 1472 |
+| TCP-shaped | 1460 |
+| UDP-shaped + fake fragments | 1471 |
+| TCP-shaped + fake fragments | 1459 |
+
+`-mtu` is an outer path budget; it does not discover path MTU. Set it lower
+when the path requires it. IPv6 requires a derived MTU of at least 1280.
+Fake fragmentation retains its existing client-uplink-only behavior.
+`-noise`, `-udp-gro`, and `-outbound-port` are rejected in TUN mode.
+
+Run the isolated correctness checks and repeated TCP benchmarks with:
+
+```sh
+sudo python3 scripts/bench-tun.py --binary ./spooftun --workers 1 --output /tmp/tun-one
+sudo python3 scripts/bench-tun.py --binary ./spooftun --workers 2 --output /tmp/tun-two
+sudo python3 scripts/bench-tun.py --binary ./spooftun --direct --output /tmp/tun-direct
+```
+
+The harness verifies IPv4/IPv6 MTU boundaries in both directions, records three
+forward/reverse iperf3 runs with four streams and process CPU time, and removes
+its namespaces afterward. Both peers share the test host; these are processing
+benchmarks rather than WAN measurements. Use `--fake-tcp`, `--fake-frag`,
+`--mtu`, or `--verify-only` for framing and smaller-MTU checks.
+
 ## WireGuard over spooftun
 
 For WireGuard sending to spooftun's local UDP listener, start with **WireGuard
@@ -83,6 +149,8 @@ not a solution to a packet-processing bottleneck.
 | ---------------------- | ---------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `-mode`                | `client`         | both                                 | `client` or `server`.                                                                                                                                              |
 | `-backend`             | `afpacket`       | both                                 | `afpacket` or `xdp`. |
+| `-tun`                 | *(empty)*        | both                                 | Create a new multiqueue TUN interface instead of forwarding local UDP. |
+| `-tun-address`         | *(empty)*        | TUN                                  | Interface address/prefix; requires `-remote-ip` on both peers. |
 | `-udp-gro`             | `false`          | both                                 | Coalesce local UDP receives when supported, then preserve individual datagrams. Uses about 1 MiB of receive storage per local socket; see performance notes.       |
 | `-afpacket-tx`         | `sendmmsg`       | AF_PACKET                            | `sendmmsg` or `ring` (PACKET_TX_RING). Ignored by XDP.                                                                                                             |
 | `-packet-workers`      | `1`              | AF_PACKET                            | Receive workers, each owning an RX ring and transmitter (1–64).                                                                                                    |
@@ -129,6 +197,7 @@ Go files are `package main` under the `//go:build linux` constraint.
 | `framing.go` | Fixed-offset Ethernet/IPv4 parsing plus fake UDP/TCP and fragmentation framing. |
 | `bpf.go` | In-kernel BPF capture filter and filter-IP resolution. |
 | `client.go` | Client data path (app → tunnel and tunnel → app). |
+| `tun.go` | Multiqueue routed IP forwarding, inner-packet validation and automatic TUN MTU. |
 | `server.go` | Server data path (tunnel → target and target → tunnel). |
 | `packet_io.go` | Shared RX/TX interfaces and backend selection. |
 | `tx.go` | Send-only AF_PACKET sendmmsg transmitter for either endpoint. |

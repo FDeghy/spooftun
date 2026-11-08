@@ -1,0 +1,86 @@
+{
+  "options": {
+    "binary": "./spooftun-tun",
+    "output": "compare-baseline-two",
+    "workers": 2,
+    "seconds": 5,
+    "repeat": 3,
+    "streams": 4,
+    "mtu": 1500,
+    "fake_tcp": false,
+    "fake_frag": false,
+    "verify_only": false,
+    "direct": false
+  },
+  "kernel": "Linux asiatechmiladtower-ubuntu-9033 6.8.0-146-generic #146-Ubuntu SMP PREEMPT_DYNAMIC Thu Sep  3 16:12:30 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux",
+  "cpus": 2,
+  "runs": [
+    {
+      "repetition": 0,
+      "reverse": false,
+      "bits_per_second": 406814221.75760114,
+      "retransmits": 0,
+      "tunnel_cpu_seconds": [
+        3.79,
+        3.9200000000000004
+      ]
+    },
+    {
+      "repetition": 0,
+      "reverse": true,
+      "bits_per_second": 605538085.4895414,
+      "retransmits": 5474,
+      "tunnel_cpu_seconds": [
+        4.27,
+        3.66
+      ]
+    },
+    {
+      "repetition": 1,
+      "reverse": false,
+      "bits_per_second": 499300823.37046576,
+      "retransmits": 1407,
+      "tunnel_cpu_seconds": [
+        3.6800000000000015,
+        4.109999999999999
+      ]
+    },
+    {
+      "repetition": 1,
+      "reverse": true,
+      "bits_per_second": 630687975.960359,
+      "retransmits": 5666,
+      "tunnel_cpu_seconds": [
+        4.399999999999999,
+        3.620000000000001
+      ]
+    },
+    {
+      "repetition": 2,
+      "reverse": false,
+      "bits_per_second": 607891831.1467075,
+      "retransmits": 7737,
+      "tunnel_cpu_seconds": [
+        3.7200000000000024,
+        4.409999999999998
+      ]
+    },
+    {
+      "repetition": 2,
+      "reverse": true,
+      "bits_per_second": 462792575.5040268,
+      "retransmits": 18012,
+      "tunnel_cpu_seconds": [
+        4.059999999999999,
+        3.4899999999999984
+      ]
+    }
+  ],
+  "verified": {
+    "inner_mtu": 1472,
+    "queues": 2,
+    "ipv4_max_df_both_directions": true,
+    "oversize_rejected": true,
+    "ipv6_max_both_directions": true
+  }
+}

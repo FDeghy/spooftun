@@ -115,7 +115,7 @@ func (w *localUDPWriter) address(i int, addr netip.AddrPort, hdr *unix.Msghdr) e
 	b := &w.addresses[i]
 	clear(b[:])
 	binary.BigEndian.PutUint16(b[2:4], addr.Port())
-	ip := addr.Addr()
+	ip := addr.Addr().Unmap()
 	if ip.Is4() {
 		binary.NativeEndian.PutUint16(b[:2], unix.AF_INET)
 		a := ip.As4()
@@ -219,7 +219,7 @@ func (w *localUDPWriter) writeReady(fd uintptr) bool {
 		for j := w.writeDone; j < w.writeDone+int(n); j++ {
 			if int(w.messages[j].length) != len(w.writeMsgs[j].payload) {
 				w.writeErr = io.ErrShortWrite
-				w.writeDone = j
+				w.writeDone += int(n)
 				return true
 			}
 		}
@@ -267,6 +267,9 @@ func (w *localUDPWriter) WriteBatch(msgs []localUDPMessage) (int, error) {
 				if err == nil {
 					sent += n
 					continue
+				}
+				if err == io.ErrShortWrite {
+					sent += n
 				}
 				if !localGSOUnsupported(err) {
 					return sent, os.NewSyscallError("sendmsg", err)

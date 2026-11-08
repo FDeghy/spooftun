@@ -1,0 +1,3 @@
+2026/11/05 01:48:12 Local UDP batch: raw-control udp4 127.0.0.1:2450: use of closed network connection
+2026/11/05 01:48:12 UDP test socket buffers requested=16777216 kernel-rx=33554432 (was 1048576) kernel-tx=33554432 (was 524288)
+PASS

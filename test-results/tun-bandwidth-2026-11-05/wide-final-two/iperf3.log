@@ -1,0 +1,586 @@
+-----------------------------------------------------------
+Server listening on 5201 (test #1)
+-----------------------------------------------------------
+Accepted connection from 198.18.0.1, port 55662
+[  5] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 55672
+[  8] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 55686
+[ 10] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 55702
+[ 12] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 55714
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-1.00   sec  6.38 MBytes  53.3 Mbits/sec                  
+[  8]   0.00-1.00   sec  8.75 MBytes  73.1 Mbits/sec                  
+[ 10]   0.00-1.00   sec  10.4 MBytes  86.7 Mbits/sec                  
+[ 12]   0.00-1.00   sec  27.0 MBytes   226 Mbits/sec                  
+[SUM]   0.00-1.00   sec  52.5 MBytes   439 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   1.00-2.00   sec  10.1 MBytes  85.2 Mbits/sec                  
+[  8]   1.00-2.00   sec  11.8 MBytes  98.9 Mbits/sec                  
+[ 10]   1.00-2.00   sec  12.1 MBytes   102 Mbits/sec                  
+[ 12]   1.00-2.00   sec  30.6 MBytes   258 Mbits/sec                  
+[SUM]   1.00-2.00   sec  64.6 MBytes   544 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   2.00-3.00   sec  12.0 MBytes   101 Mbits/sec                  
+[  8]   2.00-3.00   sec  15.6 MBytes   131 Mbits/sec                  
+[ 10]   2.00-3.00   sec  12.5 MBytes   105 Mbits/sec                  
+[ 12]   2.00-3.00   sec  32.0 MBytes   268 Mbits/sec                  
+[SUM]   2.00-3.00   sec  72.1 MBytes   605 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   3.00-4.00   sec  13.6 MBytes   114 Mbits/sec                  
+[  8]   3.00-4.00   sec  14.8 MBytes   124 Mbits/sec                  
+[ 10]   3.00-4.00   sec  10.5 MBytes  88.2 Mbits/sec                  
+[ 12]   3.00-4.00   sec  30.9 MBytes   259 Mbits/sec                  
+[SUM]   3.00-4.00   sec  69.8 MBytes   586 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   4.00-5.00   sec  8.50 MBytes  71.1 Mbits/sec                  
+[  8]   4.00-5.00   sec  8.62 MBytes  72.1 Mbits/sec                  
+[ 10]   4.00-5.00   sec  7.38 MBytes  61.6 Mbits/sec                  
+[ 12]   4.00-5.00   sec  21.6 MBytes   181 Mbits/sec                  
+[SUM]   4.00-5.00   sec  46.1 MBytes   386 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   5.00-5.01   sec  0.00 Bytes  0.00 bits/sec                  
+[  8]   5.00-5.01   sec   128 KBytes   188 Mbits/sec                  
+[ 10]   5.00-5.01   sec  0.00 Bytes  0.00 bits/sec                  
+[ 12]   5.00-5.01   sec  0.00 Bytes  0.00 bits/sec                  
+[SUM]   5.00-5.01   sec   128 KBytes   188 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-5.01   sec  50.6 MBytes  84.8 Mbits/sec                  receiver
+[  8]   0.00-5.01   sec  59.6 MBytes  99.8 Mbits/sec                  receiver
+[ 10]   0.00-5.01   sec  52.9 MBytes  88.5 Mbits/sec                  receiver
+[ 12]   0.00-5.01   sec   142 MBytes   238 Mbits/sec                  receiver
+[SUM]   0.00-5.01   sec   305 MBytes   511 Mbits/sec                  receiver
+-----------------------------------------------------------
+Server listening on 5201 (test #2)
+-----------------------------------------------------------
+Accepted connection from 198.18.0.1, port 54818
+[  5] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 54826
+[  8] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 54838
+[ 10] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 54842
+[ 12] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 54852
+[ ID] Interval           Transfer     Bitrate         Retr  Cwnd
+[  5]   0.00-1.00   sec  8.62 MBytes  72.1 Mbits/sec    1    208 KBytes       
+[  8]   0.00-1.00   sec  23.8 MBytes   199 Mbits/sec    0    779 KBytes       
+[ 10]   0.00-1.00   sec  19.6 MBytes   164 Mbits/sec    0    563 KBytes       
+[ 12]   0.00-1.00   sec  9.62 MBytes  80.5 Mbits/sec    1    311 KBytes       
+[SUM]   0.00-1.00   sec  61.6 MBytes   515 Mbits/sec    2             
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   1.00-2.00   sec  4.75 MBytes  39.9 Mbits/sec    0    155 KBytes       
+[  8]   1.00-2.00   sec  24.2 MBytes   204 Mbits/sec    0    627 KBytes       
+[ 10]   1.00-2.00   sec  24.8 MBytes   208 Mbits/sec    0    591 KBytes       
+[ 12]   1.00-2.00   sec  8.38 MBytes  70.4 Mbits/sec    0    288 KBytes       
+[SUM]   1.00-2.00   sec  62.1 MBytes   522 Mbits/sec    0             
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   2.00-3.00   sec  4.00 MBytes  33.6 Mbits/sec    0    114 KBytes       
+[  8]   2.00-3.00   sec  21.2 MBytes   178 Mbits/sec    0    724 KBytes       
+[ 10]   2.00-3.00   sec  24.9 MBytes   209 Mbits/sec    0    616 KBytes       
+[ 12]   2.00-3.00   sec  5.25 MBytes  44.0 Mbits/sec    0    133 KBytes       
+[SUM]   2.00-3.00   sec  55.4 MBytes   464 Mbits/sec    0             
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   3.00-4.00   sec  2.50 MBytes  21.0 Mbits/sec    0    141 KBytes       
+[  8]   3.00-4.00   sec  21.2 MBytes   178 Mbits/sec    0    552 KBytes       
+[ 10]   3.00-4.00   sec  19.8 MBytes   166 Mbits/sec    0    574 KBytes       
+[ 12]   3.00-4.00   sec  5.25 MBytes  44.0 Mbits/sec    0    216 KBytes       
+[SUM]   3.00-4.00   sec  48.8 MBytes   409 Mbits/sec    0             
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   4.00-5.00   sec  4.75 MBytes  39.9 Mbits/sec    0    161 KBytes       
+[  8]   4.00-5.00   sec  21.4 MBytes   179 Mbits/sec    0    610 KBytes       
+[ 10]   4.00-5.00   sec  25.5 MBytes   214 Mbits/sec    0    802 KBytes       
+[ 12]   4.00-5.00   sec  7.50 MBytes  62.9 Mbits/sec    0    263 KBytes       
+[SUM]   4.00-5.00   sec  59.1 MBytes   496 Mbits/sec    0             
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate         Retr
+[  5]   0.00-5.00   sec  24.6 MBytes  41.3 Mbits/sec    1             sender
+[  8]   0.00-5.00   sec   112 MBytes   188 Mbits/sec    0             sender
+[ 10]   0.00-5.00   sec   114 MBytes   192 Mbits/sec    0             sender
+[ 12]   0.00-5.00   sec  36.0 MBytes  60.4 Mbits/sec    1             sender
+[SUM]   0.00-5.00   sec   287 MBytes   481 Mbits/sec    2             sender
+-----------------------------------------------------------
+Server listening on 5201 (test #3)
+-----------------------------------------------------------
+Accepted connection from 198.18.0.1, port 54854
+[  5] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 54860
+[  8] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 54866
+[ 10] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 54874
+[ 12] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 54878
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-1.00   sec  25.6 MBytes   215 Mbits/sec                  
+[  8]   0.00-1.00   sec  10.9 MBytes  91.2 Mbits/sec                  
+[ 10]   0.00-1.00   sec  7.62 MBytes  63.9 Mbits/sec                  
+[ 12]   0.00-1.00   sec  13.1 MBytes   110 Mbits/sec                  
+[SUM]   0.00-1.00   sec  57.2 MBytes   480 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   1.00-2.00   sec  22.4 MBytes   188 Mbits/sec                  
+[  8]   1.00-2.00   sec  8.62 MBytes  72.4 Mbits/sec                  
+[ 10]   1.00-2.00   sec  8.00 MBytes  67.1 Mbits/sec                  
+[ 12]   1.00-2.00   sec  14.9 MBytes   125 Mbits/sec                  
+[SUM]   1.00-2.00   sec  53.9 MBytes   452 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   2.00-3.00   sec  40.0 MBytes   335 Mbits/sec                  
+[  8]   2.00-3.00   sec  8.62 MBytes  72.3 Mbits/sec                  
+[ 10]   2.00-3.00   sec  13.4 MBytes   112 Mbits/sec                  
+[ 12]   2.00-3.00   sec  25.0 MBytes   210 Mbits/sec                  
+[SUM]   2.00-3.00   sec  87.0 MBytes   730 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   3.00-4.00   sec  34.4 MBytes   288 Mbits/sec                  
+[  8]   3.00-4.00   sec  6.38 MBytes  53.5 Mbits/sec                  
+[ 10]   3.00-4.00   sec  12.8 MBytes   107 Mbits/sec                  
+[ 12]   3.00-4.00   sec  22.5 MBytes   189 Mbits/sec                  
+[SUM]   3.00-4.00   sec  76.0 MBytes   638 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   4.00-5.00   sec  35.6 MBytes   299 Mbits/sec                  
+[  8]   4.00-5.00   sec  7.75 MBytes  65.0 Mbits/sec                  
+[ 10]   4.00-5.00   sec  11.2 MBytes  94.3 Mbits/sec                  
+[ 12]   4.00-5.00   sec  23.6 MBytes   198 Mbits/sec                  
+[SUM]   4.00-5.00   sec  78.2 MBytes   656 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   5.00-5.04   sec  1.62 MBytes   396 Mbits/sec                  
+[  8]   5.00-5.04   sec   384 KBytes  91.3 Mbits/sec                  
+[ 10]   5.00-5.04   sec   384 KBytes  91.3 Mbits/sec                  
+[ 12]   5.00-5.04   sec   640 KBytes   152 Mbits/sec                  
+[SUM]   5.00-5.04   sec  3.00 MBytes   730 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-5.04   sec   160 MBytes   266 Mbits/sec                  receiver
+[  8]   0.00-5.04   sec  42.6 MBytes  71.0 Mbits/sec                  receiver
+[ 10]   0.00-5.04   sec  53.4 MBytes  88.9 Mbits/sec                  receiver
+[ 12]   0.00-5.04   sec  99.8 MBytes   166 Mbits/sec                  receiver
+[SUM]   0.00-5.04   sec   355 MBytes   592 Mbits/sec                  receiver
+-----------------------------------------------------------
+Server listening on 5201 (test #4)
+-----------------------------------------------------------
+Accepted connection from 198.18.0.1, port 45288
+[  5] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 45300
+[  8] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 45304
+[ 10] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 45316
+[ 12] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 45330
+[ ID] Interval           Transfer     Bitrate         Retr  Cwnd
+[  5]   0.00-1.00   sec  13.6 MBytes   114 Mbits/sec    0    277 KBytes       
+[  8]   0.00-1.00   sec  22.0 MBytes   184 Mbits/sec    0    455 KBytes       
+[ 10]   0.00-1.00   sec  43.4 MBytes   363 Mbits/sec    0   1015 KBytes       
+[ 12]   0.00-1.00   sec  10.9 MBytes  91.1 Mbits/sec    0    361 KBytes       
+[SUM]   0.00-1.00   sec  89.9 MBytes   753 Mbits/sec    0             
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   1.00-2.00   sec  15.0 MBytes   126 Mbits/sec    0    424 KBytes       
+[  8]   1.00-2.00   sec  24.5 MBytes   206 Mbits/sec    0    618 KBytes       
+[ 10]   1.00-2.00   sec  43.6 MBytes   366 Mbits/sec    0   1012 KBytes       
+[ 12]   1.00-2.00   sec  6.00 MBytes  50.4 Mbits/sec    0   80.4 KBytes       
+[SUM]   1.00-2.00   sec  89.1 MBytes   748 Mbits/sec    0             
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   2.00-3.00   sec  15.5 MBytes   130 Mbits/sec    0    613 KBytes       
+[  8]   2.00-3.00   sec  23.4 MBytes   196 Mbits/sec    0    802 KBytes       
+[ 10]   2.00-3.00   sec  28.6 MBytes   240 Mbits/sec    0    971 KBytes       
+[ 12]   2.00-3.00   sec  2.25 MBytes  18.9 Mbits/sec    0   94.3 KBytes       
+[SUM]   2.00-3.00   sec  69.8 MBytes   585 Mbits/sec    0             
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   3.00-4.00   sec  11.9 MBytes  99.7 Mbits/sec    0    410 KBytes       
+[  8]   3.00-4.00   sec  14.9 MBytes   125 Mbits/sec    0    574 KBytes       
+[ 10]   3.00-4.00   sec  28.5 MBytes   239 Mbits/sec    0   1.04 MBytes       
+[ 12]   3.00-4.00   sec  2.38 MBytes  19.9 Mbits/sec    0    111 KBytes       
+[SUM]   3.00-4.00   sec  57.6 MBytes   484 Mbits/sec    0             
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   4.00-5.00   sec  17.0 MBytes   142 Mbits/sec    0    768 KBytes       
+[  8]   4.00-5.00   sec  17.5 MBytes   147 Mbits/sec    0    652 KBytes       
+[ 10]   4.00-5.00   sec  37.0 MBytes   310 Mbits/sec    0    888 KBytes       
+[ 12]   4.00-5.00   sec  3.50 MBytes  29.3 Mbits/sec    0    139 KBytes       
+[SUM]   4.00-5.00   sec  75.0 MBytes   628 Mbits/sec    0             
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate         Retr
+[  5]   0.00-5.00   sec  73.0 MBytes   122 Mbits/sec    0             sender
+[  8]   0.00-5.00   sec   102 MBytes   171 Mbits/sec    0             sender
+[ 10]   0.00-5.00   sec   181 MBytes   304 Mbits/sec    0             sender
+[ 12]   0.00-5.00   sec  25.0 MBytes  41.9 Mbits/sec    0             sender
+[SUM]   0.00-5.00   sec   381 MBytes   639 Mbits/sec    0             sender
+-----------------------------------------------------------
+Server listening on 5201 (test #5)
+-----------------------------------------------------------
+Accepted connection from 198.18.0.1, port 45346
+[  5] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 45350
+[  8] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 45360
+[ 10] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 45374
+[ 12] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 45384
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-1.00   sec  6.62 MBytes  55.5 Mbits/sec                  
+[  8]   0.00-1.00   sec  25.2 MBytes   211 Mbits/sec                  
+[ 10]   0.00-1.00   sec  7.62 MBytes  63.9 Mbits/sec                  
+[ 12]   0.00-1.00   sec  33.9 MBytes   284 Mbits/sec                  
+[SUM]   0.00-1.00   sec  73.4 MBytes   614 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   1.00-2.00   sec  4.50 MBytes  37.8 Mbits/sec                  
+[  8]   1.00-2.00   sec  39.1 MBytes   328 Mbits/sec                  
+[ 10]   1.00-2.00   sec  4.50 MBytes  37.8 Mbits/sec                  
+[ 12]   1.00-2.00   sec  41.4 MBytes   347 Mbits/sec                  
+[SUM]   1.00-2.00   sec  89.5 MBytes   751 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   2.00-3.00   sec  3.75 MBytes  31.5 Mbits/sec                  
+[  8]   2.00-3.00   sec  42.0 MBytes   352 Mbits/sec                  
+[ 10]   2.00-3.00   sec  4.12 MBytes  34.6 Mbits/sec                  
+[ 12]   2.00-3.00   sec  43.2 MBytes   363 Mbits/sec                  
+[SUM]   2.00-3.00   sec  93.1 MBytes   781 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   3.00-4.00   sec  3.38 MBytes  28.3 Mbits/sec                  
+[  8]   3.00-4.00   sec  34.4 MBytes   288 Mbits/sec                  
+[ 10]   3.00-4.00   sec  3.00 MBytes  25.2 Mbits/sec                  
+[ 12]   3.00-4.00   sec  40.8 MBytes   342 Mbits/sec                  
+[SUM]   3.00-4.00   sec  81.5 MBytes   684 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   4.00-5.00   sec  2.25 MBytes  18.9 Mbits/sec                  
+[  8]   4.00-5.00   sec  24.2 MBytes   203 Mbits/sec                  
+[ 10]   4.00-5.00   sec  1.62 MBytes  13.6 Mbits/sec                  
+[ 12]   4.00-5.00   sec  29.2 MBytes   245 Mbits/sec                  
+[SUM]   4.00-5.00   sec  57.4 MBytes   481 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   5.00-5.02   sec  0.00 Bytes  0.00 bits/sec                  
+[  8]   5.00-5.02   sec   512 KBytes   236 Mbits/sec                  
+[ 10]   5.00-5.02   sec   128 KBytes  59.0 Mbits/sec                  
+[ 12]   5.00-5.02   sec   640 KBytes   295 Mbits/sec                  
+[SUM]   5.00-5.02   sec  1.25 MBytes   591 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-5.02   sec  20.5 MBytes  34.3 Mbits/sec                  receiver
+[  8]   0.00-5.02   sec   166 MBytes   277 Mbits/sec                  receiver
+[ 10]   0.00-5.02   sec  21.0 MBytes  35.1 Mbits/sec                  receiver
+[ 12]   0.00-5.02   sec   189 MBytes   316 Mbits/sec                  receiver
+[SUM]   0.00-5.02   sec   396 MBytes   662 Mbits/sec                  receiver
+-----------------------------------------------------------
+Server listening on 5201 (test #6)
+-----------------------------------------------------------
+Accepted connection from 198.18.0.1, port 43252
+[  5] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 43258
+[  8] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 43260
+[ 10] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 43272
+[ 12] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 43288
+[ ID] Interval           Transfer     Bitrate         Retr  Cwnd
+[  5]   0.00-1.00   sec  10.1 MBytes  84.8 Mbits/sec    0    189 KBytes       
+[  8]   0.00-1.00   sec  14.9 MBytes   125 Mbits/sec    0    410 KBytes       
+[ 10]   0.00-1.00   sec  27.6 MBytes   231 Mbits/sec    0    804 KBytes       
+[ 12]   0.00-1.00   sec  21.1 MBytes   177 Mbits/sec    0    630 KBytes       
+[SUM]   0.00-1.00   sec  73.8 MBytes   617 Mbits/sec    0             
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   1.00-2.00   sec  8.00 MBytes  67.2 Mbits/sec    0    236 KBytes       
+[  8]   1.00-2.00   sec  17.5 MBytes   147 Mbits/sec    0    383 KBytes       
+[ 10]   1.00-2.00   sec  30.9 MBytes   259 Mbits/sec    0    815 KBytes       
+[ 12]   1.00-2.00   sec  19.9 MBytes   167 Mbits/sec    0    469 KBytes       
+[SUM]   1.00-2.00   sec  76.2 MBytes   640 Mbits/sec    0             
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   2.00-3.00   sec  7.00 MBytes  58.8 Mbits/sec    0    155 KBytes       
+[  8]   2.00-3.00   sec  12.2 MBytes   103 Mbits/sec    0    300 KBytes       
+[ 10]   2.00-3.00   sec  28.5 MBytes   239 Mbits/sec    0    935 KBytes       
+[ 12]   2.00-3.00   sec  17.5 MBytes   147 Mbits/sec    0    413 KBytes       
+[SUM]   2.00-3.00   sec  65.2 MBytes   548 Mbits/sec    0             
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   3.00-4.00   sec  5.25 MBytes  44.0 Mbits/sec    0    144 KBytes       
+[  8]   3.00-4.00   sec  12.0 MBytes   101 Mbits/sec    0    391 KBytes       
+[ 10]   3.00-4.00   sec  31.4 MBytes   263 Mbits/sec    0    871 KBytes       
+[ 12]   3.00-4.00   sec  22.9 MBytes   192 Mbits/sec    0    767 KBytes       
+[SUM]   3.00-4.00   sec  71.5 MBytes   599 Mbits/sec    0             
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   4.00-5.00   sec  5.12 MBytes  43.0 Mbits/sec    0   72.1 KBytes       
+[  8]   4.00-5.00   sec  13.6 MBytes   114 Mbits/sec    0    225 KBytes       
+[ 10]   4.00-5.00   sec  32.2 MBytes   271 Mbits/sec    0    793 KBytes       
+[ 12]   4.00-5.00   sec  26.8 MBytes   225 Mbits/sec    0    513 KBytes       
+[SUM]   4.00-5.00   sec  77.8 MBytes   653 Mbits/sec    0             
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   5.00-5.00   sec  0.00 Bytes  0.00 bits/sec    0   72.1 KBytes       
+[  8]   5.00-5.00   sec  0.00 Bytes  0.00 bits/sec    0    202 KBytes       
+[ 10]   5.00-5.00   sec   256 KBytes   688 Mbits/sec    0    802 KBytes       
+[ 12]   5.00-5.00   sec  0.00 Bytes  0.00 bits/sec    0    499 KBytes       
+[SUM]   5.00-5.00   sec   256 KBytes   686 Mbits/sec    0             
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate         Retr
+[  5]   0.00-5.00   sec  35.5 MBytes  59.5 Mbits/sec    0             sender
+[  8]   0.00-5.00   sec  70.2 MBytes   118 Mbits/sec    0             sender
+[ 10]   0.00-5.00   sec   151 MBytes   254 Mbits/sec    0             sender
+[ 12]   0.00-5.00   sec   108 MBytes   181 Mbits/sec    0             sender
+[SUM]   0.00-5.00   sec   365 MBytes   612 Mbits/sec    0             sender
+-----------------------------------------------------------
+Server listening on 5201 (test #7)
+-----------------------------------------------------------
+Accepted connection from 198.18.0.1, port 43292
+[  5] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 43304
+[  8] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 43310
+[ 10] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 43312
+[ 12] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 43314
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-1.00   sec  19.1 MBytes   160 Mbits/sec                  
+[  8]   0.00-1.00   sec  7.50 MBytes  62.8 Mbits/sec                  
+[ 10]   0.00-1.00   sec  21.6 MBytes   181 Mbits/sec                  
+[ 12]   0.00-1.00   sec  6.00 MBytes  50.3 Mbits/sec                  
+[SUM]   0.00-1.00   sec  54.2 MBytes   454 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   1.00-2.00   sec  27.8 MBytes   233 Mbits/sec                  
+[  8]   1.00-2.00   sec  6.88 MBytes  57.7 Mbits/sec                  
+[ 10]   1.00-2.00   sec  28.8 MBytes   241 Mbits/sec                  
+[ 12]   1.00-2.00   sec  4.38 MBytes  36.7 Mbits/sec                  
+[SUM]   1.00-2.00   sec  67.8 MBytes   568 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   2.00-3.00   sec  35.0 MBytes   293 Mbits/sec                  
+[  8]   2.00-3.00   sec  7.12 MBytes  59.6 Mbits/sec                  
+[ 10]   2.00-3.00   sec  35.9 MBytes   300 Mbits/sec                  
+[ 12]   2.00-3.00   sec  4.00 MBytes  33.5 Mbits/sec                  
+[SUM]   2.00-3.00   sec  82.0 MBytes   686 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   3.00-4.00   sec  35.4 MBytes   297 Mbits/sec                  
+[  8]   3.00-4.00   sec  4.00 MBytes  33.6 Mbits/sec                  
+[ 10]   3.00-4.00   sec  34.5 MBytes   290 Mbits/sec                  
+[ 12]   3.00-4.00   sec  2.62 MBytes  22.1 Mbits/sec                  
+[SUM]   3.00-4.00   sec  76.5 MBytes   643 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   4.00-5.00   sec  35.1 MBytes   295 Mbits/sec                  
+[  8]   4.00-5.00   sec  4.00 MBytes  33.6 Mbits/sec                  
+[ 10]   4.00-5.00   sec  34.9 MBytes   293 Mbits/sec                  
+[ 12]   4.00-5.00   sec  2.25 MBytes  18.9 Mbits/sec                  
+[SUM]   4.00-5.00   sec  76.2 MBytes   640 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   5.00-5.04   sec  1.25 MBytes   286 Mbits/sec                  
+[  8]   5.00-5.04   sec   256 KBytes  57.3 Mbits/sec                  
+[ 10]   5.00-5.04   sec  1.12 MBytes   258 Mbits/sec                  
+[ 12]   5.00-5.04   sec   128 KBytes  28.6 Mbits/sec                  
+[SUM]   5.00-5.04   sec  2.75 MBytes   630 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-5.04   sec   154 MBytes   256 Mbits/sec                  receiver
+[  8]   0.00-5.04   sec  29.8 MBytes  49.5 Mbits/sec                  receiver
+[ 10]   0.00-5.04   sec   157 MBytes   261 Mbits/sec                  receiver
+[ 12]   0.00-5.04   sec  19.4 MBytes  32.3 Mbits/sec                  receiver
+[SUM]   0.00-5.04   sec   360 MBytes   599 Mbits/sec                  receiver
+-----------------------------------------------------------
+Server listening on 5201 (test #8)
+-----------------------------------------------------------
+Accepted connection from 198.18.0.1, port 47500
+[  5] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 47514
+[  8] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 47528
+[ 10] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 47534
+[ 12] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 47538
+[ ID] Interval           Transfer     Bitrate         Retr  Cwnd
+[  5]   0.00-1.00   sec  43.1 MBytes   362 Mbits/sec    0   1.23 MBytes       
+[  8]   0.00-1.00   sec  21.0 MBytes   176 Mbits/sec    0    649 KBytes       
+[ 10]   0.00-1.00   sec  16.4 MBytes   137 Mbits/sec    0    499 KBytes       
+[ 12]   0.00-1.00   sec  7.00 MBytes  58.7 Mbits/sec    0    155 KBytes       
+[SUM]   0.00-1.00   sec  87.5 MBytes   734 Mbits/sec    0             
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   1.00-2.00   sec  33.2 MBytes   279 Mbits/sec    0    943 KBytes       
+[  8]   1.00-2.00   sec  14.4 MBytes   121 Mbits/sec    0    458 KBytes       
+[ 10]   1.00-2.00   sec  17.0 MBytes   143 Mbits/sec    0    785 KBytes       
+[ 12]   1.00-2.00   sec  3.25 MBytes  27.3 Mbits/sec    0    108 KBytes       
+[SUM]   1.00-2.00   sec  67.9 MBytes   569 Mbits/sec    0             
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   2.00-3.00   sec  41.5 MBytes   348 Mbits/sec    0   1.01 MBytes       
+[  8]   2.00-3.00   sec  16.6 MBytes   140 Mbits/sec    0    355 KBytes       
+[ 10]   2.00-3.00   sec  25.6 MBytes   215 Mbits/sec    0    585 KBytes       
+[ 12]   2.00-3.00   sec  3.38 MBytes  28.3 Mbits/sec    0    130 KBytes       
+[SUM]   2.00-3.00   sec  87.1 MBytes   731 Mbits/sec    0             
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   3.00-4.00   sec  38.8 MBytes   324 Mbits/sec    0    774 KBytes       
+[  8]   3.00-4.00   sec  14.5 MBytes   121 Mbits/sec    0    336 KBytes       
+[ 10]   3.00-4.00   sec  20.5 MBytes   172 Mbits/sec    0    485 KBytes       
+[ 12]   3.00-4.00   sec  4.00 MBytes  33.5 Mbits/sec    0   94.3 KBytes       
+[SUM]   3.00-4.00   sec  77.8 MBytes   651 Mbits/sec    0             
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   4.00-5.00   sec  40.2 MBytes   338 Mbits/sec    0   1.21 MBytes       
+[  8]   4.00-5.00   sec  12.5 MBytes   105 Mbits/sec    0    352 KBytes       
+[ 10]   4.00-5.00   sec  23.5 MBytes   197 Mbits/sec    0    702 KBytes       
+[ 12]   4.00-5.00   sec  4.12 MBytes  34.6 Mbits/sec    0    133 KBytes       
+[SUM]   4.00-5.00   sec  80.4 MBytes   675 Mbits/sec    0             
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate         Retr
+[  5]   0.00-5.01   sec   197 MBytes   330 Mbits/sec    0             sender
+[  8]   0.00-5.01   sec  79.0 MBytes   132 Mbits/sec    0             sender
+[ 10]   0.00-5.01   sec   103 MBytes   173 Mbits/sec    0             sender
+[ 12]   0.00-5.01   sec  21.8 MBytes  36.4 Mbits/sec    0             sender
+[SUM]   0.00-5.01   sec   401 MBytes   671 Mbits/sec    0             sender
+-----------------------------------------------------------
+Server listening on 5201 (test #9)
+-----------------------------------------------------------
+Accepted connection from 198.18.0.1, port 47546
+[  5] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 47562
+[  8] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 47576
+[ 10] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 47584
+[ 12] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 47600
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-1.00   sec  12.2 MBytes   103 Mbits/sec                  
+[  8]   0.00-1.00   sec  11.1 MBytes  93.2 Mbits/sec                  
+[ 10]   0.00-1.00   sec  22.8 MBytes   191 Mbits/sec                  
+[ 12]   0.00-1.00   sec  30.9 MBytes   259 Mbits/sec                  
+[SUM]   0.00-1.00   sec  77.0 MBytes   645 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   1.00-2.00   sec  10.4 MBytes  86.8 Mbits/sec                  
+[  8]   1.00-2.00   sec  11.9 MBytes  99.3 Mbits/sec                  
+[ 10]   1.00-2.00   sec  24.4 MBytes   204 Mbits/sec                  
+[ 12]   1.00-2.00   sec  32.6 MBytes   273 Mbits/sec                  
+[SUM]   1.00-2.00   sec  79.2 MBytes   663 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   2.00-3.00   sec  7.25 MBytes  61.0 Mbits/sec                  
+[  8]   2.00-3.00   sec  13.6 MBytes   115 Mbits/sec                  
+[ 10]   2.00-3.00   sec  25.5 MBytes   215 Mbits/sec                  
+[ 12]   2.00-3.00   sec  26.2 MBytes   221 Mbits/sec                  
+[SUM]   2.00-3.00   sec  72.6 MBytes   611 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   3.00-4.00   sec  5.88 MBytes  49.3 Mbits/sec                  
+[  8]   3.00-4.00   sec  12.4 MBytes   104 Mbits/sec                  
+[ 10]   3.00-4.00   sec  28.9 MBytes   242 Mbits/sec                  
+[ 12]   3.00-4.00   sec  30.9 MBytes   259 Mbits/sec                  
+[SUM]   3.00-4.00   sec  78.0 MBytes   654 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   4.00-5.00   sec  4.50 MBytes  37.8 Mbits/sec                  
+[  8]   4.00-5.00   sec  8.75 MBytes  73.4 Mbits/sec                  
+[ 10]   4.00-5.00   sec  24.2 MBytes   203 Mbits/sec                  
+[ 12]   4.00-5.00   sec  29.4 MBytes   246 Mbits/sec                  
+[SUM]   4.00-5.00   sec  66.9 MBytes   561 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   5.00-5.05   sec   256 KBytes  41.6 Mbits/sec                  
+[  8]   5.00-5.05   sec   384 KBytes  62.3 Mbits/sec                  
+[ 10]   5.00-5.05   sec  1.38 MBytes   229 Mbits/sec                  
+[ 12]   5.00-5.05   sec  1.25 MBytes   208 Mbits/sec                  
+[SUM]   5.00-5.05   sec  3.25 MBytes   540 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-5.05   sec  40.5 MBytes  67.3 Mbits/sec                  receiver
+[  8]   0.00-5.05   sec  58.1 MBytes  96.5 Mbits/sec                  receiver
+[ 10]   0.00-5.05   sec   127 MBytes   211 Mbits/sec                  receiver
+[ 12]   0.00-5.05   sec   151 MBytes   251 Mbits/sec                  receiver
+[SUM]   0.00-5.05   sec   377 MBytes   626 Mbits/sec                  receiver
+-----------------------------------------------------------
+Server listening on 5201 (test #10)
+-----------------------------------------------------------
+Accepted connection from 198.18.0.1, port 56400
+[  5] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 56408
+[  8] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 56410
+[ 10] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 56416
+[ 12] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 56422
+[ ID] Interval           Transfer     Bitrate         Retr  Cwnd
+[  5]   0.00-1.00   sec  8.88 MBytes  74.4 Mbits/sec    0    183 KBytes       
+[  8]   0.00-1.00   sec  7.12 MBytes  59.7 Mbits/sec    0    128 KBytes       
+[ 10]   0.00-1.00   sec  15.6 MBytes   131 Mbits/sec    0    275 KBytes       
+[ 12]   0.00-1.00   sec  29.4 MBytes   246 Mbits/sec    0    674 KBytes       
+[SUM]   0.00-1.00   sec  61.0 MBytes   511 Mbits/sec    0             
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   1.00-2.00   sec  7.88 MBytes  66.1 Mbits/sec    0    158 KBytes       
+[  8]   1.00-2.00   sec  6.25 MBytes  52.4 Mbits/sec    0    114 KBytes       
+[ 10]   1.00-2.00   sec  10.8 MBytes  90.2 Mbits/sec    0    166 KBytes       
+[ 12]   1.00-2.00   sec  29.6 MBytes   248 Mbits/sec    0    779 KBytes       
+[SUM]   1.00-2.00   sec  54.5 MBytes   457 Mbits/sec    0             
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   2.00-3.00   sec  7.12 MBytes  59.8 Mbits/sec    0    227 KBytes       
+[  8]   2.00-3.00   sec  5.38 MBytes  45.1 Mbits/sec    0    116 KBytes       
+[ 10]   2.00-3.00   sec  7.25 MBytes  60.8 Mbits/sec    0    180 KBytes       
+[ 12]   2.00-3.00   sec  32.9 MBytes   276 Mbits/sec    0   1.11 MBytes       
+[SUM]   2.00-3.00   sec  52.6 MBytes   441 Mbits/sec    0             
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   3.00-4.00   sec  13.8 MBytes   115 Mbits/sec    0    372 KBytes       
+[  8]   3.00-4.00   sec  7.12 MBytes  59.8 Mbits/sec    0    178 KBytes       
+[ 10]   3.00-4.00   sec  9.38 MBytes  78.6 Mbits/sec    0    216 KBytes       
+[ 12]   3.00-4.00   sec  48.1 MBytes   404 Mbits/sec    0    851 KBytes       
+[SUM]   3.00-4.00   sec  78.4 MBytes   657 Mbits/sec    0             
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   4.00-5.00   sec  13.9 MBytes   116 Mbits/sec    0    280 KBytes       
+[  8]   4.00-5.00   sec  7.75 MBytes  65.1 Mbits/sec    0    141 KBytes       
+[ 10]   4.00-5.00   sec  9.50 MBytes  79.7 Mbits/sec    0    222 KBytes       
+[ 12]   4.00-5.00   sec  32.8 MBytes   275 Mbits/sec    0    610 KBytes       
+[SUM]   4.00-5.00   sec  63.9 MBytes   536 Mbits/sec    0             
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate         Retr
+[  5]   0.00-5.00   sec  51.5 MBytes  86.3 Mbits/sec    0             sender
+[  8]   0.00-5.00   sec  33.6 MBytes  56.4 Mbits/sec    0             sender
+[ 10]   0.00-5.00   sec  52.5 MBytes  88.0 Mbits/sec    0             sender
+[ 12]   0.00-5.00   sec   173 MBytes   290 Mbits/sec    0             sender
+[SUM]   0.00-5.00   sec   310 MBytes   520 Mbits/sec    0             sender
+-----------------------------------------------------------
+Server listening on 5201 (test #11)
+-----------------------------------------------------------
+Accepted connection from 198.18.0.1, port 56424
+[  5] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 56426
+[  8] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 56430
+[ 10] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 56438
+[ 12] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 56444
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-1.00   sec  32.8 MBytes   274 Mbits/sec                  
+[  8]   0.00-1.00   sec  8.62 MBytes  72.0 Mbits/sec                  
+[ 10]   0.00-1.00   sec  13.2 MBytes   111 Mbits/sec                  
+[ 12]   0.00-1.00   sec  7.62 MBytes  63.7 Mbits/sec                  
+[SUM]   0.00-1.00   sec  62.2 MBytes   520 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   1.00-2.00   sec  47.4 MBytes   399 Mbits/sec                  
+[  8]   1.00-2.00   sec  11.0 MBytes  92.6 Mbits/sec                  
+[ 10]   1.00-2.00   sec  18.9 MBytes   159 Mbits/sec                  
+[ 12]   1.00-2.00   sec  14.0 MBytes   118 Mbits/sec                  
+[SUM]   1.00-2.00   sec  91.2 MBytes   768 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   2.00-3.00   sec  38.4 MBytes   322 Mbits/sec                  
+[  8]   2.00-3.00   sec  9.25 MBytes  77.6 Mbits/sec                  
+[ 10]   2.00-3.00   sec  14.6 MBytes   123 Mbits/sec                  
+[ 12]   2.00-3.00   sec  15.0 MBytes   126 Mbits/sec                  
+[SUM]   2.00-3.00   sec  77.2 MBytes   648 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   3.00-4.00   sec  45.8 MBytes   384 Mbits/sec                  
+[  8]   3.00-4.00   sec  9.88 MBytes  82.8 Mbits/sec                  
+[ 10]   3.00-4.00   sec  14.6 MBytes   123 Mbits/sec                  
+[ 12]   3.00-4.00   sec  20.2 MBytes   170 Mbits/sec                  
+[SUM]   3.00-4.00   sec  90.5 MBytes   759 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   4.00-5.00   sec  31.6 MBytes   265 Mbits/sec                  
+[  8]   4.00-5.00   sec  6.12 MBytes  51.4 Mbits/sec                  
+[ 10]   4.00-5.00   sec  9.88 MBytes  82.8 Mbits/sec                  
+[ 12]   4.00-5.00   sec  14.4 MBytes   121 Mbits/sec                  
+[SUM]   4.00-5.00   sec  62.0 MBytes   520 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   5.00-5.02   sec  1.00 MBytes   376 Mbits/sec                  
+[  8]   5.00-5.02   sec   256 KBytes  93.9 Mbits/sec                  
+[ 10]   5.00-5.02   sec   256 KBytes  93.9 Mbits/sec                  
+[ 12]   5.00-5.02   sec   512 KBytes   188 Mbits/sec                  
+[SUM]   5.00-5.02   sec  2.00 MBytes   751 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-5.02   sec   197 MBytes   329 Mbits/sec                  receiver
+[  8]   0.00-5.02   sec  45.1 MBytes  75.4 Mbits/sec                  receiver
+[ 10]   0.00-5.02   sec  71.5 MBytes   119 Mbits/sec                  receiver
+[ 12]   0.00-5.02   sec  71.8 MBytes   120 Mbits/sec                  receiver
+[SUM]   0.00-5.02   sec   385 MBytes   643 Mbits/sec                  receiver
+-----------------------------------------------------------
+Server listening on 5201 (test #12)
+-----------------------------------------------------------
+Accepted connection from 198.18.0.1, port 43444
+[  5] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 43454
+[  8] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 43460
+[ 10] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 43470
+[ 12] local 198.18.0.2 port 5201 connected to 198.18.0.1 port 43478
+[ ID] Interval           Transfer     Bitrate         Retr  Cwnd
+[  5]   0.00-1.00   sec  20.5 MBytes   172 Mbits/sec    0    361 KBytes       
+[  8]   0.00-1.00   sec  8.50 MBytes  71.2 Mbits/sec    0    153 KBytes       
+[ 10]   0.00-1.00   sec  20.2 MBytes   170 Mbits/sec    0    391 KBytes       
+[ 12]   0.00-1.00   sec  42.8 MBytes   358 Mbits/sec    0    865 KBytes       
+[SUM]   0.00-1.00   sec  92.0 MBytes   771 Mbits/sec    0             
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   1.00-2.00   sec  18.6 MBytes   156 Mbits/sec    0    383 KBytes       
+[  8]   1.00-2.00   sec  5.25 MBytes  44.0 Mbits/sec    0    136 KBytes       
+[ 10]   1.00-2.00   sec  21.8 MBytes   182 Mbits/sec    0    363 KBytes       
+[ 12]   1.00-2.00   sec  50.4 MBytes   422 Mbits/sec    0   1.01 MBytes       
+[SUM]   1.00-2.00   sec  96.0 MBytes   805 Mbits/sec    0             
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   2.00-3.00   sec  18.5 MBytes   155 Mbits/sec    0    455 KBytes       
+[  8]   2.00-3.00   sec  5.12 MBytes  43.0 Mbits/sec    0    175 KBytes       
+[ 10]   2.00-3.00   sec  17.2 MBytes   145 Mbits/sec    0    430 KBytes       
+[ 12]   2.00-3.00   sec  40.2 MBytes   338 Mbits/sec    0    968 KBytes       
+[SUM]   2.00-3.00   sec  81.1 MBytes   680 Mbits/sec    0             
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   3.00-4.00   sec  18.0 MBytes   151 Mbits/sec    0    494 KBytes       
+[  8]   3.00-4.00   sec  4.38 MBytes  36.7 Mbits/sec    0    141 KBytes       
+[ 10]   3.00-4.00   sec  19.2 MBytes   161 Mbits/sec    0    477 KBytes       
+[ 12]   3.00-4.00   sec  39.9 MBytes   334 Mbits/sec    0   1.06 MBytes       
+[SUM]   3.00-4.00   sec  81.5 MBytes   683 Mbits/sec    0             
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   4.00-5.00   sec  19.4 MBytes   163 Mbits/sec    0    422 KBytes       
+[  8]   4.00-5.00   sec  4.50 MBytes  37.8 Mbits/sec    0    147 KBytes       
+[ 10]   4.00-5.00   sec  21.6 MBytes   182 Mbits/sec    0    496 KBytes       
+[ 12]   4.00-5.00   sec  43.5 MBytes   365 Mbits/sec    0   1.08 MBytes       
+[SUM]   4.00-5.00   sec  89.0 MBytes   747 Mbits/sec    0             
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate         Retr
+[  5]   0.00-5.00   sec  95.0 MBytes   159 Mbits/sec    0             sender
+[  8]   0.00-5.00   sec  27.8 MBytes  46.5 Mbits/sec    0             sender
+[ 10]   0.00-5.00   sec   101 MBytes   169 Mbits/sec    0             sender
+[ 12]   0.00-5.00   sec   217 MBytes   363 Mbits/sec    0             sender
+[SUM]   0.00-5.00   sec   440 MBytes   738 Mbits/sec    0             sender
+iperf3: interrupt - the server has terminated
+-----------------------------------------------------------
+Server listening on 5201 (test #13)
+-----------------------------------------------------------

@@ -1,0 +1,62 @@
+{
+  "options": {
+    "binary": "./spooftun-tun",
+    "output": "bench-direct",
+    "workers": 1,
+    "seconds": 5,
+    "repeat": 3,
+    "streams": 4,
+    "mtu": 1500,
+    "fake_tcp": false,
+    "fake_frag": false,
+    "verify_only": false,
+    "direct": true
+  },
+  "kernel": "Linux asiatechmiladtower-ubuntu-9033 6.8.0-146-generic #146-Ubuntu SMP PREEMPT_DYNAMIC Thu Sep  3 16:12:30 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux",
+  "cpus": 2,
+  "runs": [
+    {
+      "repetition": 0,
+      "reverse": false,
+      "bits_per_second": 13025299416.876877,
+      "retransmits": 8721,
+      "tunnel_cpu_seconds": []
+    },
+    {
+      "repetition": 0,
+      "reverse": true,
+      "bits_per_second": 14773221093.988867,
+      "retransmits": 4372,
+      "tunnel_cpu_seconds": []
+    },
+    {
+      "repetition": 1,
+      "reverse": false,
+      "bits_per_second": 15713159699.204876,
+      "retransmits": 7066,
+      "tunnel_cpu_seconds": []
+    },
+    {
+      "repetition": 1,
+      "reverse": true,
+      "bits_per_second": 16896372806.86054,
+      "retransmits": 4163,
+      "tunnel_cpu_seconds": []
+    },
+    {
+      "repetition": 2,
+      "reverse": false,
+      "bits_per_second": 16873091045.114923,
+      "retransmits": 3130,
+      "tunnel_cpu_seconds": []
+    },
+    {
+      "repetition": 2,
+      "reverse": true,
+      "bits_per_second": 17701775562.6193,
+      "retransmits": 2115,
+      "tunnel_cpu_seconds": []
+    }
+  ],
+  "verified": "direct veth baseline"
+}

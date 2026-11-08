@@ -30,6 +30,9 @@ import (
 
 func main() {
 	flag.Parse()
+	if err := validateTUNOptions(); err != nil {
+		log.Fatal(err)
+	}
 	if err := validatePacketWorkers(*backend, *packetWorkers, *packetDistribution); err != nil {
 		log.Fatal(err)
 	}
@@ -117,6 +120,12 @@ func main() {
 	}
 	if *noise && (*fakeTCP || outgoingProto != 17) {
 		log.Fatal("-noise requires UDP framing and outgoing IP protocol 17")
+	}
+	if *tunName != "" {
+		if err := startTUN(iface, serverIP, upProto, dnProto); err != nil {
+			log.Fatal(err)
+		}
+		return
 	}
 	if *mode == "client" {
 		if serverIP == nil {
