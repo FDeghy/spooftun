@@ -7,10 +7,12 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"os"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -278,4 +280,30 @@ func afpacketComputeSize(targetSizeMb int, snaplen int, pageSize int) (
 	}
 	numBlocks = budget / blockSize
 	return frameSize, blockSize, numBlocks, nil
+}
+
+// A transmit loop owns this refresh state and its encoder. Failed refreshes
+// retain the last known MAC, allowing transient ARP failures to recover.
+type neighborRefresh struct {
+	iface string
+	peer  net.IP
+	next  int64
+}
+
+func (r *neighborRefresh) refresh(enc *tunnelEncoder) {
+	now := atomic.LoadInt64(&coarseTime)
+	if r.next == 0 {
+		r.next = now + int64(30*time.Second)
+		return // Startup already resolved this destination.
+	}
+	if now < r.next {
+		return
+	}
+	r.next = now + int64(30*time.Second)
+	mac, err := getNeighborMAC(r.iface, r.peer)
+	if err != nil {
+		log.Printf("Refresh neighbor %s: %v", r.peer, err)
+		return
+	}
+	copy(enc.template[:6], mac)
 }

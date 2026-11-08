@@ -148,6 +148,7 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, upPr
 	if err != nil {
 		log.Fatal(err)
 	}
+	neighbor := neighborRefresh{iface: iface, peer: serverIP}
 	frames := make([][]byte, 0, len(txBuffers))
 	var pendingNoise noiseBatch
 	flush := func() {
@@ -177,6 +178,7 @@ func startClientAFPacket(localAddr string, serverIP net.IP, dstPort uint16, upPr
 				log.Printf("Read UDP error: %v", err)
 				continue
 			}
+			neighbor.refresh(encoder)
 			readPos = 0
 		}
 		msg := &msgs[readPos]

@@ -9,11 +9,20 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import time
 
 
-def run(*args):
-    return subprocess.run(args, text=True, capture_output=True, check=True).stdout
+def run(*args, timeout=30):
+    return subprocess.run(args, text=True, capture_output=True, check=True, timeout=timeout).stdout
+
+
+def cleanup_namespaces(namespaces):
+    for name in reversed(namespaces):
+        try:
+            run('ip', 'netns', 'del', name)
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
+            print('Namespace cleanup failed: %s: %s' % (name, error), file=sys.stderr)
 
 
 def main():
@@ -45,8 +54,8 @@ def main():
     client, server = prefix+'c', prefix+'s'
     namespaces, processes, logs = [], [], []
 
-    def ns(name, *args):
-        return run('ip', 'netns', 'exec', name, *args)
+    def ns(name, *args, **kwargs):
+        return run('ip', 'netns', 'exec', name, *args, **kwargs)
 
     def start(name, label, args):
         log = (out/(label+'.log')).open('w')
@@ -81,7 +90,7 @@ def main():
         if not opts.direct:
             for name, octet, mode in ((server,2,'server'),(client,1,'client')):
                 args = [binary, '-mode', mode, '-iface', 'eth0', '-remote-ip', '192.0.2.%d'%(3-octet),
-                        '-tun', 'sttun0', '-tun-address', '198.18.0.%d/30'%octet,
+                        '-tun', 'sttun%d', '-tun-address', '198.18.0.%d/30'%octet,
                         '-packet-workers', str(opts.workers), '-mtu', str(opts.mtu)]
                 if opts.fake_tcp: args += ['-fake-tcp']
                 if opts.fake_frag: args += ['-fake-frag']
@@ -132,7 +141,7 @@ def main():
                     io_before = [io_calls(p) for p in tunnels]
                     command = ['iperf3','-c',target,'-t',str(opts.seconds),'-P',str(opts.streams),'-J']
                     if reverse: command += ['-R']
-                    data = json.loads(ns(client,*command))
+                    data = json.loads(ns(client,*command, timeout=opts.seconds + 30))
                     if 'error' in data: raise RuntimeError(data['error'])
                     after = [cpu(p) for p in tunnels]
                     io_after = [io_calls(p) for p in tunnels]
@@ -153,7 +162,7 @@ def main():
             try: p.wait(timeout=3)
             except subprocess.TimeoutExpired: p.kill(); p.wait()
         for log in logs: log.close()
-        for name in reversed(namespaces): run('ip','netns','del',name)
+        cleanup_namespaces(namespaces)
 
 
 if __name__ == '__main__':

@@ -42,10 +42,10 @@ func xdpInstructions(mapFD int, proto uint8, mac net.HardwareAddr, ip net.IP, po
 		asm.And.Imm(asm.R0, 0x1fff),
 		asm.JNE.Imm(asm.R0, 0, "pass"),
 	}
+	if ip != nil && (proto == 6 || proto == 17 || *filterDstIP != "") {
+		i = append(i, asm.LoadMem(asm.R0, asm.R7, 30, asm.Word), asm.HostTo(asm.BE, asm.R0, asm.Word), asm.JNE.Imm32(asm.R0, int32(binary.BigEndian.Uint32(ip.To4())), "pass"))
+	}
 	if proto == 6 || proto == 17 {
-		if ip != nil {
-			i = append(i, asm.LoadMem(asm.R0, asm.R7, 30, asm.Word), asm.HostTo(asm.BE, asm.R0, asm.Word), asm.JNE.Imm32(asm.R0, int32(binary.BigEndian.Uint32(ip.To4())), "pass"))
-		}
 		if port != 0 {
 			offset := int16(0)
 			if !client {

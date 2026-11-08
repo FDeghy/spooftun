@@ -54,7 +54,8 @@ func newTunnelEncoder(srcMAC, dstMAC net.HardwareAddr, srcIP, dstIP net.IP, prot
 	return e, nil
 }
 
-// Encode writes into dst's capacity; payload must not overlap that storage.
+// Encode writes into dst's capacity. Payload may occupy its exact output region
+// (dst[34+transportLen:]) for in-place padding; other overlap is unsupported.
 // ipFlags contains the wire flag bits (DF=0x4000, MF=0x2000). When transport is
 // false, payload is the complete IP body, used by the final fake fragment.
 func (e *tunnelEncoder) Encode(dst, payload []byte, srcPort, dstPort, ipID, ipFlags, fragOffset uint16, transport bool) ([]byte, error) {

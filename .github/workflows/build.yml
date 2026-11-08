@@ -37,10 +37,21 @@ jobs:
         if: matrix.goarch == 'amd64'
         run: |
           sudo apt-get update
-          sudo apt-get install -y ethtool iproute2
+          sudo apt-get install -y ethtool iproute2 iperf3 iputils-ping
       - name: Namespace integration
         if: matrix.goarch == 'amd64'
         run: sudo env PATH="$PATH" SPOOFTUN_NETNS_TEST=1 go test -run 'TestNetworkNamespaceIntegration|TestServerOutboundPortIntegration|TestNoiseIntegration' -v .
+      - name: XDP filter validation
+        if: matrix.goarch == 'amd64'
+        run: sudo env PATH="$PATH" SPOOFTUN_XDP_TEST=1 go test -run 'TestXDPKernelFilter|TestXDPExplicitCustomDestination' -v .
+      - name: Benchmark harness tests
+        run: python3 -m unittest discover -s scripts -p 'test_*.py' -v
+      - name: TUN namespace validation
+        if: matrix.goarch == 'amd64'
+        run: |
+          go build -o /tmp/spooftun-tun-test .
+          sudo python3 scripts/bench-tun.py --binary /tmp/spooftun-tun-test --output /tmp/spooftun-tun-default --workers 2 --verify-only
+          sudo python3 scripts/bench-tun.py --binary /tmp/spooftun-tun-test --output /tmp/spooftun-tun-frag --fake-frag --fake-tcp --verify-only
       - name: Race
         run: go test -race ./...
       - name: Staticcheck

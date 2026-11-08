@@ -41,6 +41,12 @@ func (s *tunBatchTestSender) WriteBatch(frames [][]byte) (int, error) {
 	for _, frame := range frames {
 		p, ok := parseEthIPv4(frame)
 		_, _, inner, transportOK := parseTunnelTransport(p, false)
+		if p.fragOffset != 0 {
+			continue
+		}
+		if *fakeFrag {
+			inner = unpadData(inner)
+		}
 		if !ok || !transportOK || !validTUNPacket(inner, 1472) || inner[50] != byte(s.count) {
 			s.t.Fatal("TUN batch dropped, reordered or corrupted a packet")
 		}
@@ -54,17 +60,21 @@ func (s *tunBatchTestSender) WriteBatch(frames [][]byte) (int, error) {
 func (s *tunBatchTestSender) Close() error { return nil }
 
 func TestTUNTransmitBatchBoundaries(t *testing.T) {
-	t.Run("single-worker", func(t *testing.T) { testTUNTransmitBatch(t, 1, 64) })
-	t.Run("multiple-workers", func(t *testing.T) { testTUNTransmitBatch(t, 2, 16) })
+	t.Run("single-worker", func(t *testing.T) { testTUNTransmitBatch(t, 1, 64, false) })
+	t.Run("multiple-workers", func(t *testing.T) { testTUNTransmitBatch(t, 2, 16, false) })
 }
 
-func testTUNTransmitBatch(t *testing.T, workers, limit int) {
+func TestTUNTransmitFragmentBatch(t *testing.T) {
+	testTUNTransmitBatch(t, 1, 64, true)
+}
+
+func testTUNTransmitBatch(t *testing.T, workers, limit int, frag bool) {
 	t.Helper()
 	oldWorkers := *packetWorkers
 	*packetWorkers = workers
 	t.Cleanup(func() { *packetWorkers = oldWorkers })
 	oldFrag := *fakeFrag
-	*fakeFrag = false
+	*fakeFrag = frag
 	t.Cleanup(func() { *fakeFrag = oldFrag })
 	fds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_DGRAM|unix.SOCK_NONBLOCK|unix.SOCK_CLOEXEC, 0)
 	if err != nil {
@@ -89,14 +99,18 @@ func testTUNTransmitBatch(t *testing.T, workers, limit int) {
 		t.Fatal(err)
 	}
 	sender := &tunBatchTestSender{t: t}
-	if err := tunTransmit(q, sender, enc, 1500, 1472, true); !errors.Is(err, errTUNBatchTestDone) {
+	if err := tunTransmit(q, sender, enc, 1500, 1472, true, nil); !errors.Is(err, errTUNBatchTestDone) {
 		t.Fatal(err)
 	}
 	if len(sender.batches) != (70+limit-1)/limit {
 		t.Fatalf("unexpected batches: %v", sender.batches)
 	}
 	for i, n := range sender.batches {
-		if n != min(limit, 70-i*limit) {
+		frames := 1
+		if frag {
+			frames = 2
+		}
+		if n != frames*min(limit, 70-i*limit) {
 			t.Fatalf("unexpected batches: %v", sender.batches)
 		}
 	}
@@ -241,5 +255,14 @@ func TestTUNFlowSteering(t *testing.T) {
 	clear(p[20:24])
 	if first != tunFlowPort(p) {
 		t.Fatal("fragments changed worker")
+	}
+}
+
+func TestTUNReceiveInvalidAddresses(t *testing.T) {
+	ip := net.IPv4(192, 0, 2, 1)
+	for _, addresses := range [][2]net.IP{{ip, nil}, {nil, ip}, {ip, net.ParseIP("::1")}} {
+		if err := tunReceive(nil, &tunTestReceiver{}, tunnelPacketFilter{}, addresses[0], addresses[1], 1500, true); err == nil || errors.Is(err, io.EOF) {
+			t.Fatalf("invalid TUN addresses accepted: %v", err)
+		}
 	}
 }

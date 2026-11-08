@@ -519,3 +519,32 @@ func testXDPReceiveBursts(t *testing.T, x *xdpIO, fd int, frame []byte) {
 	complete = true
 	t.Logf("verified %d ordered RX frames across ring wraps", burst*rounds)
 }
+
+func TestXDPExplicitCustomDestination(t *testing.T) {
+	if os.Getenv("SPOOFTUN_XDP_TEST") != "1" {
+		t.Skip("set SPOOFTUN_XDP_TEST=1 for privileged XDP verifier tests")
+	}
+	old := *filterDstIP
+	*filterDstIP = "192.0.2.1"
+	t.Cleanup(func() { *filterDstIP = old })
+	mac := net.HardwareAddr{0, 1, 2, 3, 4, 5}
+	ins := xdpInstructions(0, 200, mac, net.ParseIP(*filterDstIP), 443, false)
+	ins = append(ins[:len(ins)-7], asm.Mov.Imm(asm.R0, 4), asm.Return(), asm.Mov.Imm(asm.R0, 2).WithSymbol("pass"), asm.Return())
+	program, err := ebpf.NewProgram(&ebpf.ProgramSpec{Type: ebpf.XDP, License: "GPL", Instructions: ins})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer program.Close()
+	frame := filterPacket(200, 5, 123, 443)
+	for _, matching := range []bool{true, false} {
+		want := uint32(4)
+		if !matching {
+			frame[33]++
+			want = 2
+		}
+		got, _, err := program.Test(frame)
+		if err != nil || got != want {
+			t.Fatalf("destination match=%t: got=%d want=%d err=%v", matching, got, want, err)
+		}
+	}
+}

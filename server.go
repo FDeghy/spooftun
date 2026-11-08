@@ -16,44 +16,6 @@ import (
 // frames (client→server) under the custom IP protocol number, forwards the
 // inner payload to a local target port, and spawns a per-flow reply goroutine
 // that wraps target responses back into tunnel frames on the selected backend.
-const maxServerSessions = 65536
-
-type serverSession struct {
-	conn     *net.UDPConn
-	lastSeen atomic.Int64
-}
-
-func (s *serverSession) refresh(now int64) bool {
-	for {
-		last := s.lastSeen.Load()
-		if last == retiredSessionTime {
-			return false
-		}
-		if s.lastSeen.CompareAndSwap(last, max(last, now)) {
-			return true
-		}
-	}
-}
-
-func (s *serverSession) expireIdle(now int64, timeout time.Duration) bool {
-	for {
-		last := s.lastSeen.Load()
-		if last == retiredSessionTime {
-			return true
-		}
-		if now-last < int64(timeout) {
-			return false
-		}
-		if s.lastSeen.CompareAndSwap(last, retiredSessionTime) {
-			return true
-		}
-	}
-}
-
-func (s *serverSession) idleDeadline(timeout time.Duration) time.Time {
-	return time.Unix(0, s.lastSeen.Load()).Add(timeout)
-}
-
 func startServerAFPacket(upProto, dnProto uint8, iface string) {
 	mtu, err := effectiveMTU(iface)
 	if err != nil {
@@ -94,7 +56,10 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 
 	sessions := sync.Map{}
 	var sessionCreateMu sync.Mutex
+	var admission serverSessionAdmission
 	var activeSessions atomic.Int32
+	sessionLimit := serverSessionLimit(mtu, maxReply, *udpGRO, *noise)
+	log.Printf("server session limit=%d reserved-payload-budget=%d MiB", sessionLimit, serverSessionBufferBudget>>20)
 	expectedDstPort := uint16(*targetPort)
 	if *outboundPort != 0 {
 		log.Printf("Server local UDP destination: 127.0.0.1:%d (tunnel port unchanged)", *outboundPort)
@@ -106,7 +71,16 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 		log.Printf("Auto-detecting Remote IP from incoming packets for each session")
 	}
 
+	var overrideMAC net.HardwareAddr
+	if !autoDst {
+		overrideMAC, err = getNeighborMAC(iface, net.ParseIP(*tunnelIP))
+		if err != nil {
+			log.Fatalf("Resolve return endpoint: %v", err)
+		}
+	}
+
 	runWorker := func(receiver packetReceiver, txSender packetTransmitter) {
+		nextSessionError := int64(0)
 		forwarder := newLocalUDPDelivery(receiver, maxUplink)
 		defer forwarder.Close()
 		for {
@@ -148,8 +122,11 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 			clientKey := makeNatKey(pkt.srcIP, int(clientSrcPort))
 
 			state, created, err := acquireServerSession(&sessions, &sessionCreateMu, clientKey, func() (*serverSession, error) {
-				if activeSessions.Load() >= maxServerSessions {
-					return nil, fmt.Errorf("maximum active server sessions (%d) reached", maxServerSessions)
+				if activeSessions.Load() >= sessionLimit {
+					return nil, fmt.Errorf("maximum active server sessions (%d) reached", sessionLimit)
+				}
+				if !admission.allow(monotonicNow()) {
+					return nil, fmt.Errorf("server session creation rate exceeded")
 				}
 				localPort := expectedDstPort
 				if *outboundPort != 0 {
@@ -172,10 +149,21 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 				return state, nil
 			})
 			if err != nil {
-				log.Printf("Create session: %v", err)
+				if now := monotonicNow(); now >= nextSessionError {
+					log.Printf("Create session: %v (further errors suppressed for one second)", err)
+					nextSessionError = now + int64(time.Second)
+				}
 				continue
 			}
 			conn := state.conn
+			if autoDst {
+				mac := [6]byte(pkt.srcMAC)
+				previous := state.replyMAC.Load()
+				if previous == nil || *previous != mac {
+					replacement := mac
+					state.replyMAC.Store(&replacement)
+				}
+			}
 			if created {
 				// Create safe copies of the slices backed by the mmap ring
 				safeClientIP := make(net.IP, len(pkt.srcIP))
@@ -183,6 +171,9 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 
 				safeClientMAC := make(net.HardwareAddr, len(pkt.srcMAC))
 				copy(safeClientMAC, pkt.srcMAC)
+				if overrideMAC != nil {
+					copy(safeClientMAC, overrideMAC)
+				}
 
 				// Reply handler goroutine
 				go func(c *net.UDPConn, clientIP net.IP, clientPort uint16, clientMAC net.HardwareAddr,
@@ -213,9 +204,6 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 					}
 					noiseSent := false
 					txBuffers := make([][]byte, batchSize*framesPerDatagram)
-					for i := range txBuffers {
-						txBuffers[i] = make([]byte, max(60, mtu+14))
-					}
 					frames := make([][]byte, 0, len(txBuffers))
 					var pendingNoise noiseBatch
 					flush := func() {
@@ -239,6 +227,7 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 						return
 					}
 
+					neighbor := neighborRefresh{iface: iface, peer: dstClientIP}
 					var errRead error
 					n := 0
 					readPos := 0
@@ -262,7 +251,21 @@ func startServerAFPacket(upProto, dnProto uint8, iface string) {
 								return
 							}
 
+							if autoDst {
+								if mac := state.replyMAC.Load(); mac != nil {
+									copy(encoder.template[:6], mac[:])
+								}
+							} else {
+								neighbor.refresh(encoder)
+							}
 							readPos = 0
+						}
+						if txBuffers[0] == nil {
+							storage := make([]byte, len(txBuffers)*max(60, mtu+14))
+							size := max(60, mtu+14)
+							for i := range txBuffers {
+								txBuffers[i] = storage[i*size : (i+1)*size : (i+1)*size]
+							}
 						}
 						msg := &msgs[readPos]
 						readPos++

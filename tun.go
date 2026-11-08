@@ -71,6 +71,9 @@ func openTUNQueues(name, address string, mtu, count int) (queues []*os.File, err
 			}
 			req.SetUint16(flags)
 			e = unix.IoctlIfreq(fd, unix.TUNSETIFF, req)
+			if e == nil {
+				name = req.Name() // The kernel expands templates such as tun%d.
+			}
 		}
 		if e != nil {
 			unix.Close(fd)
@@ -139,7 +142,7 @@ func tunFlowPort(p []byte) uint16 {
 	return uint16(h%64512) + 1024
 }
 
-func tunTransmit(q *os.File, tx packetTransmitter, enc *tunnelEncoder, mtu, innerMTU int, client bool) error {
+func tunTransmit(q *os.File, tx packetTransmitter, enc *tunnelEncoder, mtu, innerMTU int, client bool, neighbor *neighborRefresh) error {
 	// A single worker can amortize more sends per syscall. With multiple
 	// workers keep bursts short so transmitters do not starve receive work.
 	tunBatchSize := batchSize
@@ -153,7 +156,11 @@ func tunTransmit(q *os.File, tx packetTransmitter, enc *tunnelEncoder, mtu, inne
 	// One blocking/pollable read, then drain only packets already available.
 	// Reusable batch storage avoids per-packet allocations and queue handoffs.
 	input := make([]byte, 65536)
-	storage := make([][]byte, tunBatchSize*2)
+	framesPerPacket := 1
+	if client && *fakeFrag {
+		framesPerPacket = 2
+	}
+	storage := make([][]byte, tunBatchSize*framesPerPacket)
 	for i := range storage {
 		storage[i] = make([]byte, max(60, mtu+14))
 	}
@@ -168,12 +175,14 @@ func tunTransmit(q *os.File, tx packetTransmitter, enc *tunnelEncoder, mtu, inne
 		if !client {
 			src, dst = dst, src
 		}
+		idx := len(frames)
 		flags := uint16(0x4000)
 		if client && *fakeFrag {
-			p = padData(p, 8, enc.transportLen)
+			buf := storage[idx][34+enc.transportLen : 34+enc.transportLen+len(p)]
+			copy(buf, p)
+			p = padData(buf, 8, enc.transportLen)
 			flags = 0x2000
 		}
-		idx := len(frames)
 		frame, e := enc.Encode(storage[idx], p, src, dst, id, flags, 0, true)
 		if e != nil {
 			return e
@@ -199,6 +208,9 @@ func tunTransmit(q *os.File, tx packetTransmitter, enc *tunnelEncoder, mtu, inne
 			return io.EOF
 		}
 		frames = frames[:0]
+		if neighbor != nil {
+			neighbor.refresh(enc)
+		}
 		if err := encodeOne(input[:n]); err != nil {
 			return err
 		}
@@ -242,15 +254,19 @@ func tunTransmit(q *os.File, tx packetTransmitter, enc *tunnelEncoder, mtu, inne
 
 func tunReceive(q *os.File, rx packetReceiver, filter tunnelPacketFilter, peer, local net.IP, mtu int, client bool) error {
 	r := newPacketReader(rx)
-	peer4 := [4]byte(peer.To4())
-	local4 := [4]byte(local.To4())
+	peer4 := peer.To4()
+	local4 := local.To4()
+	if peer4 == nil || local4 == nil {
+		return fmt.Errorf("TUN receive requires IPv4 peer and local addresses")
+	}
+	peerAddr, localAddr := [4]byte(peer4), [4]byte(local4)
 	for {
 		frame, err := r.ReadPacket()
 		if err != nil {
 			return err
 		}
 		p, ok := parseEthIPv4(frame)
-		if !ok || [4]byte(p.srcIP) != peer4 || [4]byte(p.dstIP) != local4 {
+		if !ok || [4]byte(p.srcIP) != peerAddr || [4]byte(p.dstIP) != localAddr {
 			continue
 		}
 		src, dst, payload, ok := parseTunnelTransport(p, *fakeTCP)
@@ -300,7 +316,7 @@ func startTUN(iface string, peer net.IP, up, down uint8) error {
 	if err != nil {
 		return err
 	}
-	filterIP := resolveFilterDstIP(ifaceIP)
+	filterIP := resolveFilterDstIP(txSrcIP)
 	workers, err := newTunnelWorkers(iface, rxProto, mac, filterIP, uint16(*targetPort), client)
 	if err != nil {
 		return err
@@ -316,10 +332,14 @@ func startTUN(iface string, peer net.IP, up, down uint8) error {
 	filter := newTunnelPacketFilter(rxProto, mac, filterIP, uint16(*targetPort), client)
 	for i, w := range workers {
 		q := queues[i]
-		go func() { failed <- tunTransmit(q, w.sender, enc, mtu, innerMTU, client) }()
+		go func() {
+			workerEncoder := *enc
+			neighbor := neighborRefresh{iface: iface, peer: peer}
+			failed <- tunTransmit(q, w.sender, &workerEncoder, mtu, innerMTU, client, &neighbor)
+		}()
 		go func() { failed <- tunReceive(q, w.receiver, filter, peer, filterIP, innerMTU, client) }()
 	}
-	log.Printf("TUN %s address=%s mtu=%d outer-mtu=%d queues=%d (no encryption/authentication)", *tunName, *tunAddress, innerMTU, mtu, len(queues))
+	log.Printf("TUN %s address=%s mtu=%d outer-mtu=%d queues=%d (no encryption/authentication)", queues[0].Name(), *tunAddress, innerMTU, mtu, len(queues))
 	err = <-failed
 	for _, q := range queues {
 		q.Close()

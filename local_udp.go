@@ -36,7 +36,6 @@ type localUDPSocket struct {
 type localUDPWriter struct {
 	sockets     [batchSize]localUDPSocket
 	nextSocket  int
-	gsoDisabled bool
 	vectors     [packetBatchSize]unix.Iovec
 	messages    [packetBatchSize]packetMmsg
 	addresses   [packetBatchSize][unix.SizeofSockaddrInet6]byte
@@ -190,7 +189,8 @@ func (w *localUDPWriter) writeReady(fd uintptr) bool {
 				continue
 			}
 			if errno == unix.EAGAIN || errno == unix.EWOULDBLOCK {
-				return false
+				w.writeErr = errno
+				return true
 			}
 			if errno != 0 {
 				w.writeErr = errno
@@ -206,7 +206,8 @@ func (w *localUDPWriter) writeReady(fd uintptr) bool {
 			continue
 		}
 		if errno == unix.EAGAIN || errno == unix.EWOULDBLOCK {
-			return false
+			w.writeErr = errno
+			return true
 		}
 		if errno != 0 {
 			w.writeErr = errno
@@ -252,6 +253,7 @@ func (w *localUDPWriter) sendBatch(s *localUDPSocket, msgs []localUDPMessage) (i
 
 // WriteBatch sends only already available datagrams; it never waits to assemble
 // a larger batch. GSO uses scatter/gather, so no concatenation copy is required.
+// A full send queue returns EAGAIN instead of blocking unrelated receive flows.
 func (w *localUDPWriter) WriteBatch(msgs []localUDPMessage) (int, error) {
 	defer clear(w.vectors[:]) // Do not retain callers' packet buffers while idle.
 	sent := 0
@@ -261,7 +263,7 @@ func (w *localUDPWriter) WriteBatch(msgs []localUDPMessage) (int, error) {
 		if err != nil {
 			return sent, err
 		}
-		if s.gso && !w.gsoDisabled {
+		if s.gso {
 			if n := localGSOGroup(remaining); n > 1 {
 				err := w.sendGSO(s, remaining[:n])
 				if err == nil {
@@ -275,8 +277,8 @@ func (w *localUDPWriter) WriteBatch(msgs []localUDPMessage) (int, error) {
 					return sent, os.NewSyscallError("sendmsg", err)
 				}
 				// Unsupported GSO has not sent any datagrams. Retry the same
-				// messages, then use sendmmsg for this writer's future batches.
-				w.gsoDisabled = true
+				// messages, then use sendmmsg for this socket's future batches.
+				s.gso = false
 			}
 		}
 		n := 1

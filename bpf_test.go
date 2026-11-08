@@ -231,3 +231,28 @@ func TestCaptureFilterKernel(t *testing.T) {
 		t.Fatalf("maximum frame truncated: n=%d want=%d err=%v", n, len(large), err)
 	}
 }
+
+func TestExplicitCustomProtocolDestination(t *testing.T) {
+	old := *filterDstIP
+	*filterDstIP = "192.0.2.1"
+	t.Cleanup(func() { *filterDstIP = old })
+	own := net.HardwareAddr{0, 1, 2, 3, 4, 5}
+	ip := net.ParseIP(*filterDstIP)
+	filter := newTunnelPacketFilter(200, own, ip, 443, false)
+	ins, _ := bpf.Disassemble(createBPFFilter(200, own, false, ip, 443, false))
+	vm, err := bpf.NewVM(ins)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, matching := range []bool{true, false} {
+		p := filterPacket(200, 5, 123, 443)
+		if !matching {
+			p[33]++
+		}
+		n, err := vm.Run(p)
+		packet := ethIPv4{srcMAC: p[6:12], proto: 200, dstIP: p[30:34]}
+		if err != nil || (n > 0) != matching || filter.matches(packet, 123, 443) != matching {
+			t.Fatalf("custom protocol destination matching=%t: %d %v", matching, n, err)
+		}
+	}
+}

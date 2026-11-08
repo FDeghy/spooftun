@@ -117,6 +117,10 @@ func TestLocalUDPReaderOversize(t *testing.T) {
 			}
 			writer := newLocalUDPWriter()
 			addr := rx.LocalAddr().(*net.UDPAddr).AddrPort()
+			socket, err := writer.socket(tx)
+			if err != nil {
+				t.Fatal(err)
+			}
 			// Oversized standalone and GRO records must not leak prefixes or
 			// a valid-looking final short segment into the tunnel.
 			msgs := []localUDPMessage{{make([]byte, 4096), tx, addr}, {make([]byte, 1400), tx, addr}, {make([]byte, 1400), tx, addr}, {make([]byte, 37), tx, addr}}
@@ -124,12 +128,12 @@ func TestLocalUDPReaderOversize(t *testing.T) {
 				if n, err := writer.WriteBatch(msgs); n != len(msgs) || err != nil {
 					t.Fatalf("oversize send: %d %v", n, err)
 				}
-				if writer.gsoDisabled {
+				if !socket.gso {
 					t.Skip("kernel GSO unavailable; standalone limit tested separately")
 				}
 			} else {
 				// Without GRO, a short datagram is independently valid.
-				writer.gsoDisabled = true
+				socket.gso = false
 				if n, err := writer.WriteBatch(msgs[:3]); n != 3 || err != nil {
 					t.Fatalf("oversize send: %d %v", n, err)
 				}

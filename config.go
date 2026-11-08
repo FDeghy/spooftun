@@ -87,7 +87,7 @@ var (
 	downProto          = flag.Int("downlink-proto", -1, "IP protocol for server→client packets. Overrides -proto for that direction; -1 means inherit -proto.")
 	ifaceName          = flag.String("iface", "", "Network interface to use for AF_PACKET (auto-detect if empty)")
 	fakeFrag           = flag.Bool("fake-frag", false, "Use fake frag only for *client uplink, must be enabled in *server to receiving fake frag packets")
-	filterDstIP        = flag.String("filter-dst-ip", "", "Destination IP for BPF capture filter (TCP/UDP proto). Use when -src-ip is spoofed and the on-wire dst IP differs. Defaults to -src-ip.")
+	filterDstIP        = flag.String("filter-dst-ip", "", "Destination IP for capture filtering (all protocols when explicit). TCP/UDP defaults to -src-ip; custom protocols are otherwise unrestricted.")
 	fakeTCP            = flag.Bool("fake-tcp", false, "Use a TCP-shaped header instead of UDP for tunnel framing. Must match on both ends.")
 	noise              = flag.Bool("noise", false, "Send noise once per flow before its first datagram (UDP framing, outgoing protocol 17 only)")
 	noisePayload       = flag.String("noise-payload", "", "Base64 noise content after the internal marker (empty uses random content; requires -noise)")

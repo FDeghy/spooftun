@@ -63,7 +63,11 @@ func TestLocalUDPBatchDatagramBoundaries(t *testing.T) {
 						tx = localUDPListener(t, network)
 					}
 					writer := newLocalUDPWriter()
-					writer.gsoDisabled = !gso
+					socket, err := writer.socket(tx)
+					if err != nil {
+						t.Fatal(err)
+					}
+					socket.gso = socket.gso && gso
 					addr := rx.LocalAddr().(*net.UDPAddr).AddrPort()
 					if connected {
 						addr = netip.AddrPort{}
@@ -139,7 +143,7 @@ func TestLocalUDPActualGSOSegments(t *testing.T) {
 			for _, msg := range msgs {
 				assertLocalUDP(t, rx, msg.payload)
 			}
-			if writer.gsoDisabled {
+			if !socket.gso {
 				t.Log("UDP_SEGMENT probe succeeded but send was rejected; verified sendmmsg fallback")
 			} else {
 				t.Logf("verified %d actual UDP_SEGMENT datagrams", len(msgs))
@@ -181,8 +185,26 @@ func TestLocalUDPGSOFallback(t *testing.T) {
 					assertLocalUDP(t, rx, msg.payload)
 				}
 			}
-			if attempts != 1 || !writer.gsoDisabled {
-				t.Fatalf("GSO fallback not remembered: attempts=%d disabled=%t", attempts, writer.gsoDisabled)
+			if attempts != 1 || socket.gso {
+				t.Fatalf("GSO fallback not remembered: attempts=%d disabled=%t", attempts, !socket.gso)
+			}
+			other := localUDPListener(t, "udp4")
+			otherSocket, err := writer.socket(other)
+			if err != nil {
+				t.Fatal(err)
+			}
+			otherSocket.gso = true
+			for i := range msgs {
+				msgs[i].conn = other
+			}
+			if n, err := writer.WriteBatch(msgs); n != 2 || err != nil {
+				t.Fatalf("second socket: %d %v", n, err)
+			}
+			if attempts != 2 {
+				t.Fatal("one socket disabled GSO on another")
+			}
+			for _, msg := range msgs {
+				assertLocalUDP(t, rx, msg.payload)
 			}
 		})
 	}
@@ -191,7 +213,11 @@ func TestLocalUDPGSOFallback(t *testing.T) {
 func TestLocalUDPPartialAndClosedSocket(t *testing.T) {
 	rx, tx := localUDPListener(t, "udp4"), localUDPListener(t, "udp4")
 	writer := newLocalUDPWriter()
-	writer.gsoDisabled = true
+	socket, err := writer.socket(tx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	socket.gso = false
 	addr := rx.LocalAddr().(*net.UDPAddr).AddrPort()
 	msgs := []localUDPMessage{{[]byte{1}, tx, addr}, {make([]byte, 65508), tx, addr}, {[]byte{3}, tx, addr}}
 	if n, err := writer.WriteBatch(msgs); n != 1 || !errors.Is(err, unix.EMSGSIZE) {
@@ -273,11 +299,11 @@ func BenchmarkLocalUDPWriter(b *testing.B) {
 				defer tx.Close()
 				_ = rx.SetReadBuffer(socketBufSize)
 				writer := newLocalUDPWriter()
-				writer.gsoDisabled = mode != "gso"
 				socket, err := writer.socket(tx)
 				if err != nil {
 					b.Fatal(err)
 				}
+				socket.gso = socket.gso && mode == "gso"
 				if mode == "gso" && !socket.gso {
 					b.Skip("kernel UDP_SEGMENT unavailable")
 				}
@@ -314,5 +340,38 @@ func BenchmarkLocalUDPWriter(b *testing.B) {
 				<-done
 			})
 		}
+	}
+}
+
+func TestLocalUDPFullSendQueueDoesNotWait(t *testing.T) {
+	fds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_DGRAM|unix.SOCK_NONBLOCK|unix.SOCK_CLOEXEC, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	file := os.NewFile(uintptr(fds[0]), "full-send-queue")
+	defer file.Close()
+	defer unix.Close(fds[1])
+	payload := []byte{1}
+	for {
+		_, err := unix.Write(fds[0], payload)
+		if err == unix.EAGAIN {
+			break
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	raw, err := file.SyscallConn()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A blocked implementation would return the deadline error instead of EAGAIN.
+	if err := file.SetWriteDeadline(time.Now().Add(time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	w := newLocalUDPWriter()
+	n, err := w.sendBatch(&localUDPSocket{raw: raw}, []localUDPMessage{{payload: payload}})
+	if n != 0 || !errors.Is(err, unix.EAGAIN) {
+		t.Fatalf("full queue: n=%d err=%v", n, err)
 	}
 }

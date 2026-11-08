@@ -33,7 +33,7 @@ type tunnelPacketFilter struct {
 }
 
 func newTunnelPacketFilter(proto uint8, srcMAC net.HardwareAddr, localIP net.IP, port uint16, isClient bool) tunnelPacketFilter {
-	f := tunnelPacketFilter{proto: proto, port: port, isClient: isClient, checkIP: localIP != nil}
+	f := tunnelPacketFilter{proto: proto, port: port, isClient: isClient, checkIP: localIP != nil && (proto == 6 || proto == 17 || *filterDstIP != "")}
 	if len(srcMAC) != 6 || localIP != nil && localIP.To4() == nil {
 		return f
 	}
@@ -47,11 +47,11 @@ func (f tunnelPacketFilter) matches(p ethIPv4, srcPort, dstPort uint16) bool {
 	if !f.valid || p.proto != f.proto || p.fragOffset != 0 || len(p.srcMAC) != 6 || [6]byte(p.srcMAC) == f.srcMAC {
 		return false
 	}
-	if f.proto != 6 && f.proto != 17 {
-		return true
-	}
 	if f.checkIP && (len(p.dstIP) != 4 || [4]byte(p.dstIP) != f.localIP) {
 		return false
+	}
+	if f.proto != 6 && f.proto != 17 {
+		return true
 	}
 	if f.port == 0 {
 		return true
@@ -64,7 +64,8 @@ func (f tunnelPacketFilter) matches(p ethIPv4, srcPort, dstPort uint16) bool {
 
 // createBPFFilter assembles classic BPF directly: no libpcap or cgo is needed.
 // Source MAC, IPv4 protocol, and fragment offset are checked for every mode.
-// TCP/UDP also match destination IP and the directional tunnel port. The port
+// TCP/UDP also match destination IP and the directional tunnel port. Explicit
+// destination filters apply to custom protocols too. The port
 // offset follows IPv4 IHL so packets with IP options are filtered correctly.
 func createBPFFilter(proto uint8, srcMAC net.HardwareAddr, fakeFrag bool, localIP net.IP, port uint16, isClient bool) []bpf.RawInstruction {
 	// fakeFrag changes framing, but a non-initial fragment never contains the
@@ -97,11 +98,11 @@ func createBPFFilter(proto uint8, srcMAC net.HardwareAddr, fakeFrag bool, localI
 	rejectUnless(bpf.JumpEqual, uint32(proto))
 	ins = append(ins, bpf.LoadAbsolute{Off: 20, Size: 2}, bpf.ALUOpConstant{Op: bpf.ALUOpAnd, Val: 0x1fff})
 	rejectUnless(bpf.JumpEqual, 0)
+	if localIP != nil && (proto == 6 || proto == 17 || *filterDstIP != "") {
+		ins = append(ins, bpf.LoadAbsolute{Off: 30, Size: 4})
+		rejectUnless(bpf.JumpEqual, binary.BigEndian.Uint32(localIP.To4()))
+	}
 	if proto == 6 || proto == 17 {
-		if localIP != nil {
-			ins = append(ins, bpf.LoadAbsolute{Off: 30, Size: 4})
-			rejectUnless(bpf.JumpEqual, binary.BigEndian.Uint32(localIP.To4()))
-		}
 		if port != 0 {
 			offset := uint32(14)
 			if !isClient {

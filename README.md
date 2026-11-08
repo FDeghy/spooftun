@@ -170,7 +170,7 @@ not a solution to a packet-processing bottleneck.
 | `-downlink-proto`      | `-1`             | both                                 | IP protocol for server→client packets. Overrides `-proto` for that direction; `-1` inherits `-proto`.                                                              |
 | `-iface`               | *(auto)*         | both                                 | Physical Ethernet interface for the selected backend. Auto-detected from the route to `-remote-ip` if empty.                                                       |
 | `-src-ip`              | *(auto)*         | both                                 | Force a specific source IP (spoofing). Defaults to the interface IP.                                                                                               |
-| `-filter-dst-ip`       | *(empty)*        | both                                 | Destination IP for the BPF capture filter (TCP/UDP protos only). Use when `-src-ip` is spoofed and the on-wire destination differs from it; defaults to `-src-ip`. |
+| `-filter-dst-ip`       | *(empty)*        | both                                 | Destination IP for capture filtering. An explicit value applies to every protocol; TCP/UDP otherwise default to `-src-ip`. |
 | `-fake-tcp`            | `false`          | both                                 | Use a TCP-shaped header instead of UDP for tunnel framing. Must match on both ends.                                                                                |
 | `-tcp-flags`           | `0x18`           | both                                 | TCP flag byte (hex or decimal) used with `-fake-tcp`, e.g. `0x18`=PSH+ACK, `0x10`=ACK, `0x02`=SYN.                                                                 |
 | `-fake-frag`           | `false`          | both                                 | Shape client uplink packets as IP fragments (with a decoy trailing fragment). Must be enabled on both ends: the client emits them, the server strips the padding.  |
@@ -447,3 +447,30 @@ sudo bash scripts/netns-test.sh --backend afpacket --afpacket-tx ring --bench-on
 sudo bash scripts/netns-test.sh --backend xdp --bench-only --benchmark --iterations 3
 sudo env SPOOFTUN_NETNS_TEST=1 go test -run TestNetworkNamespaceIntegration -v .
 ```
+
+### Resource bounds and address filtering
+
+Server admission is limited to 1,024 simultaneous UDP sessions and 64 MiB of
+reserved receive/transmit payload storage, whichever permits fewer sessions.
+The reservation includes eventual reply buffers and worst-case requested GRO
+storage; kernel socket queues and Go metadata are additional memory. At MTU
+1500 without noise this permits 1,024 sessions normally or 62 with GRO.
+New-session attempts are limited to 128 per one-second window; established
+sessions bypass that gate. Excess traffic is dropped, and admission errors
+are logged at most once per second per receive worker. Reply transmit storage
+is allocated only on the first reply.
+
+Local UDP send-queue exhaustion drops the affected datagram instead of waiting
+and blocking unrelated receive flows. GSO fallback is scoped to the cached
+socket, so an unsupported destination does not disable it for other sockets.
+
+Set `-filter-dst-ip` explicitly to restrict custom-protocol capture to one local
+address, including XDP redirection. Without this option custom protocols retain
+their broad capture behavior for compatibility. This is address selection, not
+authentication: UDP-mode source IPs remain unrestricted to support spoofing.
+The tunnel provides no encryption, authentication, or replay protection.
+
+Routed destinations refresh their next-hop MAC at most once every 30 seconds
+while transmitting; failed refreshes retain the last known address. In automatic
+server mode, replies learn the latest ingress MAC for that session. An explicit
+server `-remote-ip` resolves its own routed next hop instead of reusing ingress.
