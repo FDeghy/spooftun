@@ -78,10 +78,6 @@ func (r *afpacketReceiver) ReadPacket() ([]byte, error) {
 }
 func (r *afpacketReceiver) Close() error { r.socket.Close(); return nil }
 
-func newTunnelIO(iface string, proto uint8, mac net.HardwareAddr, localIP net.IP, port uint16, isClient bool) (packetReceiver, packetTransmitter, error) {
-	return newTunnelIOWorker(iface, proto, mac, localIP, port, isClient, true)
-}
-
 func newTunnelIOWorker(iface string, proto uint8, mac net.HardwareAddr, localIP net.IP, port uint16, isClient, needTX bool) (packetReceiver, packetTransmitter, error) {
 	if *backend == "xdp" {
 		return newXDPIO(iface, proto, mac, localIP, port, isClient)

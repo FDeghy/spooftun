@@ -122,9 +122,8 @@ func main() {
 		log.Fatal("-noise requires UDP framing and outgoing IP protocol 17")
 	}
 	if *tunName != "" {
-		if err := startTUN(iface, serverIP, upProto, dnProto); err != nil {
-			log.Fatal(err)
-		}
+		// TUN forwarding runs until an error; it has no successful return path.
+		log.Fatal(startTUN(iface, serverIP, upProto, dnProto))
 		return
 	}
 	if *mode == "client" {
